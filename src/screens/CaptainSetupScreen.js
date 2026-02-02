@@ -1,10 +1,11 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-// IMPORTAR ÍCONES
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-export default function CaptainSetupScreen({ navigation }) {
+export default function CaptainSetupScreen() {
+  const navigation = useNavigation();
   const [familyName, setFamilyName] = useState('');
   const [captainName, setCaptainName] = useState('');
   const [pin, setPin] = useState('');
@@ -14,14 +15,15 @@ export default function CaptainSetupScreen({ navigation }) {
       Alert.alert("Opa!", "Preencha tudo para fundar o QG.");
       return;
     }
-    navigation.replace('CaptainHome');
+    
+    // AQUI ESTÁ A MUDANÇA: Passando o nome para a Home
+    navigation.replace('CaptainHome', { captainName: captainName });
   };
 
   return (
     <LinearGradient colors={['#4c1d95', '#c026d3']} style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
         
-        {/* Ícone de Castelo/QG */}
         <View style={styles.iconCircle}>
             <MaterialCommunityIcons name="castle" size={50} color="#fff" />
         </View>
@@ -40,10 +42,10 @@ export default function CaptainSetupScreen({ navigation }) {
             onChangeText={setFamilyName}
           />
 
-          <Text style={styles.label}>Seu Nome de Capitão</Text>
+          <Text style={styles.label}>Seu Nome de Comando</Text>
           <TextInput 
             style={styles.input} 
-            placeholder="Ex: Papai Dan" 
+            placeholder="Ex: Capitã Mamãe, Papai Dan..." 
             placeholderTextColor="#ddd"
             value={captainName}
             onChangeText={setCaptainName}
@@ -64,6 +66,13 @@ export default function CaptainSetupScreen({ navigation }) {
           <TouchableOpacity style={styles.button} onPress={handleCreateHQ}>
             <Text style={styles.buttonText}>Criar QG</Text>
             <MaterialCommunityIcons name="arrow-right" size={20} color="#4c1d95" style={{marginLeft: 10}} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+              style={styles.linkContainer} 
+              onPress={() => navigation.navigate('CaptainJoin')}
+          >
+              <Text style={styles.linkText}>Já tem convite? Entrar como Copiloto</Text>
           </TouchableOpacity>
 
         </View>
@@ -116,7 +125,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fbbf24',
     padding: 18,
     borderRadius: 15,
-    flexDirection: 'row', // Para alinhar texto e ícone
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
@@ -124,5 +133,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 10,
   },
-  buttonText: { color: '#4c1d95', fontWeight: 'bold', fontSize: 18 }
+  buttonText: { color: '#4c1d95', fontWeight: 'bold', fontSize: 18 },
+  
+  linkContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    padding: 10,
+  },
+  linkText: {
+    color: '#fff',
+    textDecorationLine: 'underline',
+    fontSize: 14,
+    opacity: 0.8
+  }
 });

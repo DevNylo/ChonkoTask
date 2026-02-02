@@ -1,32 +1,21 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-// 1. IMPORTAR A BIBLIOTECA DE ÍCONES DO EXPO
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// IMPORTANTE: Importa o hook da memória global
+import { useTasks } from '../context/TasksContext';
 
-// 2. LISTA DE ÍCONES (Usando nomes da biblioteca MaterialCommunityIcons)
-// Você pode buscar nomes aqui: https://icons.expo.fyi/Index
-const ICON_OPTIONS = [
-  { name: 'broom', label: 'Limpeza' },
-  { name: 'bed', label: 'Cama' },
-  { name: 'book-open-page-variant', label: 'Estudo' },
-  { name: 'dog', label: 'Pet' },
-  { name: 'silverware-fork-knife', label: 'Comer' },
-  { name: 'shower', label: 'Banho' },
-  { name: 'controller-classic', label: 'Lazer' },
-  { name: 'trash-can', label: 'Lixo' },
-  { name: 'flower', label: 'Jardim' },
-  { name: 'tshirt-crew', label: 'Roupa' },
-];
+const ICONS = ['broom', 'bed', 'book-open-page-variant', 'dog', 'silverware-fork-knife', 'shower', 'controller-classic', 'trash-can', 'flower', 'tshirt-crew'];
 
 export default function CreateTaskScreen() {
   const navigation = useNavigation();
+  // Pega a função addTask da nuvem
+  const { addTask } = useTasks();
   
   const [title, setTitle] = useState('');
   const [reward, setReward] = useState('');
-  // O estado agora guarda o NOME do ícone
-  const [selectedIcon, setSelectedIcon] = useState(ICON_OPTIONS[0].name);
+  const [selectedIcon, setSelectedIcon] = useState(ICONS[0]);
 
   const handleSave = () => {
     if (!title || !reward) {
@@ -34,7 +23,19 @@ export default function CreateTaskScreen() {
       return;
     }
     
-    Alert.alert("Sucesso!", "Tarefa criada! O Chonko aprovou.", [
+    // Cria o objeto da tarefa
+    const newTask = {
+      id: Date.now().toString(), // Gera ID único
+      title: title,
+      reward: parseInt(reward), // Converte texto para número
+      icon: selectedIcon,
+      status: 'pending'
+    };
+
+    // Salva na nuvem
+    addTask(newTask);
+    
+    Alert.alert("Sucesso!", "Tarefa enviada para o Recruta!", [
       { text: "OK", onPress: () => navigation.goBack() }
     ]);
   };
@@ -51,7 +52,6 @@ export default function CreateTaskScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          
           <View style={styles.glassCard}>
             
             <Text style={styles.label}>O que precisa ser feito?</Text>
@@ -61,7 +61,7 @@ export default function CreateTaskScreen() {
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={title}
               onChangeText={setTitle}
-              autoFocus={false}
+              autoFocus={true}
             />
 
             <Text style={styles.label}>Recompensa (Chonko Coins)</Text>
@@ -79,21 +79,13 @@ export default function CreateTaskScreen() {
 
             <Text style={styles.label}>Escolha um Ícone</Text>
             <View style={styles.iconContainer}>
-              {ICON_OPTIONS.map((item) => (
+              {ICONS.map((icon) => (
                 <TouchableOpacity 
-                  key={item.name} 
-                  style={[
-                    styles.iconButton, 
-                    selectedIcon === item.name && styles.iconSelected
-                  ]}
-                  onPress={() => setSelectedIcon(item.name)}
+                  key={icon} 
+                  style={[styles.iconButton, selectedIcon === icon && styles.iconSelected]}
+                  onPress={() => setSelectedIcon(icon)}
                 >
-                  {/* 3. RENDERIZAR O ÍCONE VETORIAL */}
-                  <MaterialCommunityIcons 
-                    name={item.name} 
-                    size={28} 
-                    color={selectedIcon === item.name ? '#4c1d95' : '#fff'} 
-                  />
+                  <MaterialCommunityIcons name={icon} size={24} color={selectedIcon === icon ? '#4c1d95' : '#fff'} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -103,7 +95,6 @@ export default function CreateTaskScreen() {
             </TouchableOpacity>
 
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -112,78 +103,19 @@ export default function CreateTaskScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    marginTop: 10, 
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, marginTop: 10 },
   title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
   closeBtn: { color: '#fbbf24', fontSize: 16, fontWeight: 'bold' },
-  
   scrollContent: { padding: 20 },
-  
-  glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 25,
-    padding: 25,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
+  glassCard: { backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 25, padding: 25, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)' },
   label: { color: '#ddd', marginBottom: 10, fontWeight: '600', fontSize: 14 },
-  input: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 15,
-    padding: 15,
-    color: '#fff',
-    fontSize: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  
+  input: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 15, padding: 15, color: '#fff', fontSize: 18, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   rewardRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   coinIcon: { fontSize: 30, marginRight: 10 },
   rewardInput: { flex: 1, marginBottom: 0, fontSize: 24, fontWeight: 'bold', color: '#fbbf24' },
-
-  iconContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between', // Espalha bem os ícones
-    marginBottom: 30,
-  },
-  iconButton: {
-    width: 55, // Um pouco maior
-    height: 55,
-    borderRadius: 27.5, // Redondo perfeito
-    backgroundColor: 'rgba(255,255,255,0.15)', // Fundo sutil
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  iconSelected: {
-    backgroundColor: '#fbbf24', // Fundo Amarelo ao selecionar
-    transform: [{ scale: 1.15 }], // Cresce um pouco
-    borderColor: '#fff',
-    borderWidth: 2,
-    // Sombra para destacar
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-  },
-  saveButton: {
-    backgroundColor: '#10b981', 
-    padding: 18,
-    borderRadius: 15,
-    alignItems: 'center',
-    shadowColor: '#10b981',
-    shadowOpacity: 0.4,
-    shadowOffset: { width: 0, height: 4 },
-  },
+  iconContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 30 },
+  iconButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  iconSelected: { backgroundColor: '#fbbf24', transform: [{ scale: 1.1 }], borderWidth: 2, borderColor: '#fff' },
+  saveButton: { backgroundColor: '#10b981', padding: 18, borderRadius: 15, alignItems: 'center', shadowColor: '#10b981', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 4 } },
   saveText: { color: '#fff', fontWeight: 'bold', fontSize: 18 }
 });

@@ -1,8 +1,14 @@
-import 'react-native-gesture-handler'; // Import obrigatório para navegação funcionar bem
+import 'react-native-gesture-handler';
+// Importa o Navegador
 import AppNavigator from './src/navigation/AppNavigator';
+// Importa o Provedor de Tarefas
+import { TasksProvider } from './src/context/TasksContext';
 
 export default function App() {
   return (
-    <AppNavigator />
+    // O Provider precisa envolver o Navigator para funcionar
+    <TasksProvider>
+      <AppNavigator />
+    </TasksProvider>
   );
 }

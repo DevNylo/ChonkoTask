@@ -1,7 +1,6 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-// IMPORTAR ÍCONES
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function RoleSelectionScreen() {
   const navigation = useNavigation();
@@ -10,25 +9,29 @@ export default function RoleSelectionScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Quem é você?</Text>
 
-      {/* Botão Pai - Capitão */}
+      {/* Botão Responsáveis (Pai/Mãe) */}
       <TouchableOpacity 
         style={[styles.card, styles.cardCaptain]}
         onPress={() => navigation.navigate('CaptainSetup')} 
       >
         <MaterialCommunityIcons name="shield-crown" size={50} color="#4c1d95" style={styles.icon} />
-        <Text style={styles.text}>Sou o Capitão</Text>
-        <Text style={styles.subtext}>Gerenciar QG</Text>
+        <Text style={styles.text}>Sou Responsável</Text>
+        <Text style={styles.subtext}>Capitão(ã) ou Copiloto</Text>
       </TouchableOpacity>
 
-      {/* Botão Filho - Recruta */}
+      {/* Botão Filhos */}
       <TouchableOpacity 
         style={[styles.card, styles.cardRecruit]}
-        onPress={() => navigation.navigate('RecruitLink')}
+        // --- MUDANÇA TEMPORÁRIA PARA TESTE ---
+        // Estamos indo direto para a Home da Criança para você ver o layout.
+        // Depois voltaremos para 'RecruitLink' quando o fluxo de código estiver pronto.
+        onPress={() => navigation.navigate('RecruitHomeTab')}
       >
         <MaterialCommunityIcons name="controller-classic" size={50} color="#059669" style={styles.icon} />
-        <Text style={styles.text}>Sou o Recruta</Text>
+        <Text style={styles.text}>Sou Recruta</Text>
         <Text style={styles.subtext}>Cumprir Missões</Text>
       </TouchableOpacity>
+
     </View>
   );
 }

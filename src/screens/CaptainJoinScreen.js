@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function CaptainJoinScreen() {
   const navigation = useNavigation();
@@ -15,10 +15,12 @@ export default function CaptainJoinScreen() {
       return;
     }
     
-    // SIMULAÇÃO: O BACKEND VERIFICARIA SE O CÓDIGO É VÁLIDO
-    
-    Alert.alert("Bem-vindo(a) a bordo!", `Você agora administra a família com ${myName}.`, [
-        { text: "Vamos lá", onPress: () => navigation.replace('CaptainHome') }
+    // AQUI ESTÁ A MUDANÇA: Passando o nome escolhido para a Home
+    Alert.alert("Bem-vindo(a) a bordo!", `Você agora administra a família como ${myName}.`, [
+        { 
+          text: "Vamos lá", 
+          onPress: () => navigation.replace('CaptainHome', { captainName: myName }) 
+        }
     ]);
   };
 
@@ -26,31 +28,29 @@ export default function CaptainJoinScreen() {
     <LinearGradient colors={['#4c1d95', '#c026d3']} style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.content}>
         
-        {/* Botão Voltar */}
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
              <MaterialCommunityIcons name="arrow-left" size={28} color="#fff" />
         </TouchableOpacity>
 
-        {/* Ícone de Dupla/Parceiros */}
         <View style={styles.iconCircle}>
             <MaterialCommunityIcons name="account-group" size={50} color="#fff" />
         </View>
 
-        <Text style={styles.title}>Modo Copiloto</Text>
-        <Text style={styles.subtitle}>Gerencie a família junto com seu parceiro(a)</Text>
+        <Text style={styles.title}>Entrar no QG</Text>
+        <Text style={styles.subtitle}>Gerencie junto com seu parceiro(a)</Text>
 
         <View style={styles.glassCard}>
           
-          <Text style={styles.label}>Como você quer ser chamado(a)?</Text>
+          <Text style={styles.label}>Seu Nome (Copiloto/a)</Text>
           <TextInput 
             style={styles.input} 
-            placeholder="Ex: Mamãe, Titia Ana..." 
+            placeholder="Ex: Titia Ana, Vovô..." 
             placeholderTextColor="#ddd"
             value={myName}
             onChangeText={setMyName}
           />
 
-          <Text style={styles.label}>Código de Convite (Admin)</Text>
+          <Text style={styles.label}>Código do QG</Text>
           <TextInput 
             style={[styles.input, styles.codeInput]} 
             placeholder="VIP-CODE" 
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   codeInput: { letterSpacing: 2, fontWeight: 'bold', textAlign: 'center' },
   
   button: {
-    backgroundColor: '#d946ef', // Roxo/Rosa Fúcsia para diferenciar
+    backgroundColor: '#d946ef', 
     padding: 18,
     borderRadius: 15,
     flexDirection: 'row',
