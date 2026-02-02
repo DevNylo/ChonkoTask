@@ -32,7 +32,6 @@ export function TasksProvider({ children }) {
       } catch (error) {
         console.log('Erro ao carregar dados:', error);
       } finally { 
-        // CORREÇÃO AQUI: Era 'final', o certo é 'finally'
         setLoading(false);
       }
     }
@@ -61,8 +60,13 @@ export function TasksProvider({ children }) {
     setTasks(prev => [newTask, ...prev]);
   }
 
-  function completeTask(taskId) {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'waiting_approval' } : t));
+  // >>> MUDANÇA AQUI: Agora aceita a foto (photoUri) <<<
+  function completeTask(taskId, photoUri = null) {
+    setTasks(prev => prev.map(t => 
+      t.id === taskId 
+        ? { ...t, status: 'waiting_approval', proof: photoUri } // Salva o caminho da foto
+        : t
+    ));
   }
 
   function approveTask(taskId) {
@@ -74,6 +78,7 @@ export function TasksProvider({ children }) {
   }
 
   function rejectTask(taskId) {
+    // Ao rejeitar, a tarefa volta a ser 'pending' (pendente)
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'pending' } : t));
   }
 

@@ -1,32 +1,20 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native'; // Importante para navegar
+import { LinearGradient } from 'expo-linear-gradient';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Chonko3D from '../../components/Chonko3D';
 import { useTasks } from '../../context/TasksContext';
-import Chonko3D from '../../components/Chonko3D'; 
 
 export default function RecruitTasksScreen() {
-  const { tasks, completeTask, coins } = useTasks();
+  const navigation = useNavigation(); // Hook de navegação
+  const { tasks, coins } = useTasks();
   
   const myTasks = tasks.filter(t => t.status === 'pending');
-  
   const recruitName = "Enzo";
 
   const handleCameraClick = (task) => {
-    Alert.alert(
-        "📸 Enviar Prova",
-        `Tirar foto de: ${task.title}?`,
-        [
-            { text: "Cancelar", style: "cancel" },
-            { 
-                text: "Enviar Foto", 
-                onPress: () => {
-                    completeTask(task.id);
-                    Alert.alert("Sucesso!", "O Capitão recebeu sua foto. Aguarde a aprovação!");
-                } 
-            }
-        ]
-    );
+    // MUDANÇA: Navega para a tela da câmera passando o ID da tarefa
+    navigation.navigate('RecruitCamera', { taskId: task.id });
   };
 
   const renderTaskCard = ({ item }) => (
@@ -49,6 +37,7 @@ export default function RecruitTasksScreen() {
     <View style={styles.container}>
       <LinearGradient colors={['#059669', '#34d399']} style={styles.gradientBackground} />
 
+      {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.logoContainer}>
@@ -62,6 +51,7 @@ export default function RecruitTasksScreen() {
         </View>
       </View>
 
+      {/* MASCOTE */}
       <View style={styles.mascotArea}>
         <Chonko3D />
         <View style={styles.speechBubble}>
@@ -71,6 +61,7 @@ export default function RecruitTasksScreen() {
         </View>
       </View>
 
+      {/* LISTA DE TAREFAS */}
       <View style={styles.tasksContainer}>
         <Text style={styles.sectionTitle}>Missões de Hoje</Text>
         
@@ -91,6 +82,7 @@ export default function RecruitTasksScreen() {
             />
         )}
       </View>
+
     </View>
   );
 }

@@ -1,7 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, ScrollView, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTasks } from '../context/TasksContext';
 
 export default function CaptainHomeScreen() {
@@ -25,6 +26,15 @@ export default function CaptainHomeScreen() {
 
   const renderApprovalCard = ({ item }) => (
     <View style={styles.approvalCard}>
+      
+      {/* EXIBE A FOTO SE HOUVER */}
+      {item.proof && (
+          <Image 
+            source={{ uri: item.proof }} 
+            style={styles.proofThumb}
+          />
+      )}
+
       <View style={styles.approvalInfo}>
         <Text style={styles.approvalTitle}>{item.title}</Text>
         <Text style={styles.approvalReward}>Vale 💰 {item.reward}</Text>
@@ -67,12 +77,10 @@ export default function CaptainHomeScreen() {
             </View>
             
             <View style={{flexDirection: 'row', gap: 10}}>
-                {/* BOTÃO DA LOJA (NOVO) */}
                 <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('CaptainShop')}>
                     <MaterialCommunityIcons name="store" size={24} color="#fff" />
                 </TouchableOpacity>
 
-                {/* BOTÃO DO COPILOTO */}
                 <TouchableOpacity style={styles.iconBtn} onPress={showInviteCode}>
                     <MaterialCommunityIcons name="account-plus" size={24} color="#fff" />
                 </TouchableOpacity>
@@ -144,7 +152,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 30, borderBottomRightRadius: 30,
   },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'start' },
-  // MUDANÇA: Estilo genérico para botões do header
   iconBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12 },
   
   greeting: { color: 'rgba(255,255,255,0.8)', fontSize: 16 },
@@ -166,10 +173,14 @@ const styles = StyleSheet.create({
   sectionTitleAlert: { fontSize: 20, fontWeight: 'bold', color: '#ef4444', marginBottom: 15 },
   
   approvalCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 15,
+    backgroundColor: '#fff', borderRadius: 20, padding: 15, marginBottom: 15,
     borderLeftWidth: 5, borderLeftColor: '#f59e0b',
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: {width:0, height:2}
+  },
+  // ESTILO NOVO PARA FOTO
+  proofThumb: {
+    width: 60, height: 60, borderRadius: 10, marginRight: 15, backgroundColor: '#eee'
   },
   approvalInfo: { flex: 1 },
   approvalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
