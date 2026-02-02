@@ -1,10 +1,9 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-// Importa o contexto
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTasks } from '../../context/TasksContext';
-// IMPORTE O COMPONENTE 3D AQUI
-import Chonko3D from '../../components/Chonko3D';
+import Chonko3D from '../../components/Chonko3D'; 
 
 export default function RecruitTasksScreen() {
   const { tasks, completeTask, coins } = useTasks();
@@ -50,7 +49,6 @@ export default function RecruitTasksScreen() {
     <View style={styles.container}>
       <LinearGradient colors={['#059669', '#34d399']} style={styles.gradientBackground} />
 
-      {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.logoContainer}>
@@ -64,12 +62,8 @@ export default function RecruitTasksScreen() {
         </View>
       </View>
 
-      {/* ÁREA DO MASCOTE 3D */}
       <View style={styles.mascotArea}>
-        
-        {/* AQUI ESTÁ A MUDANÇA: O Pato 3D entra aqui! */}
         <Chonko3D />
-        
         <View style={styles.speechBubble}>
             <Text style={styles.speechText}>
                {myTasks.length > 0 ? "Quack! Foco na missão!" : "Quack! Tudo limpo."}
@@ -77,7 +71,6 @@ export default function RecruitTasksScreen() {
         </View>
       </View>
 
-      {/* LISTA DE TAREFAS */}
       <View style={styles.tasksContainer}>
         <Text style={styles.sectionTitle}>Missões de Hoje</Text>
         
@@ -98,7 +91,6 @@ export default function RecruitTasksScreen() {
             />
         )}
       </View>
-
     </View>
   );
 }
@@ -112,13 +104,9 @@ const styles = StyleSheet.create({
   recruitName: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   coinPouch: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.2)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   coinCount: { color: '#fbbf24', fontWeight: 'bold', fontSize: 16, marginLeft: 5 },
-  
-  // Ajuste na área do mascote para centralizar bem o 3D
   mascotArea: { flex: 2, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  
   speechBubble: { backgroundColor: '#fff', padding: 10, borderRadius: 15, marginTop: -20, elevation: 3, zIndex: 2 },
   speechText: { color: '#059669', fontWeight: 'bold' },
-  
   tasksContainer: { flex: 3, backgroundColor: '#F3F4F6', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20 },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 15 },
   taskCard: { flexDirection: 'row', backgroundColor: '#fff', padding: 15, borderRadius: 20, marginBottom: 15, alignItems: 'center', elevation: 2 },
