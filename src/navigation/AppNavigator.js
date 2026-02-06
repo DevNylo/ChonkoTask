@@ -1,24 +1,24 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View } from 'react-native';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-// Importação das Telas de Autenticação
+// --- COMPONENTES VISUAIS ---
+// Certifique-se de ter criado o arquivo SplashScreen.js conforme discutimos
+import SplashScreen from '../screens/SplashScreen';
+
+// --- TELAS DE AUTENTICAÇÃO ---
 import JoinFamilyScreen from '../screens/auth/JoinFamilyScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterCaptainScreen from '../screens/auth/RegisterCaptainScreen';
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
 
-// Importação das Telas Internas (Logadas)
-import RoleSelectionScreen from '../screens/RoleSelectionScreen';
-
-// Telas do Capitão
+// --- TELAS INTERNAS ---
 import CaptainHomeScreen from '../screens/CaptainHomeScreen';
+import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import CreateTaskScreen from '../screens/captain/CreateTaskScreen';
 import MemberRequestsScreen from '../screens/captain/MemberRequestsScreen';
 import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen';
-
-// Telas do Recruta (NOVO: Navegador de Abas + Câmera)
 import RecruitCameraScreen from '../screens/recruit/RecruitCameraScreen';
 import RecruitNavigator from './RecruitNavigator';
 
@@ -26,12 +26,19 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { session, loading } = useAuth();
+  
+  // Controla se a animação da Capivara já terminou
+  const [isSplashFinished, setIsSplashFinished] = useState(false);
 
-  if (loading) {
+  // Lógica de Bloqueio:
+  // Mostra Splash enquanto o Supabase carrega OU a animação não acabou.
+  const showSplash = loading || !isSplashFinished;
+
+  if (showSplash) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#4c1d95" />
-      </View>
+      <SplashScreen 
+        onFinish={() => setIsSplashFinished(true)} 
+      />
     );
   }
 
@@ -40,30 +47,26 @@ export default function AppNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         
         {session ? (
-          // --- TELAS PARA USUÁRIOS LOGADOS ---
+          // --- FLUXO LOGADO (PROTEGIDO) ---
           <>
-            {/* 1. Seleção de Perfil (Quem é você?) */}
             <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
             
-            {/* 2. Área do Capitão */}
+            {/* Fluxo Capitão */}
             <Stack.Screen name="CaptainHome" component={CaptainHomeScreen} />
             <Stack.Screen name="CreateTask" component={CreateTaskScreen} />
             <Stack.Screen name="MemberRequests" component={MemberRequestsScreen} /> 
             <Stack.Screen name="TaskApprovals" component={TaskApprovalsScreen} />
             
-            {/* 3. Área do Recruta */}
-            {/* Agora apontamos para o Navigator de Abas, não para uma tela solta */}
+            {/* Fluxo Recruta */}
             <Stack.Screen name="RecruitHome" component={RecruitNavigator} />
-            
-            {/* A Câmera fica fora das abas para ocupar a tela toda */}
             <Stack.Screen 
                 name="RecruitCamera" 
                 component={RecruitCameraScreen} 
-                options={{ animation: 'slide_from_bottom' }} // Efeito de subir a câmera
+                options={{ animation: 'slide_from_bottom' }}
             />
           </>
         ) : (
-          // --- TELAS PÚBLICAS (LOGIN/CADASTRO) ---
+          // --- FLUXO PÚBLICO (AUTH) ---
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
