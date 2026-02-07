@@ -1,11 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Dimensions, Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 
-// --- PALETA DE CORES ---
+// --- PALETA DE CORES (BRANDING CHONKO) ---
 const COLORS = {
   outline: '#064E3B',    
   shadow: '#047857',     
@@ -32,15 +31,12 @@ export default function WelcomeScreen() {
       {/* --- CONTEÚDO PRINCIPAL --- */}
       <View style={styles.contentContainer}>
         
-        <Animated.Text 
-            entering={FadeInDown.delay(100).duration(500)}
-            style={styles.questionText}
-        >
+        <Text style={styles.questionText}>
             Quem é você?
-        </Animated.Text>
+        </Text>
 
         {/* OPÇÃO 1: CAPITÃO (Pai/Mãe) */}
-        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={{ width: '100%' }}>
+        <View style={{ width: '100%' }}>
             <TouchableOpacity 
               style={styles.cardWrapper}
               activeOpacity={0.9}
@@ -49,7 +45,7 @@ export default function WelcomeScreen() {
               <View style={styles.cardShadow} />
               
               <View style={styles.cardFront}>
-                {/* ÍCONE LIMPO E MAIOR */}
+                {/* ÍCONE */}
                 <View style={styles.iconWrapper}>
                    <Image 
                      source={require('../../../assets/icons/familly-icon1.png')} 
@@ -66,19 +62,19 @@ export default function WelcomeScreen() {
                 <MaterialCommunityIcons name="chevron-right" size={28} color={COLORS.outline} />
               </View>
             </TouchableOpacity>
-        </Animated.View>
+        </View>
 
         {/* OPÇÃO 2: RECRUTA (Filho) */}
-        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={{ width: '100%' }}>
+        <View style={{ width: '100%', marginTop: 20 }}>
             <TouchableOpacity 
-              style={[styles.cardWrapper, { marginTop: 20 }]}
+              style={styles.cardWrapper}
               activeOpacity={0.9}
               onPress={() => navigation.navigate('JoinFamily')} 
             >
               <View style={styles.cardShadow} />
 
               <View style={styles.cardFront}>
-                {/* ÍCONE LIMPO E MAIOR */}
+                {/* ÍCONE */}
                 <View style={styles.iconWrapper}>
                    <Image 
                      source={require('../../../assets/icons/rookie-icon1.png')} 
@@ -95,12 +91,12 @@ export default function WelcomeScreen() {
                 <MaterialCommunityIcons name="chevron-right" size={28} color={COLORS.outline} />
               </View>
             </TouchableOpacity>
-        </Animated.View>
+        </View>
         
       </View>
 
       {/* --- RODAPÉ: LOGIN --- */}
-      <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.footer}>
+      <View style={styles.footer}>
         <TouchableOpacity 
             style={styles.ghostButton} 
             activeOpacity={0.7}
@@ -108,7 +104,7 @@ export default function WelcomeScreen() {
         >
             <Text style={styles.ghostButtonText}>Já tenho uma conta</Text>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
     </ImageBackground>
   );
@@ -166,13 +162,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.outline,
   },
   
-  // Wrapper apenas para alinhamento, sem cor de fundo
   iconWrapper: { 
     marginRight: 15,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Ícone aumentado
   customIcon: {
     width: 48, 
     height: 48,
@@ -197,7 +191,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingBottom: 40,
     alignItems: 'center',
-    height: 100,
+    height: 150,
     justifyContent: 'center'
   },
   

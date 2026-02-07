@@ -42,7 +42,7 @@ export default function SplashScreen({ onFinish }) {
     
     // Anima a barra
     progressWidth.value = withTiming(BAR_WIDTH - 8, { 
-      duration: 7000, 
+      duration: 10000, 
       easing: Easing.bezier(0.25, 0.1, 0.25, 1), 
     }, (finished) => {
       if (finished) {
