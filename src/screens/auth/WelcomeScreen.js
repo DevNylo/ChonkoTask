@@ -1,220 +1,218 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// --- PALETA DE CORES ---
+const COLORS = {
+  outline: '#064E3B',    
+  shadow: '#047857',     
+  white: '#FFFFFF',
+  text: '#065F46',       
+  
+  captainAccent: '#3B82F6', 
+  recruitAccent: '#10B981', 
+};
 
 export default function WelcomeScreen() {
   const navigation = useNavigation();
 
   return (
-    <LinearGradient 
-      // Mantendo a consistência visual com a Splash Screen
-      colors={['#E0C3FC', '#8EC5FC']} 
+    <ImageBackground
+      source={require('../../../assets/WelcomeScreenBKG.png')} 
       style={styles.container}
+      resizeMode="cover"
     >
       
-      {/* --- HEADER --- */}
-      <View style={styles.header}>
-        {/* Ícone Estilo "Orb" (Esfera de Vidro) */}
-        <View style={styles.glassIconContainer}>
-          <View style={styles.glossCircle} />
-          <MaterialCommunityIcons name="rocket-launch-outline" size={50} color="#fff" />
-        </View>
+      {/* ESPAÇADOR DO TOPO */}
+      <View style={styles.headerSpacer} />
+
+      {/* --- CONTEÚDO PRINCIPAL --- */}
+      <View style={styles.contentContainer}>
         
-        <Text style={styles.title}>Chonko Task</Text>
-        <Text style={styles.subtitle}>Transforme deveres em aventuras.</Text>
-      </View>
-
-      {/* --- CONTEÚDO --- */}
-      <View style={styles.content}>
-        <Text style={styles.sectionTitle}>Como quer começar?</Text>
-
-        {/* OPÇÃO 1: CAPITÃO */}
-        <TouchableOpacity 
-          style={styles.glassCard}
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate('RegisterCaptain')}
+        <Animated.Text 
+            entering={FadeInDown.delay(100).duration(500)}
+            style={styles.questionText}
         >
-          {/* O "Brilho" superior do vidro */}
-          <View style={styles.cardGloss} />
-          
-          <View style={[styles.iconBox, { backgroundColor: '#FFF5E6' }]}>
-             <MaterialCommunityIcons name="crown" size={28} color="#F59E0B" />
-          </View>
-          
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.cardTitle}>Criar Família</Text>
-            <Text style={styles.cardDesc}>Sou Capitão (Pai/Mãe)</Text>
-          </View>
-          
-          <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
+            Quem é você?
+        </Animated.Text>
 
-        {/* OPÇÃO 2: ENTRAR EM FAMÍLIA */}
-        <TouchableOpacity 
-          style={[styles.glassCard, { marginTop: 15 }]}
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate('JoinFamily')} 
-        >
-          <View style={styles.cardGloss} />
+        {/* OPÇÃO 1: CAPITÃO (Pai/Mãe) */}
+        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={{ width: '100%' }}>
+            <TouchableOpacity 
+              style={styles.cardWrapper}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('RegisterCaptain')}
+            >
+              <View style={styles.cardShadow} />
+              
+              <View style={styles.cardFront}>
+                {/* ÍCONE LIMPO E MAIOR */}
+                <View style={styles.iconWrapper}>
+                   <Image 
+                     source={require('../../../assets/icons/familly-icon1.png')} 
+                     style={styles.customIcon}
+                     resizeMode="contain"
+                   />
+                </View>
+                
+                <View style={styles.cardTextContainer}>
+                  <Text style={[styles.cardTitle, { color: COLORS.captainAccent }]}>Criar Família</Text>
+                  <Text style={styles.cardDesc}>Vou criar e gerenciar missões.</Text>
+                </View>
+                
+                <MaterialCommunityIcons name="chevron-right" size={28} color={COLORS.outline} />
+              </View>
+            </TouchableOpacity>
+        </Animated.View>
 
-          <View style={[styles.iconBox, { backgroundColor: '#E6FFFA' }]}>
-             <MaterialCommunityIcons name="ticket-confirmation" size={28} color="#10B981" />
-          </View>
-          
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.cardTitle}>Entrar com Código</Text>
-            <Text style={styles.cardDesc}>Sou Recruta ou Parceiro</Text>
-          </View>
-          
-          <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
+        {/* OPÇÃO 2: RECRUTA (Filho) */}
+        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={{ width: '100%' }}>
+            <TouchableOpacity 
+              style={[styles.cardWrapper, { marginTop: 20 }]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('JoinFamily')} 
+            >
+              <View style={styles.cardShadow} />
+
+              <View style={styles.cardFront}>
+                {/* ÍCONE LIMPO E MAIOR */}
+                <View style={styles.iconWrapper}>
+                   <Image 
+                     source={require('../../../assets/icons/rookie-icon1.png')} 
+                     style={styles.customIcon}
+                     resizeMode="contain"
+                   />
+                </View>
+                
+                <View style={styles.cardTextContainer}>
+                  <Text style={[styles.cardTitle, { color: COLORS.recruitAccent }]}>Entrar na Equipe</Text>
+                  <Text style={styles.cardDesc}>Vou cumprir missões e ganhar prêmios.</Text>
+                </View>
+                
+                <MaterialCommunityIcons name="chevron-right" size={28} color={COLORS.outline} />
+              </View>
+            </TouchableOpacity>
+        </Animated.View>
         
       </View>
 
       {/* --- RODAPÉ: LOGIN --- */}
-      <View style={styles.footer}>
+      <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.footer}>
         <TouchableOpacity 
-            style={styles.loginButton} 
+            style={styles.ghostButton} 
+            activeOpacity={0.7}
             onPress={() => navigation.navigate('Login')}
         >
-            <Text style={styles.loginText}>Já tenho uma conta</Text>
+            <Text style={styles.ghostButtonText}>Já tenho uma conta</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
-    </LinearGradient>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    paddingTop: 60, 
-    paddingHorizontal: 25 
   },
   
-  // --- HEADER ---
-  header: { 
-    alignItems: 'center', 
-    marginBottom: 40 
-  },
-  glassIconContainer: { 
-    width: 90, 
-    height: 90, 
-    borderRadius: 45, 
-    backgroundColor: 'rgba(255, 255, 255, 0.2)', // Vidro limpo
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    marginBottom: 15,
-    // REMOVIDO: elevation e shadowColor (causa da mancha)
-  },
-  glossCircle: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    width: 25,
-    height: 25,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)', 
-  },
-  title: { 
-    fontSize: 36, 
-    fontWeight: '900', 
-    color: '#fff', 
-    // REMOVIDO: textShadow (deixa o texto sujo em telas low-res)
-    letterSpacing: 1
-  },
-  subtitle: { 
-    fontSize: 16, 
-    color: '#F3E8FF', // Roxo claríssimo em vez de opacidade
-    marginTop: 5,
-    fontWeight: '500' 
+  headerSpacer: {
+    height: height * 0.35, 
   },
   
-  // --- CONTEÚDO ---
-  content: { 
+  contentContainer: {
     flex: 1,
-    justifyContent: 'center'
-  },
-  sectionTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#5B2C6F', 
-    marginBottom: 20,
-    marginLeft: 10,
-    // Sem opacidade no texto para garantir leitura nítida
+    paddingHorizontal: 25,
+    justifyContent: 'flex-start', 
+    paddingTop: 10,
   },
   
-  // --- GLASS CARDS (CORRIGIDO) ---
-  glassCard: { 
+  questionText: {
+    fontSize: 22,
+    fontFamily: 'RobotoCondensed_700Bold', 
+    color: COLORS.text,
+    marginBottom: 25,
+    textAlign: 'left',
+    marginLeft: 5, 
+    textShadowColor: 'rgba(255,255,255,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1
+  },
+  
+  // --- CARDS ---
+  cardWrapper: {
+    position: 'relative',
+    height: 85, 
+    width: '100%',
+  },
+  cardShadow: {
+    position: 'absolute',
+    top: 5, left: 5,
+    width: '100%', height: '100%',
+    backgroundColor: COLORS.shadow,
+    borderRadius: 20,
+  },
+  cardFront: {
+    flex: 1,
     flexDirection: 'row', 
     alignItems: 'center', 
-    // Aumentei um pouco a opacidade para o texto ter mais contraste sem sombra
-    backgroundColor: 'rgba(255, 255, 255, 0.25)', 
-    padding: 20, 
-    borderRadius: 24, 
-    borderWidth: 1.5, // Borda um pouco mais grossa substitui a necessidade de sombra
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-    position: 'relative',
-    overflow: 'hidden'
-    // REMOVIDO: shadowColor, shadowOpacity, elevation (ADEUS MANCHA AZUL)
+    backgroundColor: COLORS.white, 
+    paddingHorizontal: 18, 
+    borderRadius: 20, 
+    borderWidth: 3, 
+    borderColor: COLORS.outline,
   },
-  cardGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '45%',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', 
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-  },
-  iconBox: { 
-    width: 50, 
-    height: 50, 
-    borderRadius: 18, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
+  
+  // Wrapper apenas para alinhamento, sem cor de fundo
+  iconWrapper: { 
     marginRight: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)' // Borda sutil no ícone
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  // Ícone aumentado
+  customIcon: {
+    width: 48, 
+    height: 48,
+  },
+  
   cardTextContainer: { 
     flex: 1 
   },
   cardTitle: { 
     fontSize: 18, 
-    fontWeight: '800', 
-    color: '#fff', 
-    // REMOVIDO: textShadow
+    fontFamily: 'RobotoCondensed_700Bold', 
+    marginBottom: 2
   },
   cardDesc: { 
     fontSize: 13, 
-    color: '#F3E8FF', // Cor sólida clara
-    marginTop: 2,
-    fontWeight: '600'
+    color: COLORS.outline, 
+    opacity: 0.8,
+    fontFamily: 'RobotoCondensed_400Regular' 
   },
 
   // --- RODAPÉ ---
   footer: {
     paddingBottom: 40,
-    alignItems: 'center'
+    alignItems: 'center',
+    height: 100,
+    justifyContent: 'center'
   },
-  loginButton: {
+  
+  ghostButton: {
     paddingVertical: 12,
-    paddingHorizontal: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)'
+    paddingHorizontal: 24,
+    borderRadius: 30, 
+    backgroundColor: 'rgba(255, 255, 255, 0.4)', 
+    borderWidth: 1.5,
+    borderColor: 'rgba(6, 78, 59, 0.2)', 
   },
-  loginText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16
-  }
+  ghostButtonText: {
+    color: COLORS.text,
+    fontFamily: 'RobotoCondensed_700Bold',
+    fontSize: 16,
+    letterSpacing: 0.5
+  },
 });
