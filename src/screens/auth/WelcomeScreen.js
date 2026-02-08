@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Dimensions, Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-// CORREÇÃO 1: O tema está 2 níveis acima (../..)
+// Importa o tema
 import { COLORS, FONTS } from '../../styles/theme';
 
 const { height } = Dimensions.get('window');
@@ -12,7 +12,6 @@ export default function WelcomeScreen() {
 
   return (
     <ImageBackground
-      // CORREÇÃO 2: Subir 3 níveis para achar a pasta assets na raiz (../../..)
       source={require('../../../assets/WelcomeScreenBKG.png')} 
       style={styles.container}
       resizeMode="cover"
@@ -33,7 +32,6 @@ export default function WelcomeScreen() {
               <View style={styles.cardShadow} />
               <View style={styles.cardFront}>
                 <View style={styles.iconWrapper}>
-                   {/* CORREÇÃO 3: Ajustar caminho do ícone também */}
                    <Image 
                      source={require('../../../assets/icons/familly-icon1.png')} 
                      style={styles.customIcon} resizeMode="contain"
@@ -48,17 +46,17 @@ export default function WelcomeScreen() {
             </TouchableOpacity>
         </View>
 
-        {/* OPÇÃO 2: RECRUTA */}
+        {/* OPÇÃO 2: RECRUTA (Entrar na equipe) */}
         <View style={{ width: '100%', marginTop: 20 }}>
             <TouchableOpacity 
               style={styles.cardWrapper}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate('RoleSelection')} 
+              // CORREÇÃO: Leva para a tela de entrar com código (JoinFamily) ou Login se preferir
+              onPress={() => navigation.navigate('JoinFamily')} 
             >
               <View style={styles.cardShadow} />
               <View style={styles.cardFront}>
                 <View style={styles.iconWrapper}>
-                   {/* CORREÇÃO 4: Ajustar caminho do ícone também */}
                    <Image 
                      source={require('../../../assets/icons/rookie-icon1.png')} 
                      style={styles.customIcon} resizeMode="contain"
@@ -80,7 +78,9 @@ export default function WelcomeScreen() {
         <TouchableOpacity 
             style={styles.ghostButton} 
             activeOpacity={0.7}
-            onPress={() => navigation.navigate('RoleSelection')} 
+            // --- CORREÇÃO CRÍTICA AQUI ---
+            // Antes estava 'RoleSelection', agora vai para 'Login'
+            onPress={() => navigation.navigate('Login')} 
         >
             <Text style={styles.ghostButtonText}>Já tenho uma conta</Text>
         </TouchableOpacity>
