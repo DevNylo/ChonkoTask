@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 // --- COMPONENTES VISUAIS ---
-// Certifique-se de ter criado o arquivo SplashScreen.js conforme discutimos
 import SplashScreen from '../screens/SplashScreen';
 
 // --- TELAS DE AUTENTICAÇÃO ---
@@ -16,30 +15,23 @@ import WelcomeScreen from '../screens/auth/WelcomeScreen';
 // --- TELAS INTERNAS ---
 import CaptainHomeScreen from '../screens/CaptainHomeScreen';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
-import CreateTaskScreen from '../screens/captain/CreateTaskScreen';
+
+// --- TELAS DO CAPITÃO (ADMIN) ---
+import CreateMissionScreen from '../screens/captain/CreateMissionScreen';
 import MemberRequestsScreen from '../screens/captain/MemberRequestsScreen';
-import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen';
-import RecruitCameraScreen from '../screens/recruit/RecruitCameraScreen';
-import RecruitNavigator from './RecruitNavigator';
+import MissionManagerScreen from '../screens/captain/MissionManagerScreen';
+import QuickMissionsScreen from '../screens/captain/QuickMissionsScreen';
+import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen'; // <--- ADICIONADO
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { session, loading } = useAuth();
-  
-  // Controla se a animação da Capivara já terminou
   const [isSplashFinished, setIsSplashFinished] = useState(false);
-
-  // Lógica de Bloqueio:
-  // Mostra Splash enquanto o Supabase carrega OU a animação não acabou.
   const showSplash = loading || !isSplashFinished;
 
   if (showSplash) {
-    return (
-      <SplashScreen 
-        onFinish={() => setIsSplashFinished(true)} 
-      />
-    );
+    return <SplashScreen onFinish={() => setIsSplashFinished(true)} />;
   }
 
   return (
@@ -53,18 +45,16 @@ export default function AppNavigator() {
             
             {/* Fluxo Capitão */}
             <Stack.Screen name="CaptainHome" component={CaptainHomeScreen} />
-            <Stack.Screen name="CreateTask" component={CreateTaskScreen} />
-            <Stack.Screen name="MemberRequests" component={MemberRequestsScreen} /> 
-            <Stack.Screen name="TaskApprovals" component={TaskApprovalsScreen} />
             
-            {/* Fluxo Recruta */}
-            <Stack.Screen name="RecruitHome" component={RecruitNavigator} />
-            <Stack.Screen 
-                name="RecruitCamera" 
-                component={RecruitCameraScreen} 
-                options={{ animation: 'slide_from_bottom' }}
-            />
+            {/* Telas de Gestão do Capitão */}
+            <Stack.Screen name="MissionManager" component={MissionManagerScreen} />
+            <Stack.Screen name="MemberRequests" component={MemberRequestsScreen} /> 
+            <Stack.Screen name="CreateMission" component={CreateMissionScreen} />
+            <Stack.Screen name="QuickMissions" component={QuickMissionsScreen} />
+            
+            
           </>
+          
         ) : (
           // --- FLUXO PÚBLICO (AUTH) ---
           <>

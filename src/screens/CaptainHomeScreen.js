@@ -160,9 +160,14 @@ export default function CaptainHomeScreen() {
   };
 
   const handleCardPress = (item) => {
-      // Como ainda não criamos as telas, vamos colocar um alerta provisório
-      // navigation.navigate(item.route, { familyId: profile.family_id }); 
-      Alert.alert("Em Breve", `A tela "${item.title}" está sendo construída!`);
+      // Se o card for o de Missões, navega para a tela que criamos
+      if (item.id === 'missions') {
+          navigation.navigate('MissionManager', { familyId: profile.family_id });
+      } 
+      // Se for outro (Loja, Passe, etc), mostra o alerta por enquanto
+      else {
+          Alert.alert("Em Breve", `A tela "${item.title}" está passando por manutenção!`);
+      }
   };
 
   // --- RENDERIZADORES ---
