@@ -22,6 +22,7 @@ import MemberRequestsScreen from '../screens/captain/MemberRequestsScreen';
 import MissionManagerScreen from '../screens/captain/MissionManagerScreen';
 import QuickMissionsScreen from '../screens/captain/QuickMissionsScreen';
 import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen'; // <--- ADICIONADO
+import FamilySettingsScreen from '../screens/captain/FamilySettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -51,6 +52,7 @@ export default function AppNavigator() {
             <Stack.Screen name="MemberRequests" component={MemberRequestsScreen} /> 
             <Stack.Screen name="CreateMission" component={CreateMissionScreen} />
             <Stack.Screen name="QuickMissions" component={QuickMissionsScreen} />
+            <Stack.Screen name="FamilySettings" component={FamilySettingsScreen} />
             
             
           </>

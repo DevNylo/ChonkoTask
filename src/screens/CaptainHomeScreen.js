@@ -6,9 +6,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
-  Modal,
   RefreshControl,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -34,13 +32,7 @@ export default function CaptainHomeScreen() {
   const [pendingAttempts, setPendingAttempts] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Estados Convite
-  const [inviteModalVisible, setInviteModalVisible] = useState(false);
-  const [inviteCode, setInviteCode] = useState(null);
-  const [generatingCode, setGeneratingCode] = useState(false);
-
   // --- DADOS DO DASHBOARD ---
-  // Aqui definimos os cards e para onde eles vão (rotas)
   const DASHBOARD_ITEMS = [
     { 
         id: 'missions', 
@@ -48,7 +40,7 @@ export default function CaptainHomeScreen() {
         subtitle: 'Gerenciar Tarefas',
         icon: 'clipboard-list-outline', 
         color: '#10B981', // Verde
-        route: 'MissionManager' // Vamos criar essa tela depois
+        route: 'MissionManager' 
     },
     { 
         id: 'rewards', 
@@ -62,7 +54,7 @@ export default function CaptainHomeScreen() {
         id: 'season', 
         title: 'PASSE DE BATALHA', 
         subtitle: 'Temporada 1',
-        icon: 'ticket-star-outline', 
+        icon: 'ticket-percent-outline', // Ícone corrigido
         color: COLORS.gold, // Dourado
         route: 'SeasonPass' 
     },
@@ -95,7 +87,7 @@ export default function CaptainHomeScreen() {
       const { data: family } = await supabase.from('families').select('name').eq('id', profile.family_id).single();
       if (family) setFamilyName(family.name);
 
-      // Apenas contagem de pendências é vital aqui agora
+      // Contagem de pendências (vital para o alerta)
       const { count } = await supabase
         .from('mission_attempts')
         .select('id, profiles!inner(family_id)', { count: 'exact', head: true })
@@ -111,62 +103,13 @@ export default function CaptainHomeScreen() {
     }
   };
 
-  // --- LÓGICA DE CONVITE (Mantida igual) ---
-  const generateCode = () => { 
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
-      let result = ''; 
-      for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); } 
-      return result; 
-  };
-
-  const handleGenerateInvite = async () => { 
-      setInviteModalVisible(true); 
-      setGeneratingCode(true); 
-      setInviteCode(null); 
-      try { 
-          const { data: existingInvite } = await supabase.from('active_invites')
-            .select('code, expires_at')
-            .eq('family_id', profile.family_id)
-            .gt('expires_at', new Date().toISOString())
-            .maybeSingle(); 
-          
-          if (existingInvite) { 
-              setInviteCode(existingInvite.code); 
-              setGeneratingCode(false); 
-              return; 
-          } 
-          
-          const code = generateCode(); 
-          const expiresAt = new Date(new Date().getTime() + 15 * 60000).toISOString();
-          
-          const { error } = await supabase.from('active_invites').insert([{ 
-              family_id: profile.family_id, code: code, expires_at: expiresAt, created_by: session.user.id 
-          }]); 
-          
-          if (error) throw error; 
-          setInviteCode(code); 
-      } catch (error) { 
-          Alert.alert("Erro", "Falha ao gerar código."); 
-          setInviteModalVisible(false); 
-      } finally { 
-          setGeneratingCode(false); 
-      } 
-  };
-
-  const handleShareCode = async () => { 
-      if (!inviteCode) return; 
-      try { await Share.share({ message: `Código Chonko: ${inviteCode}`, }); } 
-      catch (error) { console.log(error); } 
-  };
-
   const handleCardPress = (item) => {
-      // Se o card for o de Missões, navega para a tela que criamos
       if (item.id === 'missions') {
+          // Passamos familyId para o gerenciador saber o que carregar
           navigation.navigate('MissionManager', { familyId: profile.family_id });
       } 
-      // Se for outro (Loja, Passe, etc), mostra o alerta por enquanto
       else {
-          Alert.alert("Em Breve", `A tela "${item.title}" está passando por manutenção!`);
+          Alert.alert("Em Breve", `A tela "${item.title}" está sendo construída pelos goblins!`);
       }
   };
 
@@ -178,10 +121,18 @@ export default function CaptainHomeScreen() {
             <Text style={styles.greetingText}>QG DO COMANDO</Text>
             <Text style={styles.familyText} numberOfLines={1}>{familyName}</Text>
         </View>
-        <TouchableOpacity style={styles.inviteBtn} onPress={handleGenerateInvite}>
+        
+        {/* BOTÃO DE GESTÃO DA TROPA (NOVO) */}
+        <TouchableOpacity 
+            style={styles.inviteBtn} 
+            onPress={() => navigation.navigate('FamilySettings', { 
+                familyId: profile.family_id, 
+                currentProfileId: profile.id 
+            })}
+        >
             <View style={styles.inviteBtnShadow} />
             <View style={styles.inviteBtnFront}>
-                <MaterialCommunityIcons name="account-plus" size={24} color={COLORS.primary} />
+                <MaterialCommunityIcons name="account-group" size={24} color={COLORS.primary} />
             </View>
         </TouchableOpacity>
     </View>
@@ -253,42 +204,17 @@ export default function CaptainHomeScreen() {
         />
       </View>
 
-      {/* FAB para Criar Missão Rápida (Atalho) */}
+      {/* FAB: ATALHO PARA MISSÕES (Abre o gerenciador, que tem o botão de criar) */}
       <TouchableOpacity 
         style={styles.fab} 
         activeOpacity={0.8}
-        // Atalho direto para criar missão, pois é a ação mais comum
-        onPress={() => navigation.navigate('CreateTask', { familyId: profile.family_id })}
+        onPress={() => navigation.navigate('MissionManager', { familyId: profile.family_id })}
       >
         <View style={styles.fabShadow} />
         <View style={styles.fabFront}>
              <MaterialCommunityIcons name="plus" size={40} color={COLORS.white} />
         </View>
       </TouchableOpacity>
-
-      {/* MODAL DE CONVITE */}
-      <Modal animationType="fade" transparent={true} visible={inviteModalVisible} onRequestClose={() => setInviteModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>RECRUTAR SOLDADO</Text>
-                <Text style={styles.modalSubtitle}>Compartilhe este código:</Text>
-                {generatingCode ? (
-                    <ActivityIndicator size="large" color={COLORS.primary} style={{marginVertical: 20}} />
-                ) : (
-                    <TouchableOpacity onPress={handleShareCode} activeOpacity={0.7}>
-                        <View style={styles.codeBox}>
-                            <Text style={styles.codeText}>{inviteCode}</Text>
-                            <MaterialCommunityIcons name="content-copy" size={20} color={COLORS.placeholder} style={{position:'absolute', right: 10, bottom: 10}}/>
-                        </View>
-                        <Text style={styles.shareHint}>Toque para compartilhar</Text>
-                    </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.closeModalBtn} onPress={() => setInviteModalVisible(false)}>
-                    <Text style={styles.closeModalText}>FECHAR</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-      </Modal>
 
     </View>
   );
@@ -303,7 +229,7 @@ const styles = StyleSheet.create({
   greetingText: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.surface, opacity: 0.9 },
   familyText: { fontFamily: FONTS.bold, fontSize: 28, color: COLORS.surface, width: width * 0.65 },
   
-  // INVITE BTN
+  // INVITE BTN (AGORA É O BOTÃO DE GESTÃO)
   inviteBtn: { width: 50, height: 50, position: 'relative' },
   inviteBtnShadow: { position: 'absolute', top: 4, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 12 },
   inviteBtnFront: { width: '100%', height: '100%', backgroundColor: COLORS.surface, borderRadius: 12, borderWidth: 2, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginTop: -2 },
@@ -329,15 +255,4 @@ const styles = StyleSheet.create({
   fab: { position: 'absolute', bottom: 30, right: 20, width: 64, height: 64 },
   fabShadow: { position: 'absolute', top: 5, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 20 },
   fabFront: { width: '100%', height: '100%', backgroundColor: COLORS.gold, borderRadius: 20, borderWidth: 3, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginTop: -2 },
-
-  // MODAL
-  modalOverlay: { flex: 1, backgroundColor: COLORS.modalOverlay, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 24, padding: 25, borderWidth: 3, borderColor: COLORS.primary, alignItems: 'center', elevation: 10 },
-  modalTitle: { fontFamily: FONTS.bold, fontSize: 20, color: COLORS.primary, marginBottom: 5 },
-  modalSubtitle: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.placeholder, marginBottom: 20 },
-  codeBox: { width: '100%', backgroundColor: COLORS.surfaceAlt, padding: 15, borderRadius: 12, borderWidth: 2, borderColor: COLORS.primary, alignItems: 'center', marginBottom: 5, position: 'relative' },
-  codeText: { fontFamily: FONTS.bold, fontSize: 32, color: COLORS.primary, letterSpacing: 4 },
-  shareHint: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.secondary, marginBottom: 20 },
-  closeModalBtn: { width: '100%', padding: 15, backgroundColor: COLORS.surface, borderRadius: 12, borderWidth: 2, borderColor: COLORS.primary, alignItems: 'center' },
-  closeModalText: { fontFamily: FONTS.bold, color: COLORS.primary },
 });
