@@ -2,16 +2,16 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
@@ -19,47 +19,44 @@ import { COLORS, FONTS } from '../../styles/theme';
 export default function TaskApprovalsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { familyId } = route.params || {}; 
-
+  
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState(null);
   
-  // Rejeição
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedAttempt, setSelectedAttempt] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
   useFocusEffect(
     useCallback(() => {
-      if (familyId) fetchApprovals();
-    }, [familyId])
+      fetchApprovals();
+    }, [])
   );
 
   const fetchApprovals = async () => {
     try {
       setLoading(true);
+      // Busca dados completos
       const { data, error } = await supabase
         .from('mission_attempts')
         .select(`
-            id, proof_photo, created_at, earned_value, mission_id,
-            missions ( title, icon, is_recurring ), 
-            profiles ( id, name, avatar )
+            id, proof_url, created_at, earned_value, mission_id, status,
+            missions ( title, icon, is_recurring, reward, reward_type, custom_reward ), 
+            profiles ( id, name, avatar, balance )
         `)
         .eq('status', 'pending')
         .order('created_at', { ascending: true });
       
       if (error) throw error;
-
       setAttempts(data || []);
     } catch (error) {
-      console.log(error);
+      console.log("Erro ao buscar aprovações:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- STORAGE & URL ---
   const getImageUrl = (path) => {
       if (!path) return null;
       const { data } = supabase.storage.from('mission-proofs').getPublicUrl(path);
@@ -71,10 +68,43 @@ export default function TaskApprovalsScreen() {
       try { await supabase.storage.from('mission-proofs').remove([path]); } catch (e) {}
   };
 
-  // --- AÇÕES ---
   const handleApprove = async (attempt) => {
     try {
-        // 1. Aprova a tentativa (muda status do envio)
+        console.log("--- INICIANDO APROVAÇÃO ---");
+        
+        // 1. Lógica de Pagamento
+        const isCoins = attempt.missions?.reward_type === 'coins';
+        
+        if (isCoins) {
+            // Busca saldo atualizado do servidor para não ter erro de cache
+            const { data: currentProfile, error: fetchError } = await supabase
+                .from('profiles')
+                .select('balance')
+                .eq('id', attempt.profiles.id)
+                .single();
+            
+            if (fetchError) throw new Error("Erro ao buscar saldo do recruta: " + fetchError.message);
+
+            const currentBalance = currentProfile.balance || 0;
+            const rewardValue = attempt.earned_value || attempt.missions?.reward || 0;
+            const newBalance = currentBalance + rewardValue;
+
+            console.log(`Saldo Atual: ${currentBalance} | Prêmio: ${rewardValue} | Novo Saldo: ${newBalance}`);
+
+            // Atualiza o saldo
+            const { error: payError } = await supabase
+                .from('profiles')
+                .update({ balance: newBalance })
+                .eq('id', attempt.profiles.id);
+
+            if (payError) {
+                console.error("ERRO NO PAGAMENTO:", payError);
+                throw new Error("Não foi possível pagar o recruta. Verifique as permissões (RLS).");
+            }
+            console.log("Pagamento efetuado com sucesso.");
+        }
+
+        // 2. Atualiza status da tentativa
         const { error: attemptError } = await supabase
             .from('mission_attempts')
             .update({ status: 'approved' })
@@ -82,16 +112,8 @@ export default function TaskApprovalsScreen() {
 
         if (attemptError) throw attemptError;
         
-        // 2. Paga o Recruta (Atualiza Saldo do Perfil)
-        const { data: profile } = await supabase.from('profiles').select('balance').eq('id', attempt.profiles.id).single();
-        const newBalance = (profile?.balance || 0) + (attempt.earned_value || 0);
-        await supabase.from('profiles').update({ balance: newBalance }).eq('id', attempt.profiles.id);
-
-        // 3. LÓGICA DE FINALIZAÇÃO (O Ajuste Importante)
-        // Se a missão for ÚNICA (não recorrente), marcamos ela como CONCLUÍDA no quadro geral.
-        // Se for recorrente, ela continua ativa para amanhã.
+        // 3. Atualiza status da Missão (Se não for recorrente)
         const isRecurring = attempt.missions?.is_recurring;
-        
         if (!isRecurring) {
             await supabase
                 .from('missions')
@@ -99,13 +121,14 @@ export default function TaskApprovalsScreen() {
                 .eq('id', attempt.mission_id);
         }
 
-        // 4. Limpa storage (opcional)
-        // if (attempt.proof_photo) await deleteProofImage(attempt.proof_photo);
+        // 4. Limpeza
+        if (attempt.proof_url) await deleteProofImage(attempt.proof_url);
 
-        Alert.alert("Sucesso", "Missão aprovada, moedas pagas e status atualizado!");
-        fetchApprovals(); // Recarrega a lista para sumir o card
+        Alert.alert("SUCESSO!", isCoins ? "Moedas transferidas!" : "Missão personalizada concluída!");
+        fetchApprovals(); 
+
     } catch (error) {
-        Alert.alert("Erro", "Falha ao aprovar.");
+        Alert.alert("Erro na Aprovação", error.message);
         console.log(error);
     }
   };
@@ -118,7 +141,7 @@ export default function TaskApprovalsScreen() {
               feedback: rejectReason || 'Refazer' 
           }).eq('id', selectedAttempt.id);
           
-          if (selectedAttempt.proof_photo) await deleteProofImage(selectedAttempt.proof_photo);
+          if (selectedAttempt.proof_url) await deleteProofImage(selectedAttempt.proof_url);
           
           setRejectModalVisible(false);
           setRejectReason('');
@@ -127,11 +150,15 @@ export default function TaskApprovalsScreen() {
   };
 
   const renderCard = ({ item }) => {
-    const imageUrl = getImageUrl(item.proof_photo);
+    const imageUrl = getImageUrl(item.proof_url);
+    const mission = item.missions || {};
+    
+    const isCustom = mission.reward_type === 'custom';
+    const rewardValue = item.earned_value || mission.reward || 0;
 
     return (
         <View style={styles.card}>
-            {/* Header do Card */}
+            {/* Header */}
             <View style={styles.cardHeader}>
                 <View style={{flexDirection:'row', alignItems:'center'}}>
                     <View style={styles.avatarCircle}>
@@ -139,17 +166,38 @@ export default function TaskApprovalsScreen() {
                     </View>
                     <Text style={styles.recruitName}>{item.profiles?.name || "Recruta"}</Text>
                 </View>
-                <View style={styles.rewardTag}>
-                    <MaterialCommunityIcons name="star" size={12} color={COLORS.gold} />
-                    <Text style={styles.rewardText}>+{item.earned_value}</Text>
+                
+                {/* TAG RECOMPENSA */}
+                <View style={[
+                    styles.rewardTag, 
+                    isCustom && { backgroundColor: '#fdf2f8', borderColor: '#db2777' } 
+                ]}>
+                    <MaterialCommunityIcons 
+                        name={isCustom ? "gift" : "circle-multiple"} 
+                        size={14} 
+                        color={isCustom ? '#db2777' : COLORS.gold} 
+                    />
+                    <Text style={[
+                        styles.rewardText, 
+                        isCustom && { color: '#db2777' }
+                    ]}>
+                        {isCustom ? (mission.custom_reward || "Prêmio") : `+${rewardValue}`}
+                    </Text>
                 </View>
             </View>
 
-            {/* Conteúdo */}
-            <Text style={styles.missionTitle}>{item.missions?.title || "Missão"}</Text>
+            <Text style={styles.missionTitle}>{mission.title || "Missão"}</Text>
+            
+            {mission.is_recurring && (
+                <View style={styles.recurringTag}>
+                    <MaterialCommunityIcons name="sync" size={12} color="#666" />
+                    <Text style={{fontSize:10, color:'#666', marginLeft:4}}>Recorrente</Text>
+                </View>
+            )}
+
             <Text style={styles.dateText}>{new Date(item.created_at).toLocaleString()}</Text>
 
-            {/* Foto da Prova */}
+            {/* Foto */}
             <TouchableOpacity 
                 style={styles.photoContainer} 
                 onPress={() => imageUrl && setSelectedPhotoUrl(imageUrl)}
@@ -163,14 +211,9 @@ export default function TaskApprovalsScreen() {
                         <Text style={styles.noPhotoText}>Sem foto</Text>
                     </View>
                 )}
-                {imageUrl && (
-                    <View style={styles.zoomBadge}>
-                        <MaterialCommunityIcons name="magnify-plus" size={16} color="#fff" />
-                    </View>
-                )}
             </TouchableOpacity>
 
-            {/* Botões de Ação */}
+            {/* Ações */}
             <View style={styles.actionRow}>
                 <TouchableOpacity 
                     style={styles.rejectBtn} 
@@ -220,7 +263,6 @@ export default function TaskApprovalsScreen() {
         }
       />
 
-      {/* Modal Foto Grande */}
       <Modal visible={!!selectedPhotoUrl} transparent={true} animationType="fade" onRequestClose={() => setSelectedPhotoUrl(null)}>
         <View style={styles.modalPhotoOverlay}>
             <TouchableOpacity style={styles.closePhotoBtn} onPress={() => setSelectedPhotoUrl(null)}>
@@ -230,29 +272,16 @@ export default function TaskApprovalsScreen() {
         </View>
       </Modal>
 
-      {/* Modal Rejeição */}
       <Modal visible={rejectModalVisible} transparent={true} animationType="fade" onRequestClose={() => setRejectModalVisible(false)}>
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>RECUSAR MISSÃO</Text>
-                  <Text style={styles.modalSub}>Por que essa missão não valeu?</Text>
-                  
-                  <View style={{flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:10}}>
-                      {['Foto escura', 'Incompleta', 'Refazer'].map(tag => (
-                          <TouchableOpacity key={tag} style={styles.tagChip} onPress={() => setRejectReason(tag)}>
-                              <Text style={styles.tagText}>{tag}</Text>
-                          </TouchableOpacity>
-                      ))}
-                  </View>
-
                   <TextInput 
                     style={styles.input} 
-                    placeholder="Motivo (ex: Faltou arrumar o travesseiro)" 
-                    placeholderTextColor={COLORS.placeholder}
+                    placeholder="Motivo..." 
                     value={rejectReason}
                     onChangeText={setRejectReason}
                   />
-
                   <View style={styles.modalActions}>
                       <TouchableOpacity style={styles.modalCancel} onPress={() => setRejectModalVisible(false)}>
                           <Text style={styles.modalCancelText}>CANCELAR</Text>
@@ -264,7 +293,6 @@ export default function TaskApprovalsScreen() {
               </View>
           </View>
       </Modal>
-
     </View>
   );
 }
@@ -272,47 +300,35 @@ export default function TaskApprovalsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 15 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.surface, letterSpacing: 1 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, letterSpacing: 1 },
   backBtn: { padding: 5, backgroundColor: COLORS.surface, borderRadius: 10 },
-
-  card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 15, marginBottom: 20, borderWidth: 3, borderColor: COLORS.primary },
+  card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 15, marginBottom: 20, borderWidth: 1, borderColor: '#eee', shadowColor: "#000", shadowOffset: {width:0, height:2}, shadowOpacity:0.1, shadowRadius:4, elevation:3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   avatarCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.surfaceAlt, justifyContent: 'center', alignItems: 'center', marginRight: 8, borderWidth: 1, borderColor: COLORS.primary },
   recruitName: { fontFamily: FONTS.bold, fontSize: 14, color: COLORS.primary },
-  rewardTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fffbeb', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: COLORS.gold },
-  rewardText: { fontFamily: FONTS.bold, fontSize: 12, color: '#b45309', marginLeft: 4 },
-
+  rewardTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fffbeb', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: COLORS.gold },
+  rewardText: { fontFamily: FONTS.bold, fontSize: 14, color: '#b45309', marginLeft: 4 },
+  recurringTag: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
   missionTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, marginBottom: 4 },
   dateText: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.placeholder, marginBottom: 15 },
-
-  photoContainer: { height: 200, borderRadius: 12, overflow: 'hidden', backgroundColor: COLORS.surfaceAlt, marginBottom: 15, position: 'relative', borderWidth: 1, borderColor: '#eee' },
+  photoContainer: { height: 250, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f0f0f0', marginBottom: 15, position: 'relative', borderWidth: 1, borderColor: '#eee' },
   proofImage: { width: '100%', height: '100%' },
   noPhoto: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   noPhotoText: { fontFamily: FONTS.bold, color: COLORS.placeholder, marginTop: 5 },
-  zoomBadge: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.6)', padding: 5, borderRadius: 8 },
-
   actionRow: { flexDirection: 'row', gap: 10 },
   rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 2, borderColor: COLORS.error, backgroundColor: '#fff' },
   rejectText: { fontFamily: FONTS.bold, color: COLORS.error, marginLeft: 5 },
   approveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: COLORS.primary },
   approveText: { fontFamily: FONTS.bold, color: '#fff', marginLeft: 5 },
-
   emptyState: { alignItems: 'center', marginTop: 50 },
-  emptyText: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.surface, marginTop: 15 },
-  emptySubText: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.surface, opacity: 0.8 },
-
-  // Modal Photo
+  emptyText: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, marginTop: 15 },
+  emptySubText: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.placeholder, opacity: 0.8 },
   modalPhotoOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
   fullImage: { width: '100%', height: '80%' },
-  closePhotoBtn: { position: 'absolute', top: 50, right: 20, padding: 10 },
-
-  // Modal Reject
-  modalOverlay: { flex: 1, backgroundColor: COLORS.modalOverlay, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, borderWidth: 3, borderColor: COLORS.primary },
-  modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 18 },
-  modalSub: { textAlign: 'center', fontFamily: FONTS.regular, color: '#666', marginBottom: 15 },
-  tagChip: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: COLORS.surfaceAlt, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
-  tagText: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary },
+  closePhotoBtn: { position: 'absolute', top: 50, right: 20, padding: 10, zIndex: 10 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 20, padding: 20 },
+  modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 18, marginBottom: 15 },
   input: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontFamily: FONTS.bold, color: COLORS.primary, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 20 },
   modalActions: { flexDirection: 'row', gap: 10 },
   modalCancel: { flex: 1, padding: 12, alignItems: 'center', borderRadius: 10, backgroundColor: '#eee' },

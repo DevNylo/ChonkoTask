@@ -3,8 +3,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
-  Modal, Platform, ScrollView, StyleSheet, Text, TextInput,
-  TouchableOpacity, View
+  Platform, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View, Modal
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
@@ -26,12 +26,15 @@ export default function CreateMissionScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   
-  const { familyId, missionToEdit, templateData } = route.params;
+  const { missionToEdit, templateData } = route.params || {};
+  const paramsFamilyId = route.params?.familyId;
+
   const initialData = missionToEdit || templateData || {};
   const isEditingTemplate = !!templateData;
 
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState([]);
+  const [currentFamilyId, setCurrentFamilyId] = useState(paramsFamilyId || null);
 
   // --- ESTADOS ---
   const [title, setTitle] = useState(initialData.title || '');
@@ -51,7 +54,24 @@ export default function CreateMissionScreen() {
 
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
-  useEffect(() => { fetchProfiles(); }, []);
+  useEffect(() => { 
+      if (!currentFamilyId) {
+          fetchUserFamily();
+      } else {
+          fetchProfiles(currentFamilyId); 
+      }
+  }, [currentFamilyId]);
+
+  const fetchUserFamily = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+          const { data } = await supabase.from('profiles').select('family_id').eq('id', user.id).single();
+          if (data) {
+              setCurrentFamilyId(data.family_id);
+              fetchProfiles(data.family_id);
+          }
+      }
+  };
 
   useEffect(() => {
       if (profiles.length > 0) {
@@ -62,22 +82,20 @@ export default function CreateMissionScreen() {
       }
   }, [profiles, assignee]);
 
-  const fetchProfiles = async () => {
-      const { data } = await supabase.from('profiles').select('id, name').eq('family_id', familyId).neq('role', 'captain');
+  const fetchProfiles = async (fid) => {
+      const { data } = await supabase.from('profiles').select('id, name').eq('family_id', fid).neq('role', 'captain');
       setProfiles(data || []);
   };
 
-  // --- NOVA LÓGICA DE VALIDAÇÃO ---
   const handleLaunch = async (shouldUpdateTemplate = false) => {
       if (!title) return Alert.alert("Ops!", "Título obrigatório.");
       if (rewardType === 'coins' && !coinReward) return Alert.alert("Ops!", "Valor da recompensa obrigatório.");
+      if (!currentFamilyId) return Alert.alert("Erro", "Família não identificada. Faça login novamente.");
       
-      // Validação de Tempo para Missão Única
       if (!isRecurring && !isEditingTemplate && !saveAsTemplate) {
-          if (deadline) {
+          if (deadline && deadline.length === 5) {
               const now = new Date();
               const currentMinutes = now.getHours() * 60 + now.getMinutes();
-              
               const [h, m] = deadline.split(':').map(Number);
               const deadlineMinutes = h * 60 + m;
 
@@ -90,8 +108,12 @@ export default function CreateMissionScreen() {
       setLoading(true);
       
       const payload = {
-          family_id: familyId, title, description, icon: selectedIcon, 
-          status: 'active', assigned_to: assignee,
+          family_id: currentFamilyId, 
+          title, 
+          description, 
+          icon: selectedIcon, 
+          status: 'active', // Padrão para a missão real
+          assigned_to: assignee,
           reward_type: rewardType, 
           reward: rewardType === 'coins' ? parseInt(coinReward) : 0, 
           custom_reward: rewardType === 'custom' ? customReward : null,
@@ -103,49 +125,57 @@ export default function CreateMissionScreen() {
       };
 
       try {
+          // 1. ATUALIZAR UM MODELO EXISTENTE
           if (isEditingTemplate && shouldUpdateTemplate) {
-              await supabase.from('missions').update({ ...payload, status: 'active', is_template: true }).eq('id', templateData.id);
+              // Mantemos o template com status 'template' para não aparecer pro recruta
+              await supabase.from('missions')
+                  .update({ ...payload, status: 'template', is_template: true }) 
+                  .eq('id', templateData.id);
           }
+          
+          // 2. SALVAR CÓPIA COMO NOVO MODELO (O FIX ESTÁ AQUI)
           if (!isEditingTemplate && saveAsTemplate) {
-              await supabase.from('missions').insert([{ ...payload, status: 'active', is_template: true }]);
+              await supabase.from('missions').insert([{ 
+                  ...payload, 
+                  status: 'template', // <--- MUDANÇA CRUCIAL: Template nasce escondido
+                  is_template: true 
+              }]);
           }
+
+          // 3. LANÇAR A MISSÃO REAL (ATIVA)
           if (missionToEdit) {
               await supabase.from('missions').update(payload).eq('id', missionToEdit.id);
               Alert.alert("Sucesso", "Missão atualizada!");
           } else {
-              await supabase.from('missions').insert([payload]);
+              // Aqui sim ela vai como 'active'
+              const { error } = await supabase.from('missions').insert([payload]);
+              if (error) throw error;
               Alert.alert("Sucesso", "Missão lançada!");
           }
           navigation.goBack();
-      } catch (error) { Alert.alert("Erro", "Falha ao salvar."); console.log(error); } 
-      finally { setLoading(false); }
+
+      } catch (error) { 
+          Alert.alert("Erro ao Salvar", error.message); 
+          console.log(error); 
+      } finally { 
+          setLoading(false); 
+      }
   };
 
-  // --- NOVA FORMATAÇÃO INTELIGENTE ---
   const handleTimeBlur = (value, setter) => {
       if (!value) return;
-      
       let clean = value.replace(/[^0-9]/g, '');
       let formatted = '';
 
-      // Se digitou "8" -> "08:00"
       if (clean.length === 1) formatted = `0${clean}:00`;
-      // Se digitou "13" -> "13:00"
-      else if (clean.length === 2) {
-          // Valida hora válida
-          if (parseInt(clean) > 23) formatted = '23:00';
-          else formatted = `${clean}:00`;
-      }
-      // Se digitou "830" -> "08:30"
+      else if (clean.length === 2) formatted = `${clean}:00`;
       else if (clean.length === 3) formatted = `0${clean[0]}:${clean.substring(1)}`;
-      // Se digitou "1330" -> "13:30"
       else if (clean.length >= 4) formatted = `${clean.substring(0,2)}:${clean.substring(2,4)}`;
 
       setter(formatted);
   };
 
   const handleTimeChange = (txt, setFunc) => {
-      // Apenas aceita numeros e :
       let c = txt.replace(/[^0-9:]/g, '');
       if (c.length > 5) return;
       setFunc(c);
@@ -181,7 +211,7 @@ export default function CreateMissionScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex:1}}>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 
-                {/* PREVIEW */}
+                {/* PREVIEW CARD */}
                 <View style={styles.previewSection}>
                     <Text style={styles.sectionLabel}>VISUALIZAÇÃO (PREVIEW):</Text>
                     <View style={styles.previewWrapper}>
@@ -224,9 +254,6 @@ export default function CreateMissionScreen() {
                                     <Text style={[styles.metaText, { color: '#15803d' }]}>{assigneeName}</Text>
                                 </View>
                             </View>
-                            {isRecurring && selectedDays.length > 0 && (
-                                <Text style={styles.daysText}><MaterialCommunityIcons name="calendar-range" size={12} /> {getDayLabels()}</Text>
-                            )}
                         </View>
                     </View>
                 </View>
@@ -284,7 +311,6 @@ export default function CreateMissionScreen() {
                     )}
                 </View>
 
-                {/* HORÁRIOS COM BLUR */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>HORÁRIOS</Text>
                     <View style={styles.timeRowContainer}>
@@ -310,10 +336,6 @@ export default function CreateMissionScreen() {
                                 keyboardType="numeric" maxLength={5} 
                             />
                         </View>
-                    </View>
-                    <View style={styles.infoBox}>
-                         <MaterialCommunityIcons name="information" size={20} color="#0369a1" />
-                         <Text style={styles.infoText}>Dica: Digite apenas "8" que o sistema entende "08:00".</Text>
                     </View>
                 </View>
 
@@ -382,7 +404,6 @@ export default function CreateMissionScreen() {
   );
 }
 
-// ... (MANTENHA OS ESTILOS IGUAIS AO ANTERIOR - NÃO MUDARAM)
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
     header: { flexDirection:'row', justifyContent:'space-between', padding:20, paddingTop:50, alignItems:'center', backgroundColor: COLORS.surface, borderBottomWidth: 3, borderBottomColor: COLORS.primary },
