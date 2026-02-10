@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -28,16 +28,42 @@ export default function TaskApprovalsScreen() {
   const [selectedAttempt, setSelectedAttempt] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Carrega ao entrar na tela
   useFocusEffect(
     useCallback(() => {
       fetchApprovals();
     }, [])
   );
 
+  // --- O SEGREDO DO REALTIME PARA O CAPITÃO ---
+  useEffect(() => {
+    console.log("👮‍♂️ Capitão na escuta...");
+
+    const subscription = supabase
+      .channel('captain_approvals')
+      .on(
+        'postgres_changes', 
+        { 
+          event: '*', // Escuta TUDO: Novas provas, Aprovações, Rejeições
+          schema: 'public', 
+          table: 'mission_attempts' 
+        }, 
+        (payload) => {
+          console.log("🔔 Nova atividade de missão!", payload.eventType);
+          // Se entrou uma prova nova ou algo mudou, recarrega a lista
+          fetchApprovals();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, []);
+
   const fetchApprovals = async () => {
     try {
-      setLoading(true);
-      // Busca dados completos
+      // Não ativamos o loading aqui para não piscar a tela toda vez que atualizar
       const { data, error } = await supabase
         .from('mission_attempts')
         .select(`
@@ -76,32 +102,25 @@ export default function TaskApprovalsScreen() {
         const isCoins = attempt.missions?.reward_type === 'coins';
         
         if (isCoins) {
-            // Busca saldo atualizado do servidor para não ter erro de cache
             const { data: currentProfile, error: fetchError } = await supabase
                 .from('profiles')
                 .select('balance')
                 .eq('id', attempt.profiles.id)
                 .single();
             
-            if (fetchError) throw new Error("Erro ao buscar saldo do recruta: " + fetchError.message);
+            if (fetchError) throw new Error("Erro ao buscar saldo: " + fetchError.message);
 
             const currentBalance = currentProfile.balance || 0;
             const rewardValue = attempt.earned_value || attempt.missions?.reward || 0;
             const newBalance = currentBalance + rewardValue;
 
-            console.log(`Saldo Atual: ${currentBalance} | Prêmio: ${rewardValue} | Novo Saldo: ${newBalance}`);
-
-            // Atualiza o saldo
             const { error: payError } = await supabase
                 .from('profiles')
                 .update({ balance: newBalance })
                 .eq('id', attempt.profiles.id);
 
-            if (payError) {
-                console.error("ERRO NO PAGAMENTO:", payError);
-                throw new Error("Não foi possível pagar o recruta. Verifique as permissões (RLS).");
-            }
-            console.log("Pagamento efetuado com sucesso.");
+            if (payError) throw new Error("Erro no pagamento (RLS).");
+            console.log("Pagamento efetuado.");
         }
 
         // 2. Atualiza status da tentativa
@@ -124,7 +143,9 @@ export default function TaskApprovalsScreen() {
         // 4. Limpeza
         if (attempt.proof_url) await deleteProofImage(attempt.proof_url);
 
-        Alert.alert("SUCESSO!", isCoins ? "Moedas transferidas!" : "Missão personalizada concluída!");
+        Alert.alert("SUCESSO!", isCoins ? "Moedas transferidas!" : "Missão concluída!");
+        // O fetchApprovals será chamado automaticamente pelo Realtime, 
+        // mas chamamos aqui para garantir feedback instantâneo na UI
         fetchApprovals(); 
 
     } catch (error) {
@@ -158,7 +179,6 @@ export default function TaskApprovalsScreen() {
 
     return (
         <View style={styles.card}>
-            {/* Header */}
             <View style={styles.cardHeader}>
                 <View style={{flexDirection:'row', alignItems:'center'}}>
                     <View style={styles.avatarCircle}>
@@ -166,8 +186,6 @@ export default function TaskApprovalsScreen() {
                     </View>
                     <Text style={styles.recruitName}>{item.profiles?.name || "Recruta"}</Text>
                 </View>
-                
-                {/* TAG RECOMPENSA */}
                 <View style={[
                     styles.rewardTag, 
                     isCustom && { backgroundColor: '#fdf2f8', borderColor: '#db2777' } 
@@ -197,7 +215,6 @@ export default function TaskApprovalsScreen() {
 
             <Text style={styles.dateText}>{new Date(item.created_at).toLocaleString()}</Text>
 
-            {/* Foto */}
             <TouchableOpacity 
                 style={styles.photoContainer} 
                 onPress={() => imageUrl && setSelectedPhotoUrl(imageUrl)}
@@ -213,7 +230,6 @@ export default function TaskApprovalsScreen() {
                 )}
             </TouchableOpacity>
 
-            {/* Ações */}
             <View style={styles.actionRow}>
                 <TouchableOpacity 
                     style={styles.rejectBtn} 

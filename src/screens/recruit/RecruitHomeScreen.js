@@ -1,16 +1,17 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ImageBackground
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    RefreshControl,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
@@ -18,55 +19,104 @@ import { COLORS, FONTS } from '../../styles/theme';
 export default function RecruitHomeScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { profile } = route.params || {};
+  
+  // Pegamos apenas o ID para garantir que buscaremos dados frescos
+  const { profile: initialProfile } = route.params || {};
+  const profileId = initialProfile?.id;
 
+  const [profileName, setProfileName] = useState(initialProfile?.name || "Recruta");
+  const [currentBalance, setCurrentBalance] = useState(0); 
+  const [familyId, setFamilyId] = useState(initialProfile?.family_id);
+  
   const [todoMissions, setTodoMissions] = useState([]);
   const [missedMissions, setMissedMissions] = useState([]);
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentBalance, setCurrentBalance] = useState(profile?.balance || 0);
-
   const [activeTab, setActiveTab] = useState('todo'); 
 
+  // --- 1. CARREGAMENTO INICIAL ---
   useFocusEffect(
     useCallback(() => {
-      fetchData();
-    }, [])
+      if (profileId) fetchFreshData();
+    }, [profileId])
   );
 
-  const fetchData = async () => {
-    try {
-        const { data: updatedProfile } = await supabase.from('profiles').select('balance').eq('id', profile.id).single();
-        if (updatedProfile) setCurrentBalance(updatedProfile.balance);
+  // --- 2. REALTIME (Ouvido Biônico) ---
+  useEffect(() => {
+      if (!profileId) return;
 
-        const { data: allMissions, error } = await supabase
+      console.log("🔌 Radar do Recruta Ativado...");
+
+      const channel = supabase.channel('recruit_dashboard')
+        // Escuta MUDANÇAS NO MEU PERFIL (Saldo)
+        .on(
+            'postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profileId}` }, 
+            (payload) => {
+                console.log(`💰 SALDO ALTERADO: ${payload.new.balance}`);
+                setCurrentBalance(payload.new.balance); // Atualiza na hora
+            }
+        )
+        // Escuta MUDANÇAS NAS MISSÕES (Novas ou Aprovadas)
+        .on(
+            'postgres_changes', 
+            { event: '*', schema: 'public', table: 'missions' }, 
+            () => {
+                console.log("📜 Missões alteradas! Recarregando...");
+                fetchFreshData(); 
+            }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+  }, [profileId]);
+
+  const fetchFreshData = async () => {
+    try {
+        // A. Busca Saldo Fresquinho
+        const { data: freshProfile, error: pError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', profileId)
+            .single();
+
+        if (freshProfile) {
+            setProfileName(freshProfile.name);
+            setCurrentBalance(freshProfile.balance); // <--- AQUI MOSTRA O 73
+            setFamilyId(freshProfile.family_id);
+        }
+
+        // B. Busca Missões
+        const { data: allMissions, error: mError } = await supabase
             .from('missions')
             .select('*')
-            .eq('family_id', profile.family_id)
+            .eq('family_id', freshProfile?.family_id || familyId)
             .eq('status', 'active');
 
-        if (error) throw error;
+        if (mError) throw mError;
 
+        // C. Filtra o que já fiz hoje
         const todayStr = new Date().toISOString().split('T')[0]; 
         const { data: attempts } = await supabase
             .from('mission_attempts')
-            .select('mission_id, status')
-            .eq('profile_id', profile.id)
+            .select('mission_id')
+            .eq('profile_id', profileId)
             .gte('created_at', todayStr);
 
         const doneIds = new Set(attempts?.map(a => a.mission_id));
-        filterMissions(allMissions, doneIds);
+        
+        processMissions(allMissions, doneIds, profileId);
 
     } catch (error) {
-        console.log("Erro ao buscar missões:", error);
+        console.log("Erro no refresh:", error.message);
     } finally {
         setLoading(false);
         setRefreshing(false);
     }
   };
 
-  const filterMissions = (missions, doneIds) => {
+  const processMissions = (missions, doneIds, myId) => {
       const today = new Date();
       const currentDayIndex = today.getDay(); 
       const nowTime = today.getHours() * 60 + today.getMinutes();
@@ -75,15 +125,16 @@ export default function RecruitHomeScreen() {
       const listMissed = [];
 
       missions.forEach(mission => {
-          if (doneIds.has(mission.id)) return;
-          if (mission.assigned_to && mission.assigned_to !== profile.id) return;
+          if (doneIds.has(mission.id)) return; // Já fiz
+          if (mission.assigned_to && mission.assigned_to !== myId) return; // Não é pra mim
 
+          // Recorrência
           if (mission.is_recurring && mission.recurrence_days) {
-              const isToday = mission.recurrence_days.includes(currentDayIndex) || 
-                              mission.recurrence_days.includes(String(currentDayIndex));
-              if (!isToday) return;
+              const days = mission.recurrence_days.map(Number);
+              if (!days.includes(currentDayIndex)) return;
           }
 
+          // Prazo
           let isExpired = false;
           if (mission.deadline) {
               const [h, m] = mission.deadline.split(':').map(Number);
@@ -98,163 +149,135 @@ export default function RecruitHomeScreen() {
       setMissedMissions(listMissed);
   };
 
-  // --- NOVO DESIGN DO CARD (LISTA LARGA) ---
   const renderMissionCard = ({ item, isMissed }) => {
-    const isCustomReward = item.reward_type === 'custom';
-    
-    // Cores de Identidade
-    let accentColor = '#10B981'; // Verde (Moeda)
-    let iconName = item.icon || "star";
-    
-    if (isCustomReward) {
-        accentColor = '#8B5CF6'; // Roxo (Prêmio)
-        iconName = "gift";
-    }
-    
-    if (isMissed) {
-        accentColor = '#9CA3AF'; // Cinza (Perdido)
-        iconName = "clock-alert";
-    }
+    const isCustom = item.reward_type === 'custom';
+    const accentColor = isMissed ? '#94A3B8' : (isCustom ? '#A855F7' : '#10B981');
+    const iconName = isMissed ? "clock-alert" : (item.icon || "star");
 
     return (
         <TouchableOpacity 
-            style={[styles.cardContainer, isMissed && styles.cardContainerMissed]}
+            style={[styles.card, isMissed && styles.cardMissed]}
             activeOpacity={0.9}
             onPress={() => {
-                if (isMissed) {
-                    Alert.alert("Tempo Esgotado", "O prazo acabou. Tente novamente amanhã!");
-                } else {
-                    navigation.navigate('MissionDetail', { mission: item, profile: profile });
-                }
+                if (isMissed) Alert.alert("Ops!", "O tempo acabou. Tente amanhã!");
+                else navigation.navigate('MissionDetail', { mission: item, profile: { id: profileId, family_id: familyId } });
             }}
         >
-            {/* Lateral Colorida (Indicador Visual) */}
-            <View style={[styles.cardAccentStrip, { backgroundColor: accentColor }]} />
-
-            {/* Conteúdo do Card */}
-            <View style={styles.cardContent}>
-                
-                {/* Ícone Grande com Fundo Suave */}
-                <View style={[styles.iconBox, { backgroundColor: isMissed ? '#E5E7EB' : `${accentColor}20` }]}>
-                    <MaterialCommunityIcons name={iconName} size={32} color={accentColor} />
-                </View>
-
-                {/* Textos */}
-                <View style={styles.textContainer}>
-                    <Text style={[styles.cardTitle, isMissed && styles.textMissed]} numberOfLines={1}>
-                        {item.title}
-                    </Text>
-                    
-                    {isMissed ? (
-                        <Text style={styles.deadlineText}>Perdida às {item.deadline?.slice(0,5)}</Text>
-                    ) : (
-                        <Text style={styles.deadlineText}>
-                            {item.deadline ? `Até as ${item.deadline.slice(0,5)}` : "Disponível o dia todo"}
-                        </Text>
-                    )}
-                </View>
-
-                {/* Badge de Recompensa (Pílula) */}
-                {!isMissed && (
-                    <View style={[styles.rewardBadge, { borderColor: accentColor }]}>
-                        {isCustomReward ? (
-                             <MaterialCommunityIcons name="gift-open" size={16} color={accentColor} />
-                        ) : (
-                             <MaterialCommunityIcons name="circle-multiple" size={16} color={COLORS.gold} />
-                        )}
-                        <Text style={[styles.rewardValue, { color: isCustomReward ? accentColor : '#B45309' }]}>
-                            {isCustomReward ? "Prêmio" : item.reward}
-                        </Text>
-                    </View>
-                )}
+            <View style={[styles.iconContainer, { backgroundColor: isMissed ? '#E2E8F0' : (isCustom ? '#F3E8FF' : '#D1FAE5') }]}>
+                <MaterialCommunityIcons name={iconName} size={28} color={accentColor} />
             </View>
+
+            <View style={styles.cardInfo}>
+                <Text style={[styles.cardTitle, isMissed && {textDecorationLine:'line-through', color:'#94A3B8'}]} numberOfLines={1}>
+                    {item.title}
+                </Text>
+                <Text style={styles.cardSub}>
+                    {isMissed 
+                        ? `Perdida às ${item.deadline?.slice(0,5)}` 
+                        : (item.deadline ? `Até as ${item.deadline.slice(0,5)}` : "Disponível hoje")}
+                </Text>
+            </View>
+
+            {!isMissed && (
+                <View style={styles.rewardPill}>
+                    {isCustom ? (
+                        <MaterialCommunityIcons name="gift" size={14} color="#A855F7" />
+                    ) : (
+                        <MaterialCommunityIcons name="circle-multiple" size={14} color="#B45309" />
+                    )}
+                    <Text style={[styles.rewardText, { color: isCustom ? '#A855F7' : '#B45309' }]}>
+                        {isCustom ? "Prêmio" : item.reward}
+                    </Text>
+                </View>
+            )}
         </TouchableOpacity>
     );
   };
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0EA5E9" />
       
-      {/* HEADER HEROICO */}
-      <View style={styles.heroHeader}>
-          <View style={styles.heroContent}>
-              
-              {/* Avatar e Infos */}
-              <View style={styles.avatarSection}>
-                  <View style={styles.avatarRing}>
-                      <View style={styles.avatarImage}>
-                         <MaterialCommunityIcons name="account" size={45} color="#fff" />
-                      </View>
-                      <View style={styles.rankBadge}>
-                          <Text style={styles.rankText}>NV. 1</Text>
-                      </View>
+      {/* === ÁREA 3D / CENÁRIO === */}
+      <View style={styles.chonkoStage}>
+          {/* Fundo do Cenário */}
+          <View style={styles.skyBackground}>
+              {/* Espaço reservado para o Modelo 3D */}
+              <View style={styles.modelPlaceholder}>
+                  {/* Ícone temporário até você por o 3D */}
+                  <Image 
+                    source={{uri: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png'}} 
+                    style={{width: 140, height: 140, opacity: 0.9}}
+                  />
+                  <View style={styles.shadowOval} />
+              </View>
+          </View>
+
+          {/* HUD (Interface Flutuante) */}
+          <View style={styles.hudContainer}>
+              <View style={styles.levelBadge}>
+                  <View style={styles.levelCircle}>
+                      <Text style={styles.levelNumber}>1</Text>
                   </View>
-                  <View>
-                      <Text style={styles.welcomeLabel}>BEM-VINDO AO QG</Text>
-                      <Text style={styles.soldierName}>{profile?.name}</Text>
-                  </View>
+                  <Text style={styles.playerName}>{profileName}</Text>
               </View>
 
-              {/* Placa de Dinheiro */}
-              <View style={styles.moneyPlate}>
-                  <MaterialCommunityIcons name="circle-multiple" size={28} color="#FFD700" style={styles.moneyIcon}/>
-                  <Text style={styles.moneyText}>{currentBalance}</Text>
-              </View>
+              <TouchableOpacity style={styles.coinBadge} onPress={fetchFreshData}>
+                  <MaterialCommunityIcons name="circle-multiple" size={24} color="#FFD700" />
+                  <Text style={styles.coinText}>{currentBalance}</Text>
+                  <View style={styles.plusBtn}>
+                      <MaterialCommunityIcons name="plus" size={14} color="#fff" />
+                  </View>
+              </TouchableOpacity>
           </View>
       </View>
 
-      {/* CORPO DA PÁGINA */}
-      <View style={styles.body}>
+      {/* === PAINEL DE MISSÕES === */}
+      <View style={styles.taskSheet}>
+          <View style={styles.dragHandle} />
           
-          {/* ABAS MODERNAS (PILLS) */}
-          <View style={styles.pillTabs}>
+          <View style={styles.tabsContainer}>
               <TouchableOpacity 
-                style={[styles.pill, activeTab === 'todo' && styles.pillActive]} 
+                style={[styles.tab, activeTab === 'todo' && styles.tabActive]} 
                 onPress={() => setActiveTab('todo')}
               >
-                  <Text style={[styles.pillText, activeTab === 'todo' && styles.pillTextActive]}>
+                  <Text style={[styles.tabText, activeTab === 'todo' && styles.tabTextActive]}>
                       MISSÕES ({todoMissions.length})
                   </Text>
               </TouchableOpacity>
-              
               <TouchableOpacity 
-                style={[styles.pill, activeTab === 'missed' && styles.pillActive]} 
+                style={[styles.tab, activeTab === 'missed' && styles.tabActive]} 
                 onPress={() => setActiveTab('missed')}
               >
-                  <Text style={[styles.pillText, activeTab === 'missed' && styles.pillTextActive]}>
+                  <Text style={[styles.tabText, activeTab === 'missed' && styles.tabTextActive]}>
                       PERDIDAS ({missedMissions.length})
                   </Text>
               </TouchableOpacity>
           </View>
 
-          {/* LISTA DE MISSÕES */}
           {loading ? (
-              <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}} />
+              <ActivityIndicator color={COLORS.primary} style={{marginTop: 40}} />
           ) : (
               <FlatList
                   data={activeTab === 'todo' ? todoMissions : missedMissions}
                   keyExtractor={item => item.id}
                   renderItem={({item}) => renderMissionCard({ item, isMissed: activeTab === 'missed' })}
+                  contentContainerStyle={{ paddingBottom: 80, paddingHorizontal: 5 }}
                   showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
                   refreshControl={
-                      <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={COLORS.primary}/>
+                      <RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchFreshData();}} />
                   }
-                  ListEmptyComponent={() => (
-                      <View style={styles.emptyState}>
+                  ListEmptyComponent={
+                      <View style={styles.emptyContainer}>
                           <MaterialCommunityIcons 
-                            name={activeTab === 'todo' ? "shield-check" : "clock-check-outline"} 
-                            size={80} 
-                            color="#CBD5E1" 
+                            name={activeTab === 'todo' ? "star-face" : "check-circle-outline"} 
+                            size={60} color="#CBD5E1" 
                           />
-                          <Text style={styles.emptyTitle}>
-                              {activeTab === 'todo' ? "Área Limpa!" : "Nenhuma falha."}
-                          </Text>
-                          <Text style={styles.emptySubtitle}>
-                              {activeTab === 'todo' ? "Você completou tudo por hoje." : "Você é um soldado exemplar."}
+                          <Text style={styles.emptyText}>
+                              {activeTab === 'todo' ? "Tudo limpo por aqui!" : "Nenhuma missão perdida."}
                           </Text>
                       </View>
-                  )}
+                  }
               />
           )}
       </View>
@@ -263,80 +286,60 @@ export default function RecruitHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' }, // Fundo bem claro
+  container: { flex: 1, backgroundColor: '#0EA5E9' }, // Azul Céu Vibrante
   
-  // --- HERO HEADER ---
-  heroHeader: {
-      backgroundColor: COLORS.primary,
-      paddingTop: 60,
-      paddingBottom: 30,
-      paddingHorizontal: 20,
-      borderBottomLeftRadius: 30,
-      borderBottomRightRadius: 30,
-      shadowColor: "#059669",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.3,
+  // --- CHONKO STAGE ---
+  chonkoStage: { height: '45%', position: 'relative' },
+  skyBackground: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  
+  modelPlaceholder: { alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  shadowOval: { width: 100, height: 20, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 50, marginTop: -10, transform: [{scaleX: 1.5}] },
+
+  // HUD
+  hudContainer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, position: 'absolute', width: '100%', zIndex: 10 },
+  
+  levelBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.25)', paddingRight: 15, borderRadius: 30, paddingLeft: 4, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  levelCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F59E0B', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
+  levelNumber: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  playerName: { color: '#fff', fontWeight: 'bold', marginLeft: 10, fontSize: 16, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 },
+
+  coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 30, gap: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  coinText: { color: '#FFD700', fontSize: 20, fontFamily: FONTS.bold, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 2 },
+  plusBtn: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center' },
+
+  // --- TASK SHEET ---
+  taskSheet: { 
+      flex: 1, 
+      backgroundColor: '#F8FAFC', 
+      borderTopLeftRadius: 32, 
+      borderTopRightRadius: 32, 
+      paddingHorizontal: 20, 
+      paddingTop: 10,
+      shadowColor: "#092F47",
+      shadowOffset: { width: 0, height: -5 },
+      shadowOpacity: 0.2,
       shadowRadius: 15,
-      elevation: 10,
-      zIndex: 10,
+      elevation: 20
   },
-  heroContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  
-  avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 15 },
-  avatarRing: { position: 'relative' },
-  avatarImage: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
-  rankBadge: { position: 'absolute', bottom: -5, right: -5, backgroundColor: COLORS.gold, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, borderWidth: 1, borderColor: '#fff' },
-  rankText: { fontSize: 10, fontWeight: 'bold', color: '#B45309' },
-  
-  welcomeLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: '600' },
-  soldierName: { fontSize: 22, color: '#fff', fontFamily: FONTS.bold },
+  dragHandle: { width: 50, height: 5, backgroundColor: '#CBD5E1', borderRadius: 10, alignSelf: 'center', marginBottom: 20, marginTop: 8 },
 
-  moneyPlate: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  moneyText: { color: '#FFD700', fontSize: 20, fontFamily: FONTS.bold },
-  moneyIcon: { textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 },
+  tabsContainer: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 16, padding: 4, marginBottom: 20 },
+  tab: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  tabActive: { backgroundColor: '#fff', shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+  tabText: { fontSize: 13, fontWeight: 'bold', color: '#94A3B8' },
+  tabTextActive: { color: COLORS.primary },
 
-  // --- BODY & TABS ---
-  body: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
-  
-  pillTabs: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 25, padding: 4, marginBottom: 15 },
-  pill: { flex: 1, paddingVertical: 10, borderRadius: 22, alignItems: 'center' },
-  pillActive: { backgroundColor: '#fff', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
-  pillText: { fontSize: 12, fontWeight: 'bold', color: '#64748B' },
-  pillTextActive: { color: COLORS.primary },
-
-  // --- MISSION CARD (NEW DESIGN) ---
-  cardContainer: {
-      flexDirection: 'row',
-      backgroundColor: '#fff',
-      borderRadius: 20,
-      marginBottom: 15,
-      height: 90,
-      overflow: 'hidden',
-      // Sombra Suave
-      shadowColor: "#64748B",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 3,
-  },
-  cardContainerMissed: { opacity: 0.6, backgroundColor: '#F1F5F9' },
-  
-  cardAccentStrip: { width: 6, height: '100%' },
-  
-  cardContent: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 15 },
-  
-  iconBox: { width: 50, height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  
-  textContainer: { flex: 1, justifyContent: 'center' },
+  // Cards
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 16, borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: "#64748B", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  cardMissed: { opacity: 0.6, backgroundColor: '#F8FAFC' },
+  iconContainer: { width: 54, height: 54, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  cardInfo: { flex: 1 },
   cardTitle: { fontSize: 16, fontFamily: FONTS.bold, color: COLORS.textPrimary, marginBottom: 4 },
-  textMissed: { color: '#64748B', textDecorationLine: 'line-through' },
-  deadlineText: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
+  cardSub: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
+  
+  rewardPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#FFEDD5', gap: 6 },
+  rewardText: { fontSize: 14, fontWeight: 'bold' },
 
-  rewardBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, backgroundColor: '#FAFAFA', gap: 6 },
-  rewardValue: { fontSize: 14, fontWeight: 'bold' },
-
-  // --- EMPTY STATE ---
-  emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 60 },
-  emptyTitle: { fontSize: 20, fontFamily: FONTS.bold, color: '#334155', marginTop: 20 },
-  emptySubtitle: { fontSize: 14, color: '#94A3B8', marginTop: 5 },
+  emptyContainer: { alignItems: 'center', marginTop: 60, opacity: 0.6 },
+  emptyText: { marginTop: 15, fontSize: 16, fontWeight: 'bold', color: '#94A3B8' },
 });
