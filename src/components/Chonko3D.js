@@ -1,4 +1,4 @@
-import { Center, Environment, Float, Outlines, useGLTF } from '@react-three/drei/native';
+import { Environment, Float, Outlines, useGLTF } from '@react-three/drei/native'; // Removi Center
 import { Canvas } from '@react-three/fiber/native';
 import { Suspense, useEffect } from 'react';
 import { LogBox, StyleSheet, View } from 'react-native';
@@ -25,6 +25,7 @@ function Model(props) {
   }, [scene]);
 
   return (
+    // O {...props} aqui permite que a gente controle position e scale lá embaixo
     <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
         <primitive object={scene} {...props}>
              <Outlines thickness={0.05} color="black" />
@@ -33,22 +34,15 @@ function Model(props) {
   );
 }
 
-// Componente de Loading para colocar DENTRO do Suspense
-function Loader3D() {
-  return (
-    // Como não dá para renderizar View nativa direto no Canvas sem Html,
-    // Deixamos vazio aqui e controlamos o loading por fora ou usamos um placeholder 3D.
-    // Mas a melhor estratégia para React Native é renderizar nada aqui
-    // e deixar o fallback do Suspense cuidar visualmente.
-    <mesh visible={false} /> 
-  );
-}
-
 export default function Chonko3D() {
   return (
     <View style={styles.container}>
       <Canvas 
-        camera={{ position: [0, 1, 4], fov: 45 }}
+        // 1. AJUSTE DE CÂMERA:
+        // Position [0, 0, 6] afasta a câmera para trás (Eixo Z)
+        // FOV 45 deixa a perspectiva bonita sem distorcer
+        camera={{ position: [0, 0, 6], fov: 45 }}
+        
         onCreated={(state) => {
             const _gl = state.gl.getContext();
             const _pixelStorei = _gl.pixelStorei;
@@ -60,21 +54,19 @@ export default function Chonko3D() {
       >
         <Environment preset="city" />
         <ambientLight intensity={1.8} />
-        <directionalLight position={[0, 2, 10]} intensity={3} />
+        {/* Luz frontal superior para destacar o rosto */}
+        <directionalLight position={[0, 2, 10]} intensity={2.5} />
 
-        {/* O suspense aqui controla o que aparece enquanto o modelo de 10s carrega */}
         <Suspense fallback={null}>
-            <Center>
-               <Model scale={0.45} position={[0, -3, 0]} />
-            </Center>
+            {/* 2. REMOVIDO O <Center> */}
+            {/* Agora controlamos na mão. Se quiser subir/descer, mexa no segundo valor de position (Y) */}
+            <Model 
+                scale={0.6}           // Ajuste o tamanho aqui
+                position={[0, -2.2, 0]} // [Esquerda/Direita, Baixo/Cima, Perto/Longe]
+                rotation={[0, 0.2, 0]} // Leve rotação para ele olhar de ladinho
+            />
         </Suspense>
       </Canvas>
-
-      {/* SPINNER SOBREPOSTO (Overlay) */}
-      {/* Esse spinner fica na frente do Canvas e só some quando o React terminar de suspender o modelo */}
-      {/* Nota: Para fazer isso sumir automaticamente precisaríamos de um estado de 'loaded' vindo de dentro do Canvas,
-          mas apenas adicionar o ActivityIndicator aqui com position absolute já ajuda a preencher o vazio se usarmos 
-          um state externo. Como simplificação, recomendo FOCAR NO BLENDER. */}
     </View>
   );
 }

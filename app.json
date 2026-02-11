@@ -19,7 +19,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "androidNavigationBar": {
+        "visible": "edge-to-edge",
+        "backgroundColor": "#00000000",
+        "barStyle": "dark-content"
+      }
     },
     "web": {
       "output": "static",
@@ -39,7 +44,16 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-navigation-bar",
+        {
+          "position": "absolute",
+          "visibility": "hidden",
+          "behavior": "inset-swipe",
+          "backgroundColor": "#00000000"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

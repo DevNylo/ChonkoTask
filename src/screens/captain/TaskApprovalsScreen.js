@@ -50,7 +50,6 @@ export default function TaskApprovalsScreen() {
         }, 
         (payload) => {
           console.log("🔔 Nova atividade de missão!", payload.eventType);
-          // Se entrou uma prova nova ou algo mudou, recarrega a lista
           fetchApprovals();
         }
       )
@@ -63,13 +62,12 @@ export default function TaskApprovalsScreen() {
 
   const fetchApprovals = async () => {
     try {
-      // Não ativamos o loading aqui para não piscar a tela toda vez que atualizar
       const { data, error } = await supabase
         .from('mission_attempts')
         .select(`
             id, proof_url, created_at, earned_value, mission_id, status,
             missions ( title, icon, is_recurring, reward, reward_type, custom_reward ), 
-            profiles ( id, name, avatar, balance )
+            profiles ( id, name, avatar, balance, experience )
         `)
         .eq('status', 'pending')
         .order('created_at', { ascending: true });
@@ -98,32 +96,43 @@ export default function TaskApprovalsScreen() {
     try {
         console.log("--- INICIANDO APROVAÇÃO ---");
         
-        // 1. Lógica de Pagamento
         const isCoins = attempt.missions?.reward_type === 'coins';
+        const rewardValue = attempt.earned_value || attempt.missions?.reward || 0;
         
-        if (isCoins) {
-            const { data: currentProfile, error: fetchError } = await supabase
-                .from('profiles')
-                .select('balance')
-                .eq('id', attempt.profiles.id)
-                .single();
-            
-            if (fetchError) throw new Error("Erro ao buscar saldo: " + fetchError.message);
+        // --- 1. LÓGICA DE PAGAMENTO DE MOEDAS E XP (OPÇÃO 1: XP FIXO) ---
+        // A criança ganha sempre 25 XP pela disciplina de cumprir a tarefa.
+        // Assim o nível é protegido, mesmo que o pai dê 5000 moedas.
+        const xpGained = 25; 
 
-            const currentBalance = currentProfile.balance || 0;
-            const rewardValue = attempt.earned_value || attempt.missions?.reward || 0;
-            const newBalance = currentBalance + rewardValue;
+        // Busca os dados mais recentes do perfil do Recruta
+        const { data: currentProfile, error: fetchError } = await supabase
+            .from('profiles')
+            .select('balance, experience')
+            .eq('id', attempt.profiles.id)
+            .single();
+        
+        if (fetchError) throw new Error("Erro ao buscar dados do recruta: " + fetchError.message);
 
-            const { error: payError } = await supabase
-                .from('profiles')
-                .update({ balance: newBalance })
-                .eq('id', attempt.profiles.id);
+        const currentBalance = currentProfile.balance || 0;
+        const currentExperience = currentProfile.experience || 0;
 
-            if (payError) throw new Error("Erro no pagamento (RLS).");
-            console.log("Pagamento efetuado.");
-        }
+        // Calcula os novos valores (Moedas dependem da missão, XP é fixo)
+        const newBalance = isCoins ? (currentBalance + rewardValue) : currentBalance;
+        const newExperience = currentExperience + xpGained;
 
-        // 2. Atualiza status da tentativa
+        // Atualiza Moedas e XP no banco ao mesmo tempo
+        const { error: updateProfileError } = await supabase
+            .from('profiles')
+            .update({ 
+                balance: newBalance,
+                experience: newExperience 
+            })
+            .eq('id', attempt.profiles.id);
+
+        if (updateProfileError) throw new Error("Erro ao transferir recompensas (RLS).");
+        console.log(`Recompensa enviada: +${isCoins ? rewardValue : 0} Moedas, +${xpGained} XP`);
+
+        // --- 2. Atualiza status da tentativa ---
         const { error: attemptError } = await supabase
             .from('mission_attempts')
             .update({ status: 'approved' })
@@ -131,7 +140,7 @@ export default function TaskApprovalsScreen() {
 
         if (attemptError) throw attemptError;
         
-        // 3. Atualiza status da Missão (Se não for recorrente)
+        // --- 3. Atualiza status da Missão (Se não for recorrente) ---
         const isRecurring = attempt.missions?.is_recurring;
         if (!isRecurring) {
             await supabase
@@ -140,12 +149,11 @@ export default function TaskApprovalsScreen() {
                 .eq('id', attempt.mission_id);
         }
 
-        // 4. Limpeza
+        // --- 4. Limpeza ---
         if (attempt.proof_url) await deleteProofImage(attempt.proof_url);
 
-        Alert.alert("SUCESSO!", isCoins ? "Moedas transferidas!" : "Missão concluída!");
-        // O fetchApprovals será chamado automaticamente pelo Realtime, 
-        // mas chamamos aqui para garantir feedback instantâneo na UI
+        Alert.alert("SUCESSO!", `Missão aprovada!\nRecruta ganhou +${xpGained} XP${isCoins && rewardValue > 0 ? ` e +${rewardValue} moedas.` : '.'}`);
+        
         fetchApprovals(); 
 
     } catch (error) {
