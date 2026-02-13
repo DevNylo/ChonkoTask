@@ -116,11 +116,15 @@ export default function CaptainHomeScreen() {
     }
   };
 
+  // --- CORREÇÃO AQUI: Agora gerencia a navegação para Loja e Missões ---
   const handleCardPress = (item) => {
-      if (item.id === 'missions') {
+      if (item.route === 'MissionManager') {
           navigation.navigate('MissionManager', { familyId: profile.family_id });
+      } else if (item.route === 'RewardShop') {
+          // Passamos o profile também para saber se é capitão ou recruta na loja
+          navigation.navigate('RewardShop', { familyId: profile.family_id, profile: profile });
       } else {
-          Alert.alert("Em Breve", `A tela "${item.title}" está em manutenção.`);
+          Alert.alert("Em Breve", `A tela "${item.title}" está em desenvolvimento.`);
       }
   };
 
