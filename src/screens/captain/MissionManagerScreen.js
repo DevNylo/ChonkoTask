@@ -6,6 +6,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,10 +16,10 @@ import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
 
 const STATUS_TABS = [
-    { id: 'active', label: 'ATIVAS', icon: 'clipboard-play-outline' },
-    { id: 'completed', label: 'CONCLUÍDAS', icon: 'check-circle-outline' },
-    { id: 'expired', label: 'NÃO FEITAS', icon: 'clock-alert-outline' },
-    { id: 'archived', label: 'CANCELADAS', icon: 'trash-can-outline' },
+    { id: 'active', label: 'ATIVAS', icon: 'clipboard-play-outline', color: '#10B981' }, 
+    { id: 'completed', label: 'FEITAS', icon: 'check-circle-outline', color: '#3B82F6' }, 
+    { id: 'expired', label: 'PERDIDAS', icon: 'clock-alert-outline', color: '#F59E0B' }, 
+    { id: 'archived', label: 'LIXEIRA', icon: 'trash-can-outline', color: '#EF4444' }, 
 ];
 
 const WEEKDAYS = [
@@ -40,22 +41,19 @@ export default function MissionManagerScreen() {
   const [loading, setLoading] = useState(false);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
 
-  // --- CICLO DE VIDA ---
-  // Roda toda vez que a tela ganha foco ou a aba muda
   useFocusEffect(
     useCallback(() => {
         const runRoutine = async () => {
             setLoading(true);
-            await processRecurringMissions(); // 1. Acorda/Adormece missões recorrentes
-            await checkExpiredMissions();     // 2. Verifica horários das missões únicas
-            await fetchData();                // 3. Carrega a lista atualizada
+            await processRecurringMissions();
+            await checkExpiredMissions();
+            await fetchData();
             setLoading(false);
         };
         runRoutine();
     }, [activeStatus]) 
   );
 
-  // --- ROBÔ 1: GERENCIAR RECORRÊNCIA (DIÁRIAS) ---
   const processRecurringMissions = async () => {
       const todayIndex = new Date().getDay(); 
       const todayStart = new Date();
@@ -63,7 +61,6 @@ export default function MissionManagerScreen() {
       const todayISO = todayStart.toISOString();
 
       try {
-          // Busca todas as missões recorrentes da família (exceto as excluídas)
           const { data: recurringMissions } = await supabase
               .from('missions')
               .select('id, recurrence_days, status')
@@ -80,10 +77,8 @@ export default function MissionManagerScreen() {
               const isScheduledForToday = m.recurrence_days && m.recurrence_days.includes(todayIndex);
 
               if (!isScheduledForToday) {
-                  // Se não é dia, ela deve "dormir" (expired) para sair da lista de ativas
                   if (m.status !== 'expired') toSleep.push(m.id);
               } else {
-                  // É dia! Verificamos se já foi feita HOJE
                   const { count } = await supabase
                       .from('mission_attempts')
                       .select('*', { count: 'exact', head: true })
@@ -91,10 +86,8 @@ export default function MissionManagerScreen() {
                       .gte('created_at', todayISO);
 
                   if (count === 0 && m.status !== 'active') {
-                      // Ninguém fez hoje e ela não está ativa -> ACORDAR!
                       toActive.push(m.id);
                   }
-                  // Se count > 0, deixamos ela como está (completed ou pending)
               }
           }
 
@@ -104,9 +97,7 @@ export default function MissionManagerScreen() {
       } catch (error) { console.log("Erro Recorrência:", error); }
   };
 
-  // --- ROBÔ 2: GERENCIAR EXPIRAÇÃO (HORÁRIO DE TAREFAS ÚNICAS) ---
   const checkExpiredMissions = async () => {
-      // Busca apenas missões ÚNICAS e ATIVAS que tenham horário limite
       const { data: activeMissions } = await supabase
         .from('missions')
         .select('id, deadline')
@@ -134,14 +125,11 @@ export default function MissionManagerScreen() {
       }
   };
 
-  // --- BUSCA DE DADOS ---
   const fetchData = async () => {
-      // Busca perfis para o filtro
       const { data: profilesData } = await supabase
         .from('profiles').select('id, name').eq('family_id', familyId).neq('role', 'captain');
       setProfiles(profilesData || []);
 
-      // Busca missões da aba atual (NUNCA TRAZ TEMPLATES)
       const { data: missionsData } = await supabase
         .from('missions')
         .select('*')
@@ -174,32 +162,45 @@ export default function MissionManagerScreen() {
       return days.map(id => WEEKDAYS.find(d => d.id === id)?.label.substring(0,3)).join(", ");
   };
 
-  // --- RENDERIZAÇÃO DO CARD ---
   const renderMissionCard = ({ item }) => {
       const isCustom = item.reward_type === 'custom';
       const assigneeName = item.assigned_to 
         ? (profiles.find(p => p.id === item.assigned_to)?.name || 'Recruta') 
         : 'TODOS';
       
-      const isExpired = item.status === 'expired';
+      const isCompleted = item.status === 'completed';
+      const isInactive = item.status === 'expired' || item.status === 'archived'; 
+      
+      let cardBg, iconColor, titleColor, tagBg, tagBorder, tagText;
+
+      // Mantemos a borda fixa verde escura, mas mudamos o conteúdo interno
+      if (isCompleted) {
+          cardBg = '#F0FDF4'; iconColor = '#16A34A'; titleColor = '#14532D'; tagBg = '#DCFCE7'; tagBorder = '#86EFAC'; tagText = '#15803D';
+      } else if (isInactive) {
+          cardBg = '#F9FAFB'; iconColor = '#9CA3AF'; titleColor = '#9CA3AF'; tagBg = '#F3F4F6'; tagBorder = '#E5E7EB'; tagText = '#9CA3AF';
+      } else {
+          cardBg = '#FFF'; iconColor = COLORS.primary; titleColor = '#1E293B'; tagBg = isCustom ? '#FDF2F8' : '#FFFBEB'; tagBorder = isCustom ? '#DB2777' : '#F59E0B'; tagText = isCustom ? '#DB2777' : '#B45309';
+      }
 
       return (
         <View style={styles.cardWrapper}>
-            <View style={[styles.cardShadow, isExpired && {backgroundColor: '#ccc'}]} />
-            <View style={[styles.cardFront, isExpired && {borderColor: '#999', backgroundColor: '#f0f0f0'}]}>
+            {/* Sombra Suave Atrás */}
+            <View style={styles.cardShadow} />
+
+            {/* Card Frontal com Borda Verde Escura 1px */}
+            <View style={[styles.cardFront, { backgroundColor: cardBg }]}>
                 
-                {/* Header do Card */}
                 <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
-                    <View style={[styles.iconBox, isExpired && {backgroundColor: '#ddd', borderColor: '#999'}]}>
-                        <MaterialCommunityIcons name={item.icon} size={28} color={isExpired ? '#999' : COLORS.primary} />
+                    <View style={[styles.iconBox, isInactive ? {backgroundColor: '#E5E7EB'} : (isCompleted ? {backgroundColor: '#DCFCE7'} : {backgroundColor: '#F0FDF4'})]}>
+                        <MaterialCommunityIcons name={isCompleted ? "check-decagram" : item.icon} size={28} color={iconColor} />
                     </View>
                     <View style={{flex:1}}>
-                        <Text style={[styles.cardTitle, isExpired && {color: '#999'}]}>{item.title}</Text>
+                        <Text style={[styles.cardTitle, {color: titleColor}]}>{item.title}</Text>
                         <View style={{flexDirection: 'row', marginTop: 4}}>
-                            <View style={[styles.tagBase, { backgroundColor: isExpired ? '#eee' : (isCustom ? '#fdf2f8' : '#fffbeb'), borderColor: isExpired ? '#ccc' : (isCustom ? '#db2777' : COLORS.gold) }]}>
-                                <MaterialCommunityIcons name={isCustom ? "gift" : "star"} size={10} color={isExpired ? '#999' : (isCustom ? '#db2777' : COLORS.gold)} />
-                                <Text style={[styles.tagText, { color: isExpired ? '#999' : (isCustom ? '#db2777' : '#b45309') }]}>
-                                    {isCustom ? item.custom_reward : item.reward}
+                            <View style={[styles.tagBase, { backgroundColor: tagBg, borderColor: tagBorder }]}>
+                                <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={10} color={tagText} />
+                                <Text style={[styles.tagText, { color: tagText }]}>
+                                    {isCustom ? (item.custom_reward || "Prêmio") : `+${item.reward}`}
                                 </Text>
                             </View>
                         </View>
@@ -208,49 +209,44 @@ export default function MissionManagerScreen() {
 
                 <View style={styles.divider} />
 
-                {/* Informações detalhadas (Rich Info) */}
                 <View style={styles.metaInfoContainer}>
-                    {/* Tag Recorrência */}
-                    <View style={[styles.metaTag, isExpired ? {borderColor:'#999', backgroundColor:'#eee'} : { backgroundColor: item.is_recurring ? '#fff7ed' : '#fee2e2', borderColor: item.is_recurring ? '#f97316' : '#ef4444' }]}>
-                        <MaterialCommunityIcons name={item.is_recurring ? "calendar-sync" : "calendar-check"} size={12} color={isExpired ? '#999' : (item.is_recurring ? '#ea580c' : '#b91c1c')} />
-                        <Text style={[styles.metaText, { color: isExpired ? '#999' : (item.is_recurring ? '#ea580c' : '#b91c1c') }]}>
+                    <View style={[styles.metaTag, isInactive ? {borderColor:'#E5E7EB', backgroundColor:'#F3F4F6'} : (isCompleted ? {backgroundColor:'#F0FDF4', borderColor: '#BBF7D0'} : { backgroundColor: item.is_recurring ? '#FFF7ED' : '#FEF2F2', borderColor: item.is_recurring ? '#F97316' : '#EF4444' })]}>
+                        <MaterialCommunityIcons name={item.is_recurring ? "calendar-sync" : "calendar-check"} size={12} color={isInactive ? '#9CA3AF' : (isCompleted ? '#16A34A' : (item.is_recurring ? '#EA580C' : '#B91C1C'))} />
+                        <Text style={[styles.metaText, { color: isInactive ? '#9CA3AF' : (isCompleted ? '#16A34A' : (item.is_recurring ? '#EA580C' : '#B91C1C')) }]}>
                             {item.is_recurring ? "Diária" : "Única"}
                         </Text>
                     </View>
 
-                    {/* Tag Horário */}
                     {(item.start_time || item.deadline) && (
-                        <View style={[styles.metaTag, isExpired ? {borderColor:'#999', backgroundColor:'#eee'} : { backgroundColor: '#eff6ff', borderColor: '#3b82f6' }]}>
-                            <MaterialCommunityIcons name="clock-outline" size={12} color={isExpired ? '#999' : "#2563eb"} />
-                            <Text style={[styles.metaText, { color: isExpired ? '#999' : '#2563eb' }]}>
+                        <View style={[styles.metaTag, isInactive ? {borderColor:'#E5E7EB', backgroundColor:'#F3F4F6'} : (isCompleted ? {backgroundColor:'#EFF6FF', borderColor: '#BFDBFE'} : { backgroundColor: '#EFF6FF', borderColor: '#3B82F6' })]}>
+                            <MaterialCommunityIcons name="clock-outline" size={12} color={isInactive ? '#9CA3AF' : (isCompleted ? '#3B82F6' : "#2563EB")} />
+                            <Text style={[styles.metaText, { color: isInactive ? '#9CA3AF' : (isCompleted ? '#3B82F6' : '#2563EB') }]}>
                                 {item.start_time ? item.start_time.substring(0,5) : "00:00"} - {item.deadline ? item.deadline.substring(0,5) : "00:00"}
                             </Text>
                         </View>
                     )}
 
-                    {/* Tag Atribuído */}
-                    <View style={[styles.metaTag, isExpired ? {borderColor:'#999', backgroundColor:'#eee'} : { backgroundColor: '#f0fdf4', borderColor: '#16a34a' }]}>
-                        <MaterialCommunityIcons name={item.assigned_to ? "account" : "account-group"} size={12} color={isExpired ? '#999' : "#15803d"} />
-                        <Text style={[styles.metaText, { color: isExpired ? '#999' : '#15803d' }]}>{assigneeName}</Text>
+                    <View style={[styles.metaTag, isInactive ? {borderColor:'#E5E7EB', backgroundColor:'#F3F4F6'} : (isCompleted ? {backgroundColor:'#F0FDF4', borderColor: '#BBF7D0'} : { backgroundColor: '#F0FDF4', borderColor: '#16A34A' })]}>
+                        <MaterialCommunityIcons name={item.assigned_to ? "account" : "account-group"} size={12} color={isInactive ? '#9CA3AF' : "#15803D"} />
+                        <Text style={[styles.metaText, { color: isInactive ? '#9CA3AF' : '#15803D' }]}>{assigneeName}</Text>
                     </View>
                 </View>
 
-                {/* Dias da semana (se recorrente) */}
                 {item.is_recurring && item.recurrence_days && (
-                    <Text style={styles.daysText}>
+                    <Text style={[styles.daysText, isInactive && {color: '#9CA3AF'}]}>
                         <MaterialCommunityIcons name="calendar-range" size={12} /> {getDayLabels(item.recurrence_days)}
                     </Text>
                 )}
 
-                {/* Ações (Editar/Cancelar) */}
-                {activeStatus !== 'archived' && !isExpired && (
+                {activeStatus === 'active' && (
                     <View style={styles.cardActions}>
                         <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CreateMission', { familyId, missionToEdit: item })}>
-                            <MaterialCommunityIcons name="pencil" size={18} color={COLORS.primary} />
+                            <MaterialCommunityIcons name="pencil-outline" size={18} color={COLORS.primary} />
                             <Text style={styles.actionText}>Editar</Text>
                         </TouchableOpacity>
+                        <View style={{width: 1, height: 16, backgroundColor: '#E5E7EB'}} />
                         <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(item.id)}>
-                            <MaterialCommunityIcons name="close-circle-outline" size={18} color={COLORS.error} />
+                            <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.error} />
                             <Text style={[styles.actionText, {color: COLORS.error}]}>Cancelar</Text>
                         </TouchableOpacity>
                     </View>
@@ -262,67 +258,90 @@ export default function MissionManagerScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>GERENCIAR MISSÕES</Text>
-        <View style={{width: 28}} /> 
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* HEADER VERDE ESCURO (COLORS.primary) */}
+      <View style={styles.topGreenArea}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>GERENCIAR MISSÕES</Text>
+            <View style={{width: 40}} /> 
+          </View>
+
+          {/* Filtro com Borda Verde */}
+          <View style={styles.filterContainer}>
+             <Text style={styles.filterLabel}>Visualizando de:</Text>
+             <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilterModal(true)}>
+                 <Text style={styles.filterText}>{filterName}</Text>
+                 <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textPrimary} />
+             </TouchableOpacity>
+          </View>
       </View>
 
-      {/* Filtro Dropdown */}
-      <View style={styles.filterSection}>
-          <Text style={styles.sectionLabel}>VISUALIZANDO MISSÕES DE:</Text>
-          <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowFilterModal(true)} activeOpacity={0.8}>
-              <Text style={styles.dropdownText} numberOfLines={1}>{filterName}</Text>
-              <MaterialCommunityIcons name="chevron-down" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-      </View>
+      {/* CONTEÚDO */}
+      <View style={styles.contentContainer}>
+          <View style={styles.tabsWrapper}>
+             <FlatList 
+                data={STATUS_TABS} 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={item => item.id} 
+                contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 15 }}
+                renderItem={({ item }) => {
+                    const isActive = activeStatus === item.id;
+                    return (
+                        <TouchableOpacity 
+                            style={[
+                                styles.tabItem, 
+                                // Se ativo: Fundo colorido e Borda da Cor
+                                // Se inativo: Fundo Branco e Borda Verde Escura 1px (Padrão Chonko)
+                                isActive 
+                                    ? { backgroundColor: item.color, borderColor: item.color } 
+                                    : { borderColor: COLORS.primary, backgroundColor: '#FFF' }
+                            ]}
+                            onPress={() => setActiveStatus(item.id)}
+                        >
+                            <MaterialCommunityIcons name={item.icon} size={16} color={isActive ? '#FFF' : COLORS.primary} />
+                            <Text style={[styles.tabText, isActive ? { color: '#FFF' } : { color: COLORS.primary }]}>{item.label}</Text>
+                        </TouchableOpacity>
+                    )
+                }}
+             />
+          </View>
 
-      {/* Abas */}
-      <View style={styles.tabsContainer}>
           <FlatList 
-            data={STATUS_TABS} horizontal showsHorizontalScrollIndicator={false}
-            keyExtractor={item => item.id} contentContainerStyle={{ paddingHorizontal: 20 }}
-            renderItem={({ item }) => {
-                const isActive = activeStatus === item.id;
-                return (
-                    <TouchableOpacity 
-                        style={[styles.tabItem, { backgroundColor: isActive ? COLORS.primary : COLORS.surface, borderColor: COLORS.primary }]}
-                        onPress={() => setActiveStatus(item.id)}
-                    >
-                        <MaterialCommunityIcons name={item.icon} size={18} color={isActive ? COLORS.white : COLORS.primary} />
-                        <Text style={[styles.tabText, { color: isActive ? COLORS.white : COLORS.primary }]}>{item.label}</Text>
-                    </TouchableOpacity>
-                )
-            }}
+            data={filteredMissions} 
+            keyExtractor={item => item.id} 
+            renderItem={renderMissionCard}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+                <View style={styles.emptyState}>
+                    {loading ? <ActivityIndicator color={COLORS.primary} /> : (
+                        <>
+                            <MaterialCommunityIcons name="clipboard-text-off-outline" size={60} color="#CBD5E1" />
+                            <Text style={styles.emptyTitle}>
+                                {activeStatus === 'active' ? "Tudo limpo por aqui!" : "Nada nesta lista"}
+                            </Text>
+                            <Text style={styles.emptySub}>
+                                {activeStatus === 'active' ? "Crie novas missões para a tropa." : ""}
+                            </Text>
+                        </>
+                    )}
+                </View>
+            }
           />
       </View>
-      <View style={styles.tabsDivider} />
 
-      {/* Lista */}
-      <FlatList 
-        data={filteredMissions} keyExtractor={item => item.id} renderItem={renderMissionCard}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-            <View style={styles.emptyState}>
-                {loading ? <ActivityIndicator color={COLORS.primary} /> : (
-                    <>
-                        <MaterialCommunityIcons name="clipboard-text-off-outline" size={50} color={COLORS.primary} style={{opacity:0.3}} />
-                        <Text style={styles.emptyText}>Nenhuma missão aqui.</Text>
-                    </>
-                )}
+      {activeStatus === 'active' && (
+        <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => setShowCreateOptions(true)}>
+            <View style={styles.fabInner}>
+                <MaterialCommunityIcons name="plus" size={32} color="#FFF" />
             </View>
-        }
-      />
-
-      {/* FAB */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => setShowCreateOptions(true)}>
-        <View style={styles.fabShadow} />
-        <View style={styles.fabFront}>
-             <MaterialCommunityIcons name="plus" size={40} color={COLORS.white} />
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      )}
 
       {/* MODAL FILTRO */}
       <Modal visible={showFilterModal} transparent={true} animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
@@ -350,17 +369,25 @@ export default function MissionManagerScreen() {
           <View style={styles.modalOverlay}>
               <TouchableOpacity style={{flex:1, width:'100%'}} onPress={() => setShowCreateOptions(false)} />
               <View style={styles.createOptionsContainer}>
-                  <Text style={styles.createOptionsTitle}>O QUE VAMOS LANÇAR?</Text>
+                  <View style={styles.createHeader}>
+                      <Text style={styles.createOptionsTitle}>CRIAR TAREFA</Text>
+                      <TouchableOpacity onPress={() => setShowCreateOptions(false)}>
+                          <MaterialCommunityIcons name="close" size={24} color="#94A3B8" />
+                      </TouchableOpacity>
+                  </View>
+                  
                   <TouchableOpacity style={styles.createOptionBtn} onPress={() => { setShowCreateOptions(false); navigation.navigate('QuickMissions', { familyId }); }}>
-                      <View style={[styles.createOptionIcon, { backgroundColor: COLORS.gold, borderColor: COLORS.primary }]}><MaterialCommunityIcons name="flash" size={24} color={COLORS.white} /></View>
-                      <View style={{flex: 1}}><Text style={styles.createOptionTitle}>MISSÃO RÁPIDA</Text><Text style={styles.createOptionSubtitle}>Usar um modelo salvo</Text></View>
-                      <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} />
+                      <View style={[styles.createOptionIcon, { backgroundColor: '#FEF3C7' }]}><MaterialCommunityIcons name="flash" size={24} color="#F59E0B" /></View>
+                      <View style={{flex: 1}}><Text style={styles.createOptionTitle}>MISSÃO RÁPIDA</Text><Text style={styles.createOptionSubtitle}>Usar modelos prontos</Text></View>
+                      <MaterialCommunityIcons name="chevron-right" size={24} color="#CBD5E1" />
                   </TouchableOpacity>
-                  <View style={styles.divider} />
+                  
+                  <View style={styles.createDivider} />
+                  
                   <TouchableOpacity style={styles.createOptionBtn} onPress={() => { setShowCreateOptions(false); navigation.navigate('CreateMission', { familyId }); }}>
-                      <View style={[styles.createOptionIcon, { backgroundColor: COLORS.secondary, borderColor: COLORS.primary }]}><MaterialCommunityIcons name="plus" size={24} color={COLORS.white} /></View>
+                      <View style={[styles.createOptionIcon, { backgroundColor: '#DCFCE7' }]}><MaterialCommunityIcons name="plus" size={24} color="#10B981" /></View>
                       <View style={{flex: 1}}><Text style={styles.createOptionTitle}>NOVA MISSÃO</Text><Text style={styles.createOptionSubtitle}>Criar do zero</Text></View>
-                      <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} />
+                      <MaterialCommunityIcons name="chevron-right" size={24} color="#CBD5E1" />
                   </TouchableOpacity>
               </View>
           </View>
@@ -370,55 +397,110 @@ export default function MissionManagerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 15 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.surface, letterSpacing: 1 },
-  backBtn: { padding: 5, backgroundColor: COLORS.surface, borderRadius: 10 },
-  filterSection: { paddingHorizontal: 20, marginBottom: 15 },
-  sectionLabel: { fontFamily: FONTS.bold, fontSize: 10, color: COLORS.surface, marginBottom: 5, opacity: 0.9 },
-  dropdownButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12, borderWidth: 2, borderColor: COLORS.primary, elevation: 2 },
-  dropdownText: { fontFamily: FONTS.bold, fontSize: 14, color: COLORS.primary },
-  tabsContainer: { marginBottom: 10, height: 45 },
-  tabItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8, marginRight: 10, borderRadius: 20, borderWidth: 2 },
-  tabText: { fontFamily: FONTS.bold, fontSize: 12, marginLeft: 6 },
-  tabsDivider: { height: 2, backgroundColor: 'rgba(255,255,255,0.2)', marginHorizontal: 20, marginBottom: 10, borderRadius: 1 },
-  listContent: { padding: 20, paddingBottom: 100 },
+  container: { flex: 1, backgroundColor: '#F0F9FF' },
   
-  cardWrapper: { marginBottom: 15, position: 'relative' },
-  cardShadow: { position: 'absolute', top: 6, left: 6, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 20 },
-  cardFront: { backgroundColor: COLORS.surface, borderRadius: 20, borderWidth: 3, borderColor: COLORS.primary, padding: 15 },
-  iconBox: { width: 45, height: 45, backgroundColor: COLORS.surfaceAlt, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 2, borderColor: COLORS.primary },
-  cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.textPrimary },
-  tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  tagText: { fontFamily: FONTS.bold, fontSize: 10, marginLeft: 4 },
-  divider: { height: 2, backgroundColor: COLORS.surfaceAlt, marginVertical: 10 },
+  // --- HEADER VERDE ESCURO (COLORS.primary) ---
+  topGreenArea: {
+      backgroundColor: COLORS.primary, // #064E3B
+      paddingTop: 50,
+      paddingBottom: 20,
+      borderBottomLeftRadius: 35,
+      borderBottomRightRadius: 35,
+      zIndex: 10,
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 0.5 },
+  backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
+  
+  filterContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
+  filterLabel: { fontFamily: FONTS.regular, fontSize: 12, color: '#D1FAE5' },
+  
+  // FILTRO: Borda Verde 1px
+  filterButton: { 
+      flexDirection: 'row', alignItems: 'center', 
+      backgroundColor: '#FFF', 
+      paddingHorizontal: 12, paddingVertical: 6, 
+      borderRadius: 20, gap: 5,
+      borderWidth: 1, borderColor: COLORS.primary // <--- AQUI
+  },
+  filterText: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary },
+
+  // --- CONTEÚDO ---
+  contentContainer: { flex: 1 },
+  tabsWrapper: { marginBottom: 5 },
+  
+  // ABAS: Borda Verde 1px
+  tabItem: { 
+      flexDirection: 'row', alignItems: 'center', 
+      paddingHorizontal: 14, paddingVertical: 8, marginRight: 10, 
+      borderRadius: 24, 
+      borderWidth: 1, // <--- AQUI
+      // borderColor definida dinamicamente
+  },
+  tabText: { fontFamily: FONTS.bold, fontSize: 11, marginLeft: 6 },
+  
+  listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+
+  // --- CARDS (Borda Verde Escuro 1px) ---
+  cardWrapper: { 
+      marginBottom: 15, borderRadius: 24, position: 'relative'
+  },
+  cardShadow: {
+      position: 'absolute', top: 6, left: 0, width: '100%', height: '100%',
+      backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.05
+  },
+  cardFront: { 
+      backgroundColor: '#FFF', 
+      borderRadius: 24, 
+      borderWidth: 1, borderColor: COLORS.primary, // <--- AQUI: Borda Verde Escuro
+      padding: 16, overflow: 'hidden' 
+  },
+  
+  iconBox: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B' },
+  
+  tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
+  tagText: { fontFamily: FONTS.bold, fontSize: 11, marginLeft: 4 },
+  
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
   
   metaInfoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   metaText: { fontSize: 10, fontWeight: 'bold', marginLeft: 4 },
-  daysText: { fontSize: 11, color: '#666', marginTop: 8, fontStyle: 'italic' },
+  daysText: { fontSize: 11, color: '#64748B', marginTop: 10, marginLeft: 2 },
   
-  cardActions: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#eee' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  actionText: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary },
-  
-  emptyState: { alignItems: 'center', marginTop: 50 },
-  emptyText: { fontFamily: FONTS.bold, color: COLORS.surface, fontSize: 16, marginTop: 10, opacity: 0.8 },
-  fab: { position: 'absolute', bottom: 30, right: 20, width: 64, height: 64 },
-  fabShadow: { position: 'absolute', top: 5, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 20 },
-  fabFront: { width: '100%', height: '100%', backgroundColor: COLORS.gold, borderRadius: 20, borderWidth: 3, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginTop: -2 },
-  
-  modalOverlay: { flex: 1, backgroundColor: COLORS.modalOverlay, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 24, padding: 20, borderWidth: 3, borderColor: COLORS.primary, elevation: 10 },
-  modalTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.primary, marginBottom: 15, textAlign: 'center' },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  modalOptionText: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary },
-  closeModalBtn: { marginTop: 15, padding: 12, backgroundColor: '#eee', borderRadius: 10, alignItems: 'center' },
-  closeModalText: { fontFamily: FONTS.bold, color: '#666' },
-  createOptionsContainer: { position: 'absolute', bottom: 100, right: 20, width: 300, backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, borderWidth: 3, borderColor: COLORS.primary, elevation: 10 },
-  createOptionsTitle: { fontFamily: FONTS.bold, fontSize: 14, color: COLORS.placeholder, marginBottom: 15, textAlign: 'center' },
-  createOptionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  createOptionIcon: { width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center', marginRight: 15, borderWidth: 2 },
-  createOptionTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary },
-  createOptionSubtitle: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.placeholder },
+  cardActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 15, gap: 15 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
+  actionText: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B' },
+
+  // --- EMPTY STATE ---
+  emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.8 },
+  emptyTitle: { fontFamily: FONTS.bold, color: '#64748B', fontSize: 18, marginTop: 15 },
+  emptySub: { fontFamily: FONTS.regular, color: '#94A3B8', fontSize: 14, marginTop: 5 },
+
+  // --- FAB ---
+  fab: { position: 'absolute', bottom: 30, right: 20, borderRadius: 30, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 },
+  fabInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+
+  // --- MODALS (Borda Verde Escuro 1px) ---
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { 
+      width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20,
+      borderWidth: 1, borderColor: COLORS.primary // <--- AQUI
+  },
+  modalTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary, marginBottom: 15, textAlign: 'center' },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalOptionText: { fontFamily: FONTS.bold, fontSize: 14, color: '#334155' },
+  closeModalBtn: { marginTop: 15, padding: 12, backgroundColor: '#F1F5F9', borderRadius: 14, alignItems: 'center' },
+  closeModalText: { fontFamily: FONTS.bold, color: '#64748B' },
+
+  createOptionsContainer: { position: 'absolute', bottom: 30, width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: COLORS.primary },
+  createHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  createOptionsTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#94A3B8' },
+  createOptionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  createOptionIcon: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  createOptionTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B' },
+  createOptionSubtitle: { fontFamily: FONTS.regular, fontSize: 12, color: '#94A3B8' },
+  createDivider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 5 },
 });

@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { COLORS, FONTS } from '../../styles/theme';
 
 export default function MemberRequestsScreen({ route, navigation }) {
-  const { familyId } = route.params; // Recebemos o ID da família
+  const { familyId } = route.params; 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,7 +19,7 @@ export default function MemberRequestsScreen({ route, navigation }) {
         .from('join_requests')
         .select('*')
         .eq('family_id', familyId)
-        .eq('status', 'pending') // Só os pendentes
+        .eq('status', 'pending') 
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -38,8 +39,8 @@ export default function MemberRequestsScreen({ route, navigation }) {
         .insert([{
             user_id: request.user_id,
             family_id: request.family_id,
-            name: request.name_wanted, // O nome que a pessoa escolheu
-            role: 'recruit', // <--- Entra como recruta (segurança), depois você promove.
+            name: request.name_wanted, 
+            role: 'recruit', 
             avatar: 'face-man-shimmer'
         }]);
 
@@ -54,7 +55,7 @@ export default function MemberRequestsScreen({ route, navigation }) {
       if (updateError) throw updateError;
 
       Alert.alert("Sucesso", `${request.name_wanted} agora faz parte da família! 🎉`);
-      fetchRequests(); // Atualiza a lista
+      fetchRequests(); 
 
     } catch (error) {
       Alert.alert("Erro ao aprovar", error.message);
@@ -75,71 +76,121 @@ export default function MemberRequestsScreen({ route, navigation }) {
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color="#4c1d95" size="large"/></View>;
+  const renderRequestCard = ({ item }) => (
+    <View style={styles.cardWrapper}>
+        <View style={styles.cardFront}>
+            <View style={styles.infoRow}>
+                <View style={styles.avatarPlaceholder}>
+                    <MaterialCommunityIcons name="account-clock" size={28} color={COLORS.primary} />
+                </View>
+                <View style={styles.infoContent}>
+                    <Text style={styles.nameText}>{item.name_wanted}</Text>
+                    <Text style={styles.emailText}>{item.email}</Text>
+                    <Text style={styles.dateText}>Solicitado agora</Text>
+                </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.actionsRow}>
+                <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(item.id)}>
+                    <MaterialCommunityIcons name="close" size={20} color="#EF4444" />
+                    <Text style={styles.rejectText}>RECUSAR</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.approveBtn} onPress={() => handleApprove(item)}>
+                    <MaterialCommunityIcons name="check" size={20} color="#FFF" />
+                    <Text style={styles.approveText}>ACEITAR</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{padding: 10}}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Solicitações Pendentes</Text>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* HEADER VERDE ESCURO */}
+      <View style={styles.topGreenArea}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>SOLICITAÇÕES</Text>
+            <View style={{width: 40}} /> 
+          </View>
       </View>
 
       <FlatList 
         data={requests}
         keyExtractor={item => item.id}
-        contentContainerStyle={{paddingBottom: 20}}
+        contentContainerStyle={{ padding: 20, paddingBottom: 50 }}
+        renderItem={renderRequestCard}
         ListEmptyComponent={
-            <View style={styles.empty}>
-                <MaterialCommunityIcons name="check-decagram" size={60} color="#ddd" />
-                <Text style={styles.emptyText}>Tudo limpo por aqui.</Text>
-                <Text style={styles.emptySubText}>Nenhum pedido de entrada pendente.</Text>
+            <View style={styles.emptyState}>
+                {loading ? <ActivityIndicator color={COLORS.primary} /> : (
+                    <>
+                        <MaterialCommunityIcons name="account-check-outline" size={60} color="#CBD5E1" />
+                        <Text style={styles.emptyText}>Tudo limpo por aqui.</Text>
+                        <Text style={styles.emptySubText}>Nenhum pedido de entrada pendente.</Text>
+                    </>
+                )}
             </View>
         }
-        renderItem={({ item }) => (
-            <View style={styles.card}>
-                <View style={styles.info}>
-                    <Text style={styles.name}>{item.name_wanted}</Text>
-                    <Text style={styles.email}>{item.email}</Text>
-                    <Text style={styles.date}>Solicitado agora</Text>
-                </View>
-                <View style={styles.actions}>
-                    <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(item.id)}>
-                        <MaterialCommunityIcons name="close" size={24} color="#ef4444" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.approveBtn} onPress={() => handleApprove(item)}>
-                        <MaterialCommunityIcons name="check" size={24} color="#fff" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-        )}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6', paddingTop: 50, paddingHorizontal: 20 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#333', marginLeft: 10 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#F0F9FF' },
   
-  card: {
-    backgroundColor: '#fff', padding: 20, borderRadius: 15, marginBottom: 15,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: {width:0, height:2}
+  // --- HEADER VERDE ESCURO ---
+  topGreenArea: {
+      backgroundColor: COLORS.primary, // #064E3B
+      paddingTop: 50,
+      paddingBottom: 25,
+      borderBottomLeftRadius: 35, // Suave
+      borderBottomRightRadius: 35, // Suave
+      zIndex: 10,
+      marginBottom: 10,
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
   },
-  info: { flex: 1 },
-  name: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  email: { fontSize: 14, color: '#666', marginBottom: 5 },
-  date: { fontSize: 12, color: '#999' },
-  
-  actions: { flexDirection: 'row', gap: 15 },
-  approveBtn: { backgroundColor: '#10b981', padding: 12, borderRadius: 12 },
-  rejectBtn: { backgroundColor: '#fee2e2', padding: 12, borderRadius: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
+  backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
 
-  empty: { alignItems: 'center', marginTop: 100 },
-  emptyText: { color: '#666', marginTop: 20, fontSize: 18, fontWeight: 'bold' },
-  emptySubText: { color: '#999', marginTop: 5 }
+  // --- CARD (Bordas Suaves) ---
+  cardWrapper: { 
+      marginBottom: 15, borderRadius: 24, 
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 
+  },
+  cardFront: { 
+      backgroundColor: '#FFF', borderRadius: 24, 
+      borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', // Borda Fina Cinza
+      padding: 16 
+  },
+  
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  avatarPlaceholder: { width: 50, height: 50, borderRadius: 20, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center', marginRight: 15, borderWidth: 1, borderColor: '#DCFCE7' },
+  infoContent: { flex: 1 },
+  nameText: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B' },
+  emailText: { fontFamily: FONTS.regular, fontSize: 13, color: '#64748B', marginVertical: 2 },
+  dateText: { fontFamily: FONTS.medium, fontSize: 11, color: '#94A3B8' },
+
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginBottom: 15 },
+
+  actionsRow: { flexDirection: 'row', gap: 12 },
+  
+  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: '#EF4444', backgroundColor: '#FFF' },
+  rejectText: { fontFamily: FONTS.bold, color: '#EF4444', marginLeft: 6, fontSize: 13 },
+  
+  approveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: '#10B981', shadowColor: "#10B981", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 2 },
+  approveText: { fontFamily: FONTS.bold, color: '#FFF', marginLeft: 6, fontSize: 13 },
+
+  // --- EMPTY STATE ---
+  emptyState: { alignItems: 'center', marginTop: 80, opacity: 0.8 },
+  emptyText: { fontFamily: FONTS.bold, fontSize: 18, color: '#64748B', marginTop: 15 },
+  emptySubText: { fontFamily: FONTS.regular, fontSize: 14, color: '#94A3B8', marginTop: 5 },
 });

@@ -10,7 +10,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  StatusBar
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -122,7 +123,6 @@ export default function FamilySettingsScreen() {
       }
   };
 
-  // --- FUNÇÃO CENTRAL DE GESTÃO (RPC) ---
   const handleManageMember = async (member, action) => {
       try {
           const { error } = await supabase.rpc('manage_family_member', {
@@ -133,7 +133,7 @@ export default function FamilySettingsScreen() {
           if (error) throw error;
 
           Alert.alert("Sucesso!", "Alteração realizada.");
-          fetchFamilyData(); // Recarrega a lista
+          fetchFamilyData(); 
 
       } catch (error) {
           Alert.alert("Erro", error.message || "Falha na operação.");
@@ -172,41 +172,38 @@ export default function FamilySettingsScreen() {
       return (
           <View style={styles.memberCard}>
               <View style={styles.memberInfo}>
-                  <View style={[styles.avatarBox, isCaptain ? {borderColor: COLORS.gold} : {borderColor: COLORS.primary}]}>
-                      <MaterialCommunityIcons name={isCaptain ? "crown" : "account"} size={24} color={isCaptain ? COLORS.gold : COLORS.primary} />
+                  <View style={[styles.avatarBox, isCaptain ? {backgroundColor: '#FEF3C7', borderColor: '#F59E0B'} : {backgroundColor: '#F0FDF4', borderColor: '#10B981'}]}>
+                      <MaterialCommunityIcons name={isCaptain ? "crown" : "account"} size={24} color={isCaptain ? '#F59E0B' : '#10B981'} />
                   </View>
                   <View>
                       <Text style={styles.memberName}>{item.name} {isMe && "(Você)"}</Text>
-                      <Text style={[styles.memberRole, {color: isCaptain ? '#b45309' : '#15803d'}]}>
+                      <Text style={[styles.memberRole, {color: isCaptain ? '#B45309' : '#15803D'}]}>
                           {isCaptain ? "CAPITÃO" : "RECRUTA"}
                       </Text>
                   </View>
               </View>
 
-              {/* Ações (Só mostra se não for eu mesmo) */}
               {!isMe && (
                   <View style={styles.actionsContainer}>
-                      {/* Botão Promover/Rebaixar */}
                       <TouchableOpacity 
                         style={styles.actionBtn} 
                         onPress={() => confirmAction(item, isCaptain ? 'demote' : 'promote')}
                       >
                           <MaterialCommunityIcons 
                               name={isCaptain ? "arrow-down-bold-box-outline" : "arrow-up-bold-box-outline"} 
-                              size={28} 
-                              color={COLORS.placeholder} 
+                              size={24} 
+                              color="#64748B" 
                           />
                       </TouchableOpacity>
 
-                      {/* Botão Remover (Lixeira) */}
                       <TouchableOpacity 
-                        style={[styles.actionBtn, {backgroundColor: '#fee2e2'}]} 
+                        style={[styles.actionBtn, {backgroundColor: '#FEF2F2'}]} 
                         onPress={() => confirmAction(item, 'remove')}
                       >
                           <MaterialCommunityIcons 
                               name="trash-can-outline" 
                               size={24} 
-                              color={COLORS.error} 
+                              color="#EF4444" 
                           />
                       </TouchableOpacity>
                   </View>
@@ -217,102 +214,130 @@ export default function FamilySettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>GERENCIAR TROPA</Text>
-        <View style={{width: 28}} /> 
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* HEADER VERDE ESCURO */}
+      <View style={styles.topGreenArea}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>GERENCIAR TROPA</Text>
+            <View style={{width: 40}} /> 
+          </View>
       </View>
 
       {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop:50}} /> : (
-          <View style={styles.content}>
-              
-              <View style={styles.codeCard}>
-                  {!isExpired && (
-                      <View style={styles.timerBadge}>
-                          <MaterialCommunityIcons name="timer-sand" size={14} color="#b45309" />
-                          <Text style={styles.timerText}>EXPIRA EM {timeLeft}</Text>
-                      </View>
-                  )}
+          <FlatList 
+            data={members}
+            keyExtractor={item => item.id}
+            renderItem={renderMember}
+            contentContainerStyle={styles.content}
+            ListHeaderComponent={
+                <>
+                    <View style={styles.codeCard}>
+                        {!isExpired && (
+                            <View style={styles.timerBadge}>
+                                <MaterialCommunityIcons name="timer-sand" size={14} color="#B45309" />
+                                <Text style={styles.timerText}>EXPIRA EM {timeLeft}</Text>
+                            </View>
+                        )}
 
-                  <Text style={styles.codeLabel}>CÓDIGO DE ACESSO</Text>
-                  
-                  {generatingCode ? (
-                      <ActivityIndicator color={COLORS.primary} style={{marginVertical: 10}} />
-                  ) : (
-                      <>
-                          {isExpired ? (
-                              <View style={{alignItems: 'center', marginVertical: 10}}>
-                                  <MaterialCommunityIcons name="lock-clock" size={40} color={COLORS.placeholder} />
-                                  <Text style={styles.expiredText}>O código expirou.</Text>
-                                  <TouchableOpacity style={styles.regenerateBtn} onPress={generateNewCode}>
-                                      <MaterialCommunityIcons name="refresh" size={20} color="#fff" />
-                                      <Text style={styles.regenerateText}>GERAR NOVO CÓDIGO</Text>
-                                  </TouchableOpacity>
-                              </View>
-                          ) : (
-                              <>
-                                  <TouchableOpacity style={styles.codeBox} onPress={copyToClipboard}>
-                                      <Text style={styles.codeText}>{typeof inviteCode === 'string' ? inviteCode : '...'}</Text>
-                                      <MaterialCommunityIcons name="content-copy" size={20} color={COLORS.placeholder} style={{position:'absolute', right: 15}}/>
-                                  </TouchableOpacity>
-                                  <Text style={styles.codeDesc}>Use no dispositivo do seu filho para conectar.</Text>
-                                  <TouchableOpacity style={styles.shareBtn} onPress={shareCode}>
-                                      <MaterialCommunityIcons name="share-variant" size={20} color="#fff" />
-                                      <Text style={styles.shareText}>COMPARTILHAR</Text>
-                                  </TouchableOpacity>
-                              </>
-                          )}
-                      </>
-                  )}
-              </View>
+                        <Text style={styles.codeLabel}>CÓDIGO DE ACESSO</Text>
+                        
+                        {generatingCode ? (
+                            <ActivityIndicator color={COLORS.primary} style={{marginVertical: 10}} />
+                        ) : (
+                            <>
+                                {isExpired ? (
+                                    <View style={{alignItems: 'center', marginVertical: 10}}>
+                                        <MaterialCommunityIcons name="lock-clock" size={40} color="#CBD5E1" />
+                                        <Text style={styles.expiredText}>O código expirou.</Text>
+                                        <TouchableOpacity style={styles.regenerateBtn} onPress={generateNewCode}>
+                                            <MaterialCommunityIcons name="refresh" size={20} color="#FFF" />
+                                            <Text style={styles.regenerateText}>GERAR NOVO</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity style={styles.codeBox} onPress={copyToClipboard}>
+                                            <Text style={styles.codeText}>{typeof inviteCode === 'string' ? inviteCode : '...'}</Text>
+                                            <MaterialCommunityIcons name="content-copy" size={20} color="#94A3B8" style={{position:'absolute', right: 15}}/>
+                                        </TouchableOpacity>
+                                        <Text style={styles.codeDesc}>Use no dispositivo do seu filho para conectar.</Text>
+                                        
+                                        <TouchableOpacity style={styles.shareBtn} onPress={shareCode}>
+                                            <MaterialCommunityIcons name="share-variant" size={20} color="#FFF" />
+                                            <Text style={styles.shareText}>COMPARTILHAR CÓDIGO</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </View>
 
-              <Text style={styles.sectionTitle}>MEMBROS DO ESQUADRÃO</Text>
-              <FlatList 
-                  data={members}
-                  keyExtractor={item => item.id}
-                  renderItem={renderMember}
-                  contentContainerStyle={{paddingBottom: 50}}
-                  showsVerticalScrollIndicator={false}
-              />
-
-          </View>
+                    <Text style={styles.sectionTitle}>MEMBROS DO ESQUADRÃO</Text>
+                </>
+            }
+          />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 15 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.surface, letterSpacing: 1 },
-  backBtn: { padding: 5, backgroundColor: COLORS.surface, borderRadius: 10 },
-  content: { padding: 20, flex: 1 },
-
-  // Code Card
-  codeCard: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, marginBottom: 30, borderWidth: 3, borderColor: COLORS.primary, alignItems: 'center', position: 'relative', minHeight: 180, justifyContent: 'center' },
-  timerBadge: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: '#fffbeb', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: COLORS.gold },
-  timerText: { fontSize: 10, fontFamily: FONTS.bold, color: '#b45309', marginLeft: 4 },
-  codeLabel: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.placeholder, marginBottom: 10, marginTop: 10 },
-  codeBox: { width: '100%', flexDirection: 'row', backgroundColor: '#F3F4F6', paddingVertical: 15, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#E5E7EB', marginBottom: 10 },
-  codeText: { fontFamily: FONTS.bold, fontSize: 32, color: COLORS.textPrimary, letterSpacing: 6 },
-  codeDesc: { fontFamily: FONTS.regular, fontSize: 12, color: '#666', textAlign: 'center', marginBottom: 20, paddingHorizontal: 10 },
-  shareBtn: { width: '100%', flexDirection: 'row', backgroundColor: COLORS.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  shareText: { fontFamily: FONTS.bold, color: '#fff', fontSize: 14 },
-  expiredText: { fontFamily: FONTS.bold, color: COLORS.placeholder, marginVertical: 10 },
-  regenerateBtn: { flexDirection: 'row', backgroundColor: COLORS.secondary, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, alignItems: 'center', gap: 8, marginTop: 5 },
-  regenerateText: { fontFamily: FONTS.bold, color: '#fff' },
-
-  // Members
-  sectionTitle: { fontFamily: FONTS.bold, fontSize: 14, color: COLORS.surface, marginBottom: 15, opacity: 0.8 },
-  memberCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, padding: 15, borderRadius: 16, marginBottom: 10, borderWidth: 2, borderColor: COLORS.primary },
-  memberInfo: { flexDirection: 'row', alignItems: 'center', gap: 15 },
-  avatarBox: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
-  memberName: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.textPrimary },
-  memberRole: { fontFamily: FONTS.bold, fontSize: 12 },
+  container: { flex: 1, backgroundColor: '#F0F9FF' },
   
-  // Actions
+  // --- HEADER VERDE ESCURO (COLORS.primary) ---
+  topGreenArea: {
+      backgroundColor: COLORS.primary, // #064E3B
+      paddingTop: 50,
+      paddingBottom: 25,
+      borderBottomLeftRadius: 35, // Suave
+      borderBottomRightRadius: 35, // Suave
+      zIndex: 10,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
+  backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 }, // Suave
+
+  content: { padding: 20, paddingBottom: 50 },
+
+  // --- CARD DO CÓDIGO (Suave) ---
+  codeCard: { 
+      backgroundColor: '#FFF', borderRadius: 24, padding: 20, marginBottom: 30, 
+      borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', // Borda fina
+      alignItems: 'center', position: 'relative', 
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 
+  },
+  
+  timerBadge: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B' },
+  timerText: { fontSize: 10, fontFamily: FONTS.bold, color: '#B45309', marginLeft: 4 },
+  
+  codeLabel: { fontFamily: FONTS.bold, fontSize: 12, color: '#94A3B8', marginBottom: 15, marginTop: 5, letterSpacing: 1 },
+  
+  codeBox: { width: '100%', flexDirection: 'row', backgroundColor: '#F8FAFC', paddingVertical: 15, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 10 },
+  codeText: { fontFamily: FONTS.bold, fontSize: 32, color: '#1E293B', letterSpacing: 6 },
+  codeDesc: { fontFamily: FONTS.regular, fontSize: 12, color: '#64748B', textAlign: 'center', marginBottom: 20, paddingHorizontal: 10 },
+  
+  shareBtn: { width: '100%', flexDirection: 'row', backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: "#10B981", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 4 },
+  shareText: { fontFamily: FONTS.bold, color: '#FFF', fontSize: 14 },
+  
+  expiredText: { fontFamily: FONTS.bold, color: '#94A3B8', marginVertical: 10 },
+  regenerateBtn: { flexDirection: 'row', backgroundColor: '#3B82F6', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 14, alignItems: 'center', gap: 8, marginTop: 5 },
+  regenerateText: { fontFamily: FONTS.bold, color: '#FFF' },
+
+  // --- MEMBROS ---
+  sectionTitle: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B', marginBottom: 15, opacity: 0.8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  memberCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF', padding: 15, borderRadius: 20, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
+  
+  memberInfo: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  avatarBox: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  memberName: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B' },
+  memberRole: { fontFamily: FONTS.bold, fontSize: 11, marginTop: 2 },
+  
+  // --- AÇÕES ---
   actionsContainer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionBtn: { padding: 8, borderRadius: 8, backgroundColor: '#F3F4F6' },
+  actionBtn: { padding: 8, borderRadius: 12, backgroundColor: '#F8FAFC' },
 });

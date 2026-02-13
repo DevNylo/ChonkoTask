@@ -2,16 +2,17 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
@@ -28,36 +29,25 @@ export default function TaskApprovalsScreen() {
   const [selectedAttempt, setSelectedAttempt] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  // Carrega ao entrar na tela
   useFocusEffect(
     useCallback(() => {
       fetchApprovals();
     }, [])
   );
 
-  // --- O SEGREDO DO REALTIME PARA O CAPITÃO ---
   useEffect(() => {
-    console.log("👮‍♂️ Capitão na escuta...");
-
     const subscription = supabase
       .channel('captain_approvals')
       .on(
         'postgres_changes', 
-        { 
-          event: '*', // Escuta TUDO: Novas provas, Aprovações, Rejeições
-          schema: 'public', 
-          table: 'mission_attempts' 
-        }, 
+        { event: '*', schema: 'public', table: 'mission_attempts' }, 
         (payload) => {
-          console.log("🔔 Nova atividade de missão!", payload.eventType);
           fetchApprovals();
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(subscription);
-    };
+    return () => { supabase.removeChannel(subscription); };
   }, []);
 
   const fetchApprovals = async () => {
@@ -94,71 +84,45 @@ export default function TaskApprovalsScreen() {
 
   const handleApprove = async (attempt) => {
     try {
-        console.log("--- INICIANDO APROVAÇÃO ---");
-        
         const isCoins = attempt.missions?.reward_type === 'coins';
         const rewardValue = attempt.earned_value || attempt.missions?.reward || 0;
-        
-        // --- 1. LÓGICA DE PAGAMENTO DE MOEDAS E XP (OPÇÃO 1: XP FIXO) ---
-        // A criança ganha sempre 25 XP pela disciplina de cumprir a tarefa.
-        // Assim o nível é protegido, mesmo que o pai dê 5000 moedas.
         const xpGained = 25; 
 
-        // Busca os dados mais recentes do perfil do Recruta
         const { data: currentProfile, error: fetchError } = await supabase
-            .from('profiles')
-            .select('balance, experience')
-            .eq('id', attempt.profiles.id)
-            .single();
+            .from('profiles').select('balance, experience').eq('id', attempt.profiles.id).single();
         
-        if (fetchError) throw new Error("Erro ao buscar dados do recruta: " + fetchError.message);
+        if (fetchError) throw new Error("Erro ao buscar dados do recruta.");
 
         const currentBalance = currentProfile.balance || 0;
         const currentExperience = currentProfile.experience || 0;
 
-        // Calcula os novos valores (Moedas dependem da missão, XP é fixo)
         const newBalance = isCoins ? (currentBalance + rewardValue) : currentBalance;
         const newExperience = currentExperience + xpGained;
 
-        // Atualiza Moedas e XP no banco ao mesmo tempo
         const { error: updateProfileError } = await supabase
             .from('profiles')
-            .update({ 
-                balance: newBalance,
-                experience: newExperience 
-            })
+            .update({ balance: newBalance, experience: newExperience })
             .eq('id', attempt.profiles.id);
 
-        if (updateProfileError) throw new Error("Erro ao transferir recompensas (RLS).");
-        console.log(`Recompensa enviada: +${isCoins ? rewardValue : 0} Moedas, +${xpGained} XP`);
+        if (updateProfileError) throw new Error("Erro ao transferir recompensas.");
 
-        // --- 2. Atualiza status da tentativa ---
         const { error: attemptError } = await supabase
-            .from('mission_attempts')
-            .update({ status: 'approved' })
-            .eq('id', attempt.id);
+            .from('mission_attempts').update({ status: 'approved' }).eq('id', attempt.id);
 
         if (attemptError) throw attemptError;
         
-        // --- 3. Atualiza status da Missão (Se não for recorrente) ---
         const isRecurring = attempt.missions?.is_recurring;
         if (!isRecurring) {
-            await supabase
-                .from('missions')
-                .update({ status: 'completed' })
-                .eq('id', attempt.mission_id);
+            await supabase.from('missions').update({ status: 'completed' }).eq('id', attempt.mission_id);
         }
 
-        // --- 4. Limpeza ---
         if (attempt.proof_url) await deleteProofImage(attempt.proof_url);
 
         Alert.alert("SUCESSO!", `Missão aprovada!\nRecruta ganhou +${xpGained} XP${isCoins && rewardValue > 0 ? ` e +${rewardValue} moedas.` : '.'}`);
-        
         fetchApprovals(); 
 
     } catch (error) {
         Alert.alert("Erro na Aprovação", error.message);
-        console.log(error);
     }
   };
 
@@ -186,74 +150,88 @@ export default function TaskApprovalsScreen() {
     const rewardValue = item.earned_value || mission.reward || 0;
 
     return (
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <View style={{flexDirection:'row', alignItems:'center'}}>
-                    <View style={styles.avatarCircle}>
-                        <MaterialCommunityIcons name="account" size={20} color={COLORS.primary} />
+        <View style={styles.cardWrapper}>
+            {/* Sombra Suave Atrás */}
+            <View style={styles.cardShadow} />
+
+            {/* Card Frontal com Borda Verde Escura 1px */}
+            <View style={styles.cardFront}>
+                
+                {/* Header do Card */}
+                <View style={styles.cardHeader}>
+                    <View style={styles.profileRow}>
+                        <View style={styles.avatarCircle}>
+                            <MaterialCommunityIcons name="account" size={20} color={COLORS.primary} />
+                        </View>
+                        <Text style={styles.recruitName}>{item.profiles?.name || "Recruta"}</Text>
                     </View>
-                    <Text style={styles.recruitName}>{item.profiles?.name || "Recruta"}</Text>
-                </View>
-                <View style={[
-                    styles.rewardTag, 
-                    isCustom && { backgroundColor: '#fdf2f8', borderColor: '#db2777' } 
-                ]}>
-                    <MaterialCommunityIcons 
-                        name={isCustom ? "gift" : "circle-multiple"} 
-                        size={14} 
-                        color={isCustom ? '#db2777' : COLORS.gold} 
-                    />
-                    <Text style={[
-                        styles.rewardText, 
-                        isCustom && { color: '#db2777' }
-                    ]}>
-                        {isCustom ? (mission.custom_reward || "Prêmio") : `+${rewardValue}`}
-                    </Text>
-                </View>
-            </View>
-
-            <Text style={styles.missionTitle}>{mission.title || "Missão"}</Text>
-            
-            {mission.is_recurring && (
-                <View style={styles.recurringTag}>
-                    <MaterialCommunityIcons name="sync" size={12} color="#666" />
-                    <Text style={{fontSize:10, color:'#666', marginLeft:4}}>Recorrente</Text>
-                </View>
-            )}
-
-            <Text style={styles.dateText}>{new Date(item.created_at).toLocaleString()}</Text>
-
-            <TouchableOpacity 
-                style={styles.photoContainer} 
-                onPress={() => imageUrl && setSelectedPhotoUrl(imageUrl)}
-                disabled={!imageUrl}
-            >
-                {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.proofImage} resizeMode="cover" />
-                ) : (
-                    <View style={styles.noPhoto}>
-                        <MaterialCommunityIcons name="image-off" size={30} color={COLORS.placeholder} />
-                        <Text style={styles.noPhotoText}>Sem foto</Text>
+                    
+                    <View style={[styles.rewardTag, isCustom ? {backgroundColor:'#FDF2F8', borderColor:'#DB2777'} : {backgroundColor:'#FFFBEB', borderColor: COLORS.gold}]}>
+                        <MaterialCommunityIcons 
+                            name={isCustom ? "gift" : "circle-multiple"} 
+                            size={14} 
+                            color={isCustom ? '#DB2777' : '#B45309'} 
+                        />
+                        <Text style={[styles.rewardText, {color: isCustom ? '#DB2777' : '#B45309'}]}>
+                            {isCustom ? (mission.custom_reward || "Prêmio") : `+${rewardValue}`}
+                        </Text>
                     </View>
-                )}
-            </TouchableOpacity>
+                </View>
 
-            <View style={styles.actionRow}>
+                {/* Título da Missão */}
+                <Text style={styles.missionTitle}>{mission.title || "Missão Sem Título"}</Text>
+                
+                {/* Data e Recorrência */}
+                <View style={styles.metaRow}>
+                    <Text style={styles.dateText}>{new Date(item.created_at).toLocaleString()}</Text>
+                    {mission.is_recurring && (
+                        <View style={styles.recurringBadge}>
+                            <MaterialCommunityIcons name="sync" size={10} color="#64748B" />
+                            <Text style={styles.recurringText}>Recorrente</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Foto da Prova */}
                 <TouchableOpacity 
-                    style={styles.rejectBtn} 
-                    onPress={() => { setSelectedAttempt(item); setRejectReason(''); setRejectModalVisible(true); }}
+                    style={styles.photoContainer} 
+                    onPress={() => imageUrl && setSelectedPhotoUrl(imageUrl)}
+                    disabled={!imageUrl}
+                    activeOpacity={0.9}
                 >
-                    <MaterialCommunityIcons name="close" size={24} color={COLORS.error} />
-                    <Text style={styles.rejectText}>RECUSAR</Text>
+                    {imageUrl ? (
+                        <>
+                            <Image source={{ uri: imageUrl }} style={styles.proofImage} resizeMode="cover" />
+                            <View style={styles.zoomBadge}>
+                                <MaterialCommunityIcons name="magnify-plus-outline" size={20} color="#FFF" />
+                            </View>
+                        </>
+                    ) : (
+                        <View style={styles.noPhoto}>
+                            <MaterialCommunityIcons name="image-off-outline" size={32} color="#CBD5E1" />
+                            <Text style={styles.noPhotoText}>Sem foto anexada</Text>
+                        </View>
+                    )}
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                    style={styles.approveBtn} 
-                    onPress={() => handleApprove(item)}
-                >
-                    <MaterialCommunityIcons name="check" size={24} color="#fff" />
-                    <Text style={styles.approveText}>APROVAR</Text>
-                </TouchableOpacity>
+                {/* Botões de Ação */}
+                <View style={styles.actionRow}>
+                    <TouchableOpacity 
+                        style={styles.rejectBtn} 
+                        onPress={() => { setSelectedAttempt(item); setRejectReason(''); setRejectModalVisible(true); }}
+                    >
+                        <MaterialCommunityIcons name="close" size={20} color="#EF4444" />
+                        <Text style={styles.rejectText}>RECUSAR</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                        style={styles.approveBtn} 
+                        onPress={() => handleApprove(item)}
+                    >
+                        <MaterialCommunityIcons name="check" size={20} color="#FFF" />
+                        <Text style={styles.approveText}>APROVAR</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
@@ -261,24 +239,29 @@ export default function TaskApprovalsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>VALIDAR MISSÕES</Text>
-        <View style={{width: 28}} /> 
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* HEADER VERDE ESCURO */}
+      <View style={styles.topGreenArea}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>VALIDAR MISSÕES</Text>
+            <View style={{width: 40}} /> 
+          </View>
       </View>
 
       <FlatList
         data={attempts}
         keyExtractor={item => item.id}
         renderItem={renderCard}
-        contentContainerStyle={{ padding: 20 }}
+        contentContainerStyle={{ padding: 20, paddingTop: 10 }}
         ListEmptyComponent={
             <View style={styles.emptyState}>
                 {loading ? <ActivityIndicator color={COLORS.primary} /> : (
                     <>
-                        <MaterialCommunityIcons name="check-all" size={60} color={COLORS.primary} style={{opacity:0.3}} />
+                        <MaterialCommunityIcons name="check-decagram" size={60} color="#CBD5E1" />
                         <Text style={styles.emptyText}>Tudo limpo, Capitão!</Text>
                         <Text style={styles.emptySubText}>Nenhuma missão pendente de aprovação.</Text>
                     </>
@@ -287,24 +270,29 @@ export default function TaskApprovalsScreen() {
         }
       />
 
+      {/* MODAL DE FOTO */}
       <Modal visible={!!selectedPhotoUrl} transparent={true} animationType="fade" onRequestClose={() => setSelectedPhotoUrl(null)}>
         <View style={styles.modalPhotoOverlay}>
             <TouchableOpacity style={styles.closePhotoBtn} onPress={() => setSelectedPhotoUrl(null)}>
-                <MaterialCommunityIcons name="close" size={30} color="#fff" />
+                <MaterialCommunityIcons name="close" size={28} color="#FFF" />
             </TouchableOpacity>
             {selectedPhotoUrl && <Image source={{ uri: selectedPhotoUrl }} style={styles.fullImage} resizeMode="contain" />}
         </View>
       </Modal>
 
+      {/* MODAL DE REJEIÇÃO */}
       <Modal visible={rejectModalVisible} transparent={true} animationType="fade" onRequestClose={() => setRejectModalVisible(false)}>
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>RECUSAR MISSÃO</Text>
+                  <Text style={styles.modalSubtitle}>Diga ao recruta o que precisa melhorar:</Text>
                   <TextInput 
                     style={styles.input} 
-                    placeholder="Motivo..." 
+                    placeholder="Ex: A cama ainda está bagunçada..." 
+                    placeholderTextColor="#94A3B8"
                     value={rejectReason}
                     onChangeText={setRejectReason}
+                    autoFocus
                   />
                   <View style={styles.modalActions}>
                       <TouchableOpacity style={styles.modalCancel} onPress={() => setRejectModalVisible(false)}>
@@ -322,41 +310,89 @@ export default function TaskApprovalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 15 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, letterSpacing: 1 },
-  backBtn: { padding: 5, backgroundColor: COLORS.surface, borderRadius: 10 },
-  card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 15, marginBottom: 20, borderWidth: 1, borderColor: '#eee', shadowColor: "#000", shadowOffset: {width:0, height:2}, shadowOpacity:0.1, shadowRadius:4, elevation:3 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  avatarCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.surfaceAlt, justifyContent: 'center', alignItems: 'center', marginRight: 8, borderWidth: 1, borderColor: COLORS.primary },
-  recruitName: { fontFamily: FONTS.bold, fontSize: 14, color: COLORS.primary },
-  rewardTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fffbeb', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: COLORS.gold },
-  rewardText: { fontFamily: FONTS.bold, fontSize: 14, color: '#b45309', marginLeft: 4 },
-  recurringTag: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
-  missionTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, marginBottom: 4 },
-  dateText: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.placeholder, marginBottom: 15 },
-  photoContainer: { height: 250, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f0f0f0', marginBottom: 15, position: 'relative', borderWidth: 1, borderColor: '#eee' },
+  container: { flex: 1, backgroundColor: '#F0F9FF' },
+  
+  // --- HEADER VERDE ESCURO (COLORS.primary) ---
+  topGreenArea: {
+      backgroundColor: COLORS.primary, // #064E3B
+      paddingTop: 50,
+      paddingBottom: 25,
+      borderBottomLeftRadius: 35, // Arredondamento suave
+      borderBottomRightRadius: 35,
+      zIndex: 10,
+      marginBottom: 10,
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
+  backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
+
+  // --- CARD (Borda Verde Escuro 1px) ---
+  cardWrapper: { 
+      marginBottom: 20, borderRadius: 24, position: 'relative'
+  },
+  cardShadow: {
+      position: 'absolute', top: 6, left: 0, width: '100%', height: '100%',
+      backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.05
+  },
+  cardFront: { 
+      backgroundColor: '#FFF', 
+      borderRadius: 24, 
+      borderWidth: 1, 
+      borderColor: COLORS.primary, // <--- AQUI: Borda Verde Escuro
+      padding: 16 
+  },
+  
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  profileRow: { flexDirection: 'row', alignItems: 'center' },
+  avatarCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center', marginRight: 8, borderWidth: 1, borderColor: '#DCFCE7' },
+  recruitName: { fontFamily: FONTS.bold, fontSize: 14, color: '#1E293B' },
+  
+  rewardTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1 },
+  rewardText: { fontFamily: FONTS.bold, fontSize: 12, marginLeft: 4 },
+
+  missionTitle: { fontFamily: FONTS.bold, fontSize: 18, color: '#1E293B', marginBottom: 6 },
+  
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 10 },
+  dateText: { fontFamily: FONTS.regular, fontSize: 12, color: '#64748B' },
+  recurringBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  recurringText: { fontSize: 10, color: '#64748B', marginLeft: 4, fontWeight: 'bold' },
+
+  photoContainer: { height: 220, borderRadius: 16, overflow: 'hidden', backgroundColor: '#F8FAFC', marginBottom: 20, position: 'relative', borderWidth: 1, borderColor: '#F1F5F9' },
   proofImage: { width: '100%', height: '100%' },
+  zoomBadge: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 6 },
   noPhoto: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  noPhotoText: { fontFamily: FONTS.bold, color: COLORS.placeholder, marginTop: 5 },
-  actionRow: { flexDirection: 'row', gap: 10 },
-  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 2, borderColor: COLORS.error, backgroundColor: '#fff' },
-  rejectText: { fontFamily: FONTS.bold, color: COLORS.error, marginLeft: 5 },
-  approveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: COLORS.primary },
-  approveText: { fontFamily: FONTS.bold, color: '#fff', marginLeft: 5 },
-  emptyState: { alignItems: 'center', marginTop: 50 },
-  emptyText: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, marginTop: 15 },
-  emptySubText: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.placeholder, opacity: 0.8 },
-  modalPhotoOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  noPhotoText: { fontFamily: FONTS.bold, color: '#CBD5E1', marginTop: 8 },
+
+  // --- BOTÕES DE AÇÃO ---
+  actionRow: { flexDirection: 'row', gap: 15 },
+  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: '#EF4444', backgroundColor: '#FFF' },
+  rejectText: { fontFamily: FONTS.bold, color: '#EF4444', marginLeft: 6, fontSize: 14 },
+  
+  approveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 16, backgroundColor: '#10B981', shadowColor: "#10B981", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 },
+  approveText: { fontFamily: FONTS.bold, color: '#FFF', marginLeft: 6, fontSize: 14 },
+
+  // --- EMPTY STATE ---
+  emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.8 },
+  emptyText: { fontFamily: FONTS.bold, fontSize: 18, color: '#64748B', marginTop: 15 },
+  emptySubText: { fontFamily: FONTS.regular, fontSize: 14, color: '#94A3B8', marginTop: 5 },
+
+  // --- MODALS ---
+  modalPhotoOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
   fullImage: { width: '100%', height: '80%' },
-  closePhotoBtn: { position: 'absolute', top: 50, right: 20, padding: 10, zIndex: 10 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 20, padding: 20 },
-  modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 18, marginBottom: 15 },
-  input: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontFamily: FONTS.bold, color: COLORS.primary, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 20 },
-  modalActions: { flexDirection: 'row', gap: 10 },
-  modalCancel: { flex: 1, padding: 12, alignItems: 'center', borderRadius: 10, backgroundColor: '#eee' },
-  modalCancelText: { fontFamily: FONTS.bold, color: '#666' },
-  modalConfirm: { flex: 1, padding: 12, alignItems: 'center', borderRadius: 10, backgroundColor: COLORS.error },
-  modalConfirmText: { fontFamily: FONTS.bold, color: '#fff' },
+  closePhotoBtn: { position: 'absolute', top: 50, right: 20, padding: 10, zIndex: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 25 },
+  modalContent: { 
+      width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 24,
+      borderWidth: 1, borderColor: COLORS.primary // <--- AQUI
+  },
+  modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#1E293B', fontSize: 18, marginBottom: 5 },
+  modalSubtitle: { textAlign: 'center', fontFamily: FONTS.regular, color: '#64748B', fontSize: 14, marginBottom: 20 },
+  input: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 15, fontFamily: FONTS.medium, color: '#1E293B', borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 25, minHeight: 80, textAlignVertical: 'top' },
+  modalActions: { flexDirection: 'row', gap: 15 },
+  modalCancel: { flex: 1, padding: 14, alignItems: 'center', borderRadius: 14, backgroundColor: '#F1F5F9' },
+  modalCancelText: { fontFamily: FONTS.bold, color: '#64748B' },
+  modalConfirm: { flex: 1, padding: 14, alignItems: 'center', borderRadius: 14, backgroundColor: '#EF4444' },
+  modalConfirmText: { fontFamily: FONTS.bold, color: '#FFF' },
 });

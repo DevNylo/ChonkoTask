@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, ImageBackground, KeyboardAvoidingView,
   LayoutAnimation, Modal, Platform, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View
+  Text, TextInput, TouchableOpacity, View, StatusBar
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
-// TEMA: ../../ chega em src/styles (CORRETO)
+// TEMA
 import { COLORS, FONTS } from '../../styles/theme';
 
 const ARCHETYPES = [
@@ -24,13 +24,11 @@ const ARCHETYPES = [
     { label: 'Super Tia', value: 'Tia', icon: 'face-woman-profile', gender: 'F' },
 ];
 
-const ToonInput = ({ label, icon, ...props }) => (
-  <View style={{ marginBottom: 15 }}>
+const PremiumInput = ({ label, icon, ...props }) => (
+  <View style={{ marginBottom: 16 }}>
       <Text style={styles.inputLabel}>{label}</Text>
       <View style={styles.inputWrapper}>
-          <View style={styles.iconArea}>
-              <MaterialCommunityIcons name={icon} size={22} color={COLORS.primary} />
-          </View>
+          <MaterialCommunityIcons name={icon} size={24} color={COLORS.primary} style={{ marginLeft: 15 }} />
           <TextInput 
               style={styles.textInput}
               placeholderTextColor={COLORS.placeholder}
@@ -102,7 +100,8 @@ export default function RegisterCaptainScreen() {
   const handleNextStep = () => {
       if (currentStep === 1) {
           if (!email || !password) return Alert.alert("Opa!", "Preencha email e senha.");
-          if (password.length < 6) return Alert.alert("Senha fraca", "Mínimo 6 caracteres.");
+          if (password.length < 8) return Alert.alert("Senha fraca", "Mínimo 8 caracteres.");
+          
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setCurrentStep(2);
       } else {
@@ -116,12 +115,9 @@ export default function RegisterCaptainScreen() {
   };
 
   const getSubmitLabel = () => {
-    if (currentStep === 1) return "AVANÇAR";
-    if (!selectedArchetype) return "FUNDAR QG";
-    const role = selectedArchetype.value;
-    if (['Rei', 'Rainha'].includes(role)) return "FUNDAR REINO";
-    if (['Capitão', 'Capitã'].includes(role)) return "FUNDAR QG";
-    return "FUNDAR BASE"; 
+    if (currentStep === 1) return "CONTINUAR";
+    if (!selectedArchetype) return "CRIAR CONTA";
+    return "FINALIZAR CADASTRO"; 
   };
 
   const handleCreateHQ = async () => {
@@ -169,87 +165,100 @@ export default function RegisterCaptainScreen() {
 
   return (
     <ImageBackground 
-        // CORREÇÃO AQUI: Subir 3 níveis para achar assets na raiz
         source={require('../../../assets/FamillyCreate.png')} 
         style={styles.container} resizeMode="cover"
     >
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             
+            {/* HEADER */}
+            <View style={styles.headerContainer}>
+                <View style={styles.iconCircle}>
+                    <MaterialCommunityIcons 
+                        name={selectedArchetype ? selectedArchetype.icon : (currentStep === 1 ? "lock-open-check" : "account-details")} 
+                        size={32} color={COLORS.primary} 
+                    />
+                </View>
+                <View>
+                    <Text style={styles.headerTitle}>{currentStep === 1 ? "Criar Acesso" : "Perfil do Capitão"}</Text>
+                    <Text style={styles.headerSubtitle}>{currentStep === 1 ? "Seus dados de login" : "Configure sua identidade"}</Text>
+                </View>
+            </View>
+
             {/* PROGRESSO */}
             <View style={styles.progressContainer}>
-                <Text style={styles.stepText}>PASSO {currentStep} DE {totalSteps}</Text>
                 <View style={styles.progressBarBg}>
                     <View style={[styles.progressBarFill, { width: currentStep === 1 ? '50%' : '100%' }]} />
                 </View>
+                <Text style={styles.stepText}>Etapa {currentStep} de {totalSteps}</Text>
             </View>
 
-            {/* HEADER */}
-            <View style={styles.headerContainer}>
-                <View style={styles.avatarWrapper}>
-                      <View style={styles.avatarShadow} />
-                      <View style={styles.avatarFront}>
-                         <MaterialCommunityIcons 
-                            name={selectedArchetype ? selectedArchetype.icon : (currentStep === 1 ? "lock" : "account-question")} 
-                            size={40} color={COLORS.primary} 
-                        />
-                      </View>
-                </View>
-                <View>
-                    <Text style={styles.headerTitle}>{currentStep === 1 ? "Acesso" : "Identidade"}</Text>
-                    <Text style={styles.headerSubtitle}>{currentStep === 1 ? "Credenciais" : "Segurança do Capitão"}</Text>
-                </View>
-            </View>
-
-            {/* CARD */}
-            <View style={styles.cardContainer}>
+            {/* CARD COM SOMBRA SALTADA */}
+            <View style={styles.cardWrapper}>
+                {/* SOMBRA SALTADA */}
                 <View style={styles.cardShadow} />
+                
+                {/* CONTEÚDO DO CARD */}
                 <View style={styles.cardFront}>
                     
                     {currentStep === 1 && (
                         <View>
-                            <ToonInput label="EMAIL" icon="email-outline" placeholder="ex: capitao@chonko.com"
-                                value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-                            <ToonInput label="SENHA" icon="lock-outline" placeholder="******" secureTextEntry
-                                value={password} onChangeText={setPassword} />
+                            <PremiumInput 
+                                label="EMAIL" 
+                                icon="email-outline" 
+                                placeholder="chonko@email.com" 
+                                value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" 
+                            />
+                            <PremiumInput 
+                                label="SENHA" 
+                                icon="lock-outline" 
+                                placeholder="Mínimo 8 caracteres" 
+                                secureTextEntry
+                                value={password} onChangeText={setPassword} 
+                            />
                         </View>
                     )}
 
                     {currentStep === 2 && (
                         <View>
-                             <ToonInput label="NOME DA TROPA (FAMÍLIA)" icon="account-group-outline" placeholder="ex: Os Incríveis"
+                            <PremiumInput label="NOME DA TROPA (FAMÍLIA)" icon="account-group-outline" placeholder="Ex: Família Silva"
                                 value={familyName} onChangeText={setFamilyName} />
                             
-                            <ToonInput label="DATA DE NASCIMENTO" icon="calendar-range" placeholder="DD/MM/AAAA"
+                            <PremiumInput label="DATA DE NASCIMENTO" icon="calendar-month-outline" placeholder="DD/MM/AAAA"
                                 value={birthDate} onChangeText={handleDateChange} keyboardType="numeric" maxLength={10} />
 
-                            <View style={{marginBottom: 15}}>
-                                <Text style={styles.inputLabel}>QUEM ESTÁ NO COMANDO?</Text>
+                            <View style={{marginBottom: 16}}>
+                                <Text style={styles.inputLabel}>SEU TÍTULO</Text>
                                 <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowModal(true)} activeOpacity={0.8}>
                                     <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                        <MaterialCommunityIcons name={selectedArchetype ? selectedArchetype.icon : "account-search"} 
-                                            size={24} color={COLORS.primary} style={{marginRight: 10}} />
-                                        <Text style={[styles.textInput, {color: selectedArchetype ? COLORS.primary : COLORS.placeholder}]}>
-                                            {selectedArchetype ? selectedArchetype.label : "Selecione seu Título"}
+                                        <MaterialCommunityIcons name={selectedArchetype ? selectedArchetype.icon : "crown-outline"} 
+                                            size={24} color={COLORS.primary} style={{marginRight: 12}} />
+                                        <Text style={[styles.dropdownText, {color: selectedArchetype ? COLORS.primary : COLORS.placeholder}]}>
+                                            {selectedArchetype ? selectedArchetype.label : "Selecione..."}
                                         </Text>
                                     </View>
                                     <MaterialCommunityIcons name="chevron-down" size={24} color={COLORS.primary} />
                                 </TouchableOpacity>
                             </View>
 
-                            <ToonInput label="SUA PATENTE (NOME)" icon="badge-account-outline" placeholder="ex: Capitão Silva"
+                            <PremiumInput label="NOME DE GUERRA" icon="badge-account-outline" placeholder="Ex: Capitão Beto"
                                 value={captainName} onChangeText={setCaptainName} />
 
-                            <View style={styles.securitySection}>
-                                <Text style={styles.sectionTitle}>ÁREA DE SEGURANÇA</Text>
-                                <View style={styles.divider} />
-                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <View style={styles.securityBox}>
+                                <View style={styles.securityHeader}>
+                                    <MaterialCommunityIcons name="shield-check" size={20} color={COLORS.primary} />
+                                    <Text style={styles.securityTitle}>SEGURANÇA DOS PAIS</Text>
+                                </View>
+                                
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
                                     <View style={{ flex: 1 }}>
-                                         <ToonInput label={`QUANTO É ${mathChallenge.question}?`} icon="calculator" placeholder="?" 
+                                        <PremiumInput label={`QUANTO É ${mathChallenge.question}?`} icon="calculator" placeholder="?" 
                                             keyboardType="numeric" value={userMathAnswer} onChangeText={setUserMathAnswer} />
                                     </View>
                                     <View style={{ width: 140 }}>
-                                        <ToonInput label="PIN (8 Dígitos)" icon="shield-lock" placeholder="12345678" 
+                                        <PremiumInput label="PIN (8 Dígitos)" icon="dialpad" placeholder="1234..." 
                                             keyboardType="numeric" maxLength={8} secureTextEntry value={pin} onChangeText={setPin} />
                                     </View>
                                 </View>
@@ -257,22 +266,22 @@ export default function RegisterCaptainScreen() {
                         </View>
                     )}
 
-                    {/* FOOTER NAV */}
+                    {/* BOTÕES DENTRO DO CARD */}
                     <View style={styles.footerNavigation}>
                         <TouchableOpacity onPress={() => {
                                 if (currentStep === 1) navigation.goBack();
                                 else handlePrevStep();
                             }} style={styles.backButton}>
-                            <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
+                            <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.primary} />
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.nextButton} activeOpacity={0.8} onPress={handleNextStep}>
-                            <View style={styles.buttonShadow} />
-                            <View style={styles.buttonFront}>
+                            <View style={styles.btnShadow} />
+                            <View style={styles.btnFront}>
                                 {loading ? <ActivityIndicator color="#FFF" /> : (
                                     <>
                                         <Text style={styles.buttonText}>{getSubmitLabel()}</Text>
-                                        <MaterialCommunityIcons name={currentStep === 1 ? "arrow-right" : "flag-variant"} size={24} color="#FFF" style={{ marginLeft: 8 }} />
+                                        <MaterialCommunityIcons name={currentStep === 1 ? "arrow-right" : "check"} size={24} color="#FFF" style={{ marginLeft: 8 }} />
                                     </>
                                 )}
                             </View>
@@ -280,6 +289,7 @@ export default function RegisterCaptainScreen() {
                     </View>
                 </View>
             </View>
+            
             <View style={{ height: 100 }} />
         </ScrollView>
 
@@ -288,20 +298,19 @@ export default function RegisterCaptainScreen() {
                 <TouchableOpacity style={{flex:1}} onPress={() => setShowModal(false)} />
                 <View style={styles.modalContent}>
                     <Text style={styles.modalTitle}>ESCOLHA SEU TÍTULO</Text>
-                    <View style={styles.divider} />
-                    <ScrollView style={{maxHeight: 300}}>
+                    <ScrollView style={{maxHeight: 300}} showsVerticalScrollIndicator={false}>
                         {ARCHETYPES.map((item, index) => (
                             <TouchableOpacity key={index} style={styles.modalItem} onPress={() => selectArchetype(item)}>
-                                <View style={[styles.modalIconBox, {backgroundColor: COLORS.surfaceAlt}]}>
+                                <View style={styles.modalIconBox}>
                                     <MaterialCommunityIcons name={item.icon} size={24} color={COLORS.primary} />
                                 </View>
                                 <Text style={styles.modalItemText}>{item.label}</Text>
-                                <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} style={{opacity: 0.5}}/>
+                                <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} />
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
                     <TouchableOpacity style={styles.closeModalButton} onPress={() => setShowModal(false)}>
-                        <Text style={styles.closeModalText}>CANCELAR</Text>
+                        <Text style={styles.closeModalText}>FECHAR</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -314,52 +323,109 @@ export default function RegisterCaptainScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 50 },
+  scrollContent: { paddingHorizontal: 25, paddingTop: 60 },
   
-  progressContainer: { marginBottom: 30 },
-  stepText: { fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 12, marginBottom: 5, textAlign: 'right' },
-  progressBarBg: { height: 12, backgroundColor: COLORS.surface, borderRadius: 6, borderWidth: 2, borderColor: COLORS.primary, overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: COLORS.secondary, borderRadius: 4, borderRightWidth: 2, borderColor: COLORS.primary },
-
-  headerContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, paddingHorizontal: 5 },
-  avatarWrapper: { width: 60, height: 60, marginRight: 15 },
-  avatarShadow: { position: 'absolute', top: 3, left: 3, width: '100%', height: '100%', backgroundColor: COLORS.primary, borderRadius: 30 },
-  avatarFront: { width: '100%', height: '100%', backgroundColor: COLORS.surface, borderRadius: 30, borderWidth: 3, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  // Header
+  headerContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  iconCircle: { 
+      width: 50, height: 50, borderRadius: 25, backgroundColor: '#FFF', 
+      justifyContent: 'center', alignItems: 'center', marginRight: 15, 
+      borderWidth: 1, // Borda 1px
+      borderColor: COLORS.primary,
+      shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 
+  },
   headerTitle: { fontSize: 24, fontFamily: FONTS.bold, color: COLORS.primary },
   headerSubtitle: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.primary, opacity: 0.8 },
 
-  cardContainer: { position: 'relative', minHeight: 300, zIndex: 1 },
-  cardShadow: { position: 'absolute', top: 8, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 24 },
-  cardFront: { backgroundColor: COLORS.surface, borderRadius: 24, padding: 20, borderWidth: 3, borderColor: COLORS.primary, justifyContent: 'space-between' },
+  // Progress
+  progressContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 },
+  progressBarBg: { flex: 1, height: 8, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 4, marginRight: 15, borderWidth: 1, borderColor: COLORS.primary },
+  progressBarFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
+  stepText: { fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 14 },
 
-  inputLabel: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary, marginBottom: 4, marginLeft: 2 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary, borderRadius: 12, height: 50, backgroundColor: COLORS.surfaceAlt },
-  iconArea: { width: 45, height: '100%', justifyContent: 'center', alignItems: 'center', borderRightWidth: 2, borderRightColor: COLORS.primary, backgroundColor: 'rgba(255,255,255,0.3)' },
+  // --- CARD COM SOMBRA SALTADA ---
+  cardWrapper: { 
+      position: 'relative', 
+      marginBottom: 20
+  },
+  cardShadow: {
+      position: 'absolute', 
+      top: 8, 
+      left: 6, 
+      width: '100%', 
+      height: '100%', 
+      backgroundColor: COLORS.shadow, 
+      borderRadius: 24,
+      opacity: 0.3
+  },
+  cardFront: {
+      backgroundColor: '#FFF', 
+      borderRadius: 24, 
+      padding: 24,
+      borderWidth: 1, // Borda 1px
+      borderColor: COLORS.primary // Verde Escuro
+  },
+
+  // Inputs
+  inputLabel: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary, marginBottom: 6, letterSpacing: 0.5, paddingLeft: 2 },
+  inputWrapper: { 
+      flexDirection: 'row', alignItems: 'center', 
+      backgroundColor: '#F8FAFC', 
+      borderRadius: 14, 
+      height: 56, 
+      borderWidth: 1, // Borda 1px
+      borderColor: COLORS.primary 
+  },
   textInput: { flex: 1, paddingHorizontal: 12, fontSize: 16, fontFamily: FONTS.bold, color: COLORS.primary },
   
   dropdownButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 2, borderColor: COLORS.primary, backgroundColor: COLORS.surfaceAlt,
-    borderRadius: 12, height: 50, paddingHorizontal: 15
+    backgroundColor: '#F8FAFC', borderRadius: 14, height: 56, paddingHorizontal: 15,
+    borderWidth: 1, // Borda 1px
+    borderColor: COLORS.primary
   },
+  dropdownText: { fontSize: 16, fontFamily: FONTS.bold },
 
-  securitySection: { marginTop: 10, backgroundColor: COLORS.securityBg, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#BBF7D0' },
-  sectionTitle: { fontSize: 12, fontFamily: FONTS.bold, textAlign: 'center', color: COLORS.primary },
+  // Security
+  securityBox: { marginTop: 15, backgroundColor: '#F0FDF4', padding: 15, borderRadius: 16, borderWidth: 1, borderColor: COLORS.primary },
+  securityHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 8 },
+  securityTitle: { fontSize: 12, fontFamily: FONTS.bold, color: COLORS.primary, letterSpacing: 0.5 },
 
-  modalOverlay: { flex: 1, backgroundColor: COLORS.modalOverlay, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 24, padding: 20, borderWidth: 3, borderColor: COLORS.primary, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 10 },
-  modalTitle: { fontSize: 20, fontFamily: FONTS.bold, color: COLORS.primary, textAlign: 'center', marginBottom: 10 },
-  divider: { height: 2, backgroundColor: '#E2E8F0', marginBottom: 10 },
-  modalItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  modalIconBox: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 15, borderWidth: 1, borderColor: '#E2E8F0' },
-  modalItemText: { flex: 1, fontSize: 18, fontFamily: FONTS.bold, color: COLORS.primary },
-  closeModalButton: { marginTop: 15, padding: 15, backgroundColor: '#F1F5F9', borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#E2E8F0' },
-  closeModalText: { fontFamily: FONTS.bold, color: COLORS.primary },
+  // Footer Buttons
+  footerNavigation: { flexDirection: 'row', alignItems: 'center', marginTop: 30, gap: 15 },
+  
+  backButton: { 
+      width: 56, height: 56, justifyContent: 'center', alignItems: 'center', 
+      borderRadius: 16, backgroundColor: '#FFF', 
+      borderWidth: 1, // Borda 1px
+      borderColor: COLORS.primary 
+  },
+  
+  // Botão Next
+  nextButton: { flex: 1, height: 56, position: 'relative' },
+  btnShadow: { position: 'absolute', top: 4, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 16 },
+  btnFront: { 
+      width: '100%', height: '100%', backgroundColor: COLORS.primary, 
+      borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', 
+      marginTop: -2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' 
+  },
+  buttonText: { fontFamily: FONTS.bold, fontSize: 18, color: '#FFF', letterSpacing: 0.5 },
 
-  footerNavigation: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, zIndex: 0 },
-  backButton: { width: 50, height: 50, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary, borderRadius: 12, backgroundColor: '#F1F5F9' },
-  nextButton: { flex: 1, height: 55, marginLeft: 15, position: 'relative' },
-  buttonShadow: { position: 'absolute', top: 4, left: 0, right: 0, bottom: -4, borderRadius: 16, backgroundColor: COLORS.shadow },
-  buttonFront: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderRadius: 16, borderWidth: 2, marginTop: -2, backgroundColor: COLORS.primary, borderColor: COLORS.shadow },
-  buttonText: { fontFamily: FONTS.bold, fontSize: 18, color: '#FFF', letterSpacing: 0.5 }
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(6, 78, 59, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { 
+      width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20,
+      borderWidth: 1, borderColor: COLORS.primary,
+      shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, elevation: 10
+  },
+  modalTitle: { fontSize: 18, fontFamily: FONTS.bold, color: COLORS.primary, textAlign: 'center', marginBottom: 15 },
+  modalItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalIconBox: { 
+      width: 44, height: 44, borderRadius: 14, backgroundColor: '#F0FDF4', 
+      justifyContent: 'center', alignItems: 'center', marginRight: 15,
+      borderWidth: 1, borderColor: COLORS.primary 
+  },
+  modalItemText: { flex: 1, fontSize: 16, fontFamily: FONTS.bold, color: COLORS.primary },
+  closeModalButton: { marginTop: 20, padding: 15, backgroundColor: '#F8FAFC', borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.primary },
+  closeModalText: { fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 14 },
 });

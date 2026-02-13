@@ -2,9 +2,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
-  Platform, ScrollView, StyleSheet, Text, TextInput,
-  TouchableOpacity, View, Modal
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
@@ -112,7 +121,7 @@ export default function CreateMissionScreen() {
           title, 
           description, 
           icon: selectedIcon, 
-          status: 'active', // Padrão para a missão real
+          status: 'active',
           assigned_to: assignee,
           reward_type: rewardType, 
           reward: rewardType === 'coins' ? parseInt(coinReward) : 0, 
@@ -125,29 +134,24 @@ export default function CreateMissionScreen() {
       };
 
       try {
-          // 1. ATUALIZAR UM MODELO EXISTENTE
           if (isEditingTemplate && shouldUpdateTemplate) {
-              // Mantemos o template com status 'template' para não aparecer pro recruta
               await supabase.from('missions')
                   .update({ ...payload, status: 'template', is_template: true }) 
                   .eq('id', templateData.id);
           }
           
-          // 2. SALVAR CÓPIA COMO NOVO MODELO (O FIX ESTÁ AQUI)
           if (!isEditingTemplate && saveAsTemplate) {
               await supabase.from('missions').insert([{ 
                   ...payload, 
-                  status: 'template', // <--- MUDANÇA CRUCIAL: Template nasce escondido
+                  status: 'template',
                   is_template: true 
               }]);
           }
 
-          // 3. LANÇAR A MISSÃO REAL (ATIVA)
           if (missionToEdit) {
               await supabase.from('missions').update(payload).eq('id', missionToEdit.id);
               Alert.alert("Sucesso", "Missão atualizada!");
           } else {
-              // Aqui sim ela vai como 'active'
               const { error } = await supabase.from('missions').insert([payload]);
               if (error) throw error;
               Alert.alert("Sucesso", "Missão lançada!");
@@ -186,48 +190,46 @@ export default function CreateMissionScreen() {
       else setSelectedDays([...selectedDays, id].sort());
   };
 
-  const getDayLabels = () => {
-      if (!isRecurring || selectedDays.length === 0) return "";
-      if (selectedDays.length === 7) return "Todos os dias";
-      return selectedDays.map(id => WEEKDAYS.find(d => d.id === id)?.label).join(", ");
-  };
-
   const renderIconItem = ({ item }) => (
     <TouchableOpacity style={[styles.iconItem, selectedIcon === item && styles.iconSelected]} onPress={() => setSelectedIcon(item)}>
-      <MaterialCommunityIcons name={item} size={32} color={selectedIcon === item ? '#fff' : COLORS.primary} />
+      <MaterialCommunityIcons name={item} size={28} color={selectedIcon === item ? '#fff' : '#64748B'} />
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-        <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.primary}/>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{missionToEdit ? "EDITAR MISSÃO" : "NOVA MISSÃO"}</Text>
-            <View style={{width:28}}/>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        
+        {/* HEADER VERDE ESCURO */}
+        <View style={styles.topGreenArea}>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                    <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary}/>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>{missionToEdit ? "EDITAR MISSÃO" : "NOVA MISSÃO"}</Text>
+                <View style={{width: 40}}/>
+            </View>
         </View>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex:1}}>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 
-                {/* PREVIEW CARD */}
-                <View style={styles.previewSection}>
-                    <Text style={styles.sectionLabel}>VISUALIZAÇÃO (PREVIEW):</Text>
-                    <View style={styles.previewWrapper}>
-                        <View style={styles.cardShadow} />
-                        <View style={styles.cardPreview}>
+                {/* PREVIEW CARD (Borda Verde Escura 1px) */}
+                <View style={styles.sectionContainer}>
+                    <Text style={styles.sectionLabel}>VISUALIZAÇÃO (PREVIEW)</Text>
+                    <View style={styles.cardWrapper}>
+                        <View style={styles.cardFront}>
                             <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
                                 <View style={styles.previewIconBox}>
-                                    <MaterialCommunityIcons name={selectedIcon} size={32} color={COLORS.primary} />
+                                    <MaterialCommunityIcons name={selectedIcon} size={28} color={COLORS.primary} />
                                 </View>
                                 <View style={{flex: 1}}>
                                     <Text style={styles.previewTitle} numberOfLines={2}>{title || "Título da Missão"}</Text>
                                     <View style={{flexDirection: 'row', marginTop: 4}}>
-                                        <View style={[styles.previewTag, {backgroundColor: rewardType === 'coins' ? '#fffbeb' : '#fdf2f8', borderColor: rewardType === 'coins' ? COLORS.gold : '#db2777'}]}>
-                                            <MaterialCommunityIcons name={rewardType === 'coins' ? "star" : "gift"} size={12} color={rewardType === 'coins' ? COLORS.gold : '#db2777'} />
-                                            <Text style={[styles.previewTagText, {color: rewardType === 'coins' ? '#b45309' : '#db2777'}]}>
-                                                {rewardType === 'coins' ? (coinReward || "0") + " moedas" : (customReward || "Item")}
+                                        <View style={[styles.previewTag, {backgroundColor: rewardType === 'coins' ? '#FFFBEB' : '#FDF2F8', borderColor: rewardType === 'coins' ? '#F59E0B' : '#DB2777'}]}>
+                                            <MaterialCommunityIcons name={rewardType === 'coins' ? "circle-multiple" : "gift"} size={12} color={rewardType === 'coins' ? '#B45309' : '#DB2777'} />
+                                            <Text style={[styles.previewTagText, {color: rewardType === 'coins' ? '#B45309' : '#DB2777'}]}>
+                                                {rewardType === 'coins' ? (coinReward || "0") + " Chonko Coins" : (customReward || "Prêmio")}
                                             </Text>
                                         </View>
                                     </View>
@@ -235,153 +237,174 @@ export default function CreateMissionScreen() {
                             </View>
                             <View style={styles.divider} />
                             <View style={styles.metaInfoContainer}>
-                                <View style={[styles.metaTag, { backgroundColor: isRecurring ? '#fff7ed' : '#fee2e2', borderColor: isRecurring ? '#f97316' : '#ef4444' }]}>
-                                    <MaterialCommunityIcons name={isRecurring ? "calendar-sync" : "calendar-check"} size={12} color={isRecurring ? '#ea580c' : '#b91c1c'} />
-                                    <Text style={[styles.metaText, { color: isRecurring ? '#ea580c' : '#b91c1c' }]}>
+                                <View style={[styles.metaTag, { backgroundColor: isRecurring ? '#FFF7ED' : '#FEF2F2', borderColor: isRecurring ? '#F97316' : '#EF4444' }]}>
+                                    <MaterialCommunityIcons name={isRecurring ? "calendar-sync" : "calendar-check"} size={12} color={isRecurring ? '#EA580C' : '#B91C1C'} />
+                                    <Text style={[styles.metaText, { color: isRecurring ? '#EA580C' : '#B91C1C' }]}>
                                         {isRecurring ? "Diária" : "Única"}
                                     </Text>
                                 </View>
                                 {(startTime || deadline) && (
-                                    <View style={[styles.metaTag, { backgroundColor: '#eff6ff', borderColor: '#3b82f6' }]}>
-                                        <MaterialCommunityIcons name="clock-outline" size={12} color="#2563eb" />
-                                        <Text style={[styles.metaText, { color: '#2563eb' }]}>
-                                            {startTime || "00:00"} - {deadline || "00:00"}
-                                        </Text>
+                                    <View style={[styles.metaTag, { backgroundColor: '#EFF6FF', borderColor: '#3B82F6' }]}>
+                                            <MaterialCommunityIcons name="clock-outline" size={12} color="#2563EB" />
+                                            <Text style={[styles.metaText, { color: '#2563EB' }]}>
+                                                {startTime || "00:00"} - {deadline || "00:00"}
+                                            </Text>
                                     </View>
                                 )}
-                                <View style={[styles.metaTag, { backgroundColor: '#f0fdf4', borderColor: '#16a34a' }]}>
-                                    <MaterialCommunityIcons name={assignee ? "account" : "account-group"} size={12} color="#15803d" />
-                                    <Text style={[styles.metaText, { color: '#15803d' }]}>{assigneeName}</Text>
+                                <View style={[styles.metaTag, { backgroundColor: '#F0FDF4', borderColor: '#16A34A' }]}>
+                                    <MaterialCommunityIcons name={assignee ? "account" : "account-group"} size={12} color="#15803D" />
+                                    <Text style={[styles.metaText, { color: '#15803D' }]}>{assigneeName}</Text>
                                 </View>
                             </View>
                         </View>
                     </View>
                 </View>
 
-                {/* INPUTS */}
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>O QUE DEVE SER FEITO?</Text>
-                    <TextInput style={styles.input} placeholder="Ex: Derrotar o Dragão da Louça" placeholderTextColor={COLORS.placeholder} value={title} onChangeText={setTitle} />
-                    <TextInput style={[styles.input, {height:60, marginTop:10}]} placeholder="Detalhes da quest..." placeholderTextColor={COLORS.placeholder} multiline value={description} onChangeText={setDescription} />
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>RECOMPENSA</Text>
-                    <View style={styles.row}>
-                        <TouchableOpacity style={[styles.toggleBtn, rewardType==='coins' && styles.toggleBtnActive]} onPress={()=>setRewardType('coins')}>
-                            <Text style={[styles.toggleText, rewardType==='coins' && {color:'#fff'}]}>MOEDA</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.toggleBtn, rewardType==='custom' && styles.toggleBtnActive]} onPress={()=>setRewardType('custom')}>
-                            <Text style={[styles.toggleText, rewardType==='custom' && {color:'#fff'}]}>PERSONALIZADO</Text>
-                        </TouchableOpacity>
+                {/* FORMULÁRIO (Borda Verde Escura 1px) */}
+                <View style={styles.formContainer}>
+                    
+                    {/* TÍTULO E DESCRIÇÃO */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>O QUE DEVE SER FEITO?</Text>
+                        <TextInput style={styles.input} placeholder="Ex: Derrotar o Dragão da Louça" placeholderTextColor="#94A3B8" value={title} onChangeText={setTitle} />
+                        <TextInput style={[styles.input, {height:80, marginTop:10, textAlignVertical:'top'}]} placeholder="Detalhes da quest..." placeholderTextColor="#94A3B8" multiline value={description} onChangeText={setDescription} />
                     </View>
-                    {rewardType === 'coins' ? (
-                        <TextInput style={styles.input} placeholder="Valor" placeholderTextColor={COLORS.placeholder} keyboardType="numeric" value={coinReward} onChangeText={setCoinReward} />
-                    ) : (
-                        <TextInput style={styles.input} placeholder="Ex: Sorvete, 1h de videogame..." placeholderTextColor={COLORS.placeholder} value={customReward} onChangeText={setCustomReward} />
-                    )}
-                </View>
 
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>QUEM VAI FAZER?</Text>
-                    <TouchableOpacity style={styles.dropdown} onPress={()=>setShowAssigneeModal(true)}>
-                        <Text style={styles.dropdownText}>{assigneeName}</Text>
-                        <MaterialCommunityIcons name="chevron-down" size={24} color={COLORS.primary} />
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>RECORRÊNCIA</Text>
-                    <View style={styles.row}>
-                        <TouchableOpacity style={[styles.toggleBtn, !isRecurring && styles.toggleBtnActive]} onPress={()=>setIsRecurring(false)}>
-                            <Text style={[styles.toggleText, !isRecurring && {color:'#fff'}]}>ÚNICA</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.toggleBtn, isRecurring && styles.toggleBtnActive]} onPress={()=>setIsRecurring(true)}>
-                            <Text style={[styles.toggleText, isRecurring && {color:'#fff'}]}>DIÁRIA / RECORRENTE</Text>
-                        </TouchableOpacity>
-                    </View>
-                    {isRecurring && (
-                        <View style={styles.weekRow}>
-                            {WEEKDAYS.map(d => (
-                                <TouchableOpacity key={d.id} style={[styles.dayCircle, selectedDays.includes(d.id) && {backgroundColor: COLORS.primary}]} onPress={()=>toggleDay(d.id)}>
-                                    <Text style={{fontWeight:'bold', fontSize: 10, color: selectedDays.includes(d.id) ? '#fff' : COLORS.primary}}>{d.label.substring(0,3)}</Text>
-                                </TouchableOpacity>
-                            ))}
+                    {/* RECOMPENSA */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>RECOMPENSA</Text>
+                        <View style={styles.row}>
+                            <TouchableOpacity style={[styles.toggleBtn, rewardType==='coins' && styles.toggleBtnActive]} onPress={()=>setRewardType('coins')}>
+                                <Text style={[styles.toggleText, rewardType==='coins' && {color:'#fff'}]}>CHONKO COINS</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.toggleBtn, rewardType==='custom' && styles.toggleBtnActive]} onPress={()=>setRewardType('custom')}>
+                                <Text style={[styles.toggleText, rewardType==='custom' && {color:'#fff'}]}>PERSONALIZADO</Text>
+                            </TouchableOpacity>
                         </View>
-                    )}
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>HORÁRIOS</Text>
-                    <View style={styles.timeRowContainer}>
-                        <View style={styles.timeInputWrapper}>
-                            <Text style={styles.subLabel}>INÍCIO</Text>
-                            <TextInput 
-                                style={styles.inputCenter} 
-                                placeholder="08:00" placeholderTextColor={COLORS.placeholder} 
-                                value={startTime} 
-                                onChangeText={t=>handleTimeChange(t, setStartTime)}
-                                onBlur={() => handleTimeBlur(startTime, setStartTime)} 
-                                keyboardType="numeric" maxLength={5} 
-                            />
-                        </View>
-                        <View style={styles.timeInputWrapper}>
-                            <Text style={styles.subLabel}>LIMITE</Text>
-                            <TextInput 
-                                style={styles.inputCenter} 
-                                placeholder="17:00" placeholderTextColor={COLORS.placeholder} 
-                                value={deadline} 
-                                onChangeText={t=>handleTimeChange(t, setDeadline)}
-                                onBlur={() => handleTimeBlur(deadline, setDeadline)}
-                                keyboardType="numeric" maxLength={5} 
-                            />
-                        </View>
-                    </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>ÍCONE</Text>
-                    <FlatList data={ICONS} horizontal showsHorizontalScrollIndicator={false} renderItem={renderIconItem} keyExtractor={i=>i}/>
-                </View>
-
-                {!isEditingTemplate && (
-                    <TouchableOpacity style={[styles.templateBox, saveAsTemplate && styles.templateBoxActive]} activeOpacity={0.9} onPress={() => setSaveAsTemplate(!saveAsTemplate)}>
-                        <View style={styles.checkbox}>{saveAsTemplate && <MaterialCommunityIcons name="check" size={16} color={COLORS.primary} />}</View>
-                        <View style={{marginLeft: 10, flex: 1}}><Text style={styles.templateTitle}>SALVAR EM MISSÕES RÁPIDAS</Text><Text style={styles.templateSubtitle}>Cria um atalho para lançar de novo.</Text></View>
-                        <MaterialCommunityIcons name="flash" size={24} color={COLORS.primary} />
-                    </TouchableOpacity>
-                )}
-
-                {isEditingTemplate ? (
-                    <View style={{marginBottom: 20}}>
-                        <TouchableOpacity style={[styles.createBtn, {backgroundColor: COLORS.gold, marginBottom: 15}]} onPress={() => handleLaunch(true)} disabled={loading}>
-                            <View style={[styles.createBtnShadow, {backgroundColor: '#b45309'}]} />
-                            <View style={[styles.createBtnFront, {backgroundColor: COLORS.gold, borderColor: '#b45309'}]}>
-                                <MaterialCommunityIcons name="sync" size={24} color="#fff" style={{marginRight: 10}} />
-                                <Text style={styles.btnText}>ATUALIZAR MODELO & LANÇAR</Text>
+                        {rewardType === 'coins' ? (
+                            <View style={styles.currencyInputWrapper}>
+                                <MaterialCommunityIcons name="circle-multiple" size={20} color={COLORS.gold} style={{marginRight: 10}}/>
+                                <TextInput style={styles.currencyInput} placeholder="0" placeholderTextColor="#94A3B8" keyboardType="numeric" value={coinReward} onChangeText={setCoinReward} />
                             </View>
+                        ) : (
+                            <TextInput style={styles.input} placeholder="Ex: Sorvete, 1h de videogame..." placeholderTextColor="#94A3B8" value={customReward} onChangeText={setCustomReward} />
+                        )}
+                    </View>
+
+                    {/* ATRIBUIR */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>QUEM VAI FAZER?</Text>
+                        <TouchableOpacity style={styles.dropdown} onPress={()=>setShowAssigneeModal(true)}>
+                            <Text style={styles.dropdownText}>{assigneeName}</Text>
+                            <MaterialCommunityIcons name="chevron-down" size={24} color="#64748B" />
                         </TouchableOpacity>
+                    </View>
+
+                    {/* RECORRÊNCIA */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>QUANDO?</Text>
+                        <View style={styles.row}>
+                            <TouchableOpacity style={[styles.toggleBtn, !isRecurring && styles.toggleBtnActive]} onPress={()=>setIsRecurring(false)}>
+                                <Text style={[styles.toggleText, !isRecurring && {color:'#fff'}]}>HOJE / ÚNICA</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.toggleBtn, isRecurring && styles.toggleBtnActive]} onPress={()=>setIsRecurring(true)}>
+                                <Text style={[styles.toggleText, isRecurring && {color:'#fff'}]}>RECORRENTE</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {isRecurring && (
+                            <View style={styles.weekRow}>
+                                {WEEKDAYS.map(d => (
+                                    <TouchableOpacity key={d.id} style={[styles.dayCircle, selectedDays.includes(d.id) && {backgroundColor: COLORS.primary, borderColor: COLORS.primary}]} onPress={()=>toggleDay(d.id)}>
+                                        <Text style={{fontWeight:'bold', fontSize: 10, color: selectedDays.includes(d.id) ? '#fff' : '#64748B'}}>{d.label.substring(0,3)}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+
+                    {/* HORÁRIOS */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>HORÁRIOS (OPCIONAL)</Text>
+                        <View style={styles.timeRowContainer}>
+                            <View style={styles.timeInputWrapper}>
+                                <Text style={styles.subLabel}>INÍCIO</Text>
+                                <TextInput 
+                                    style={styles.inputCenter} 
+                                    placeholder="08:00" placeholderTextColor="#94A3B8" 
+                                    value={startTime} 
+                                    onChangeText={t=>handleTimeChange(t, setStartTime)}
+                                    onBlur={() => handleTimeBlur(startTime, setStartTime)} 
+                                    keyboardType="numeric" maxLength={5} 
+                                />
+                            </View>
+                            <View style={styles.timeInputWrapper}>
+                                <Text style={styles.subLabel}>LIMITE</Text>
+                                <TextInput 
+                                    style={styles.inputCenter} 
+                                    placeholder="17:00" placeholderTextColor="#94A3B8" 
+                                    value={deadline} 
+                                    onChangeText={t=>handleTimeChange(t, setDeadline)}
+                                    onBlur={() => handleTimeBlur(deadline, setDeadline)}
+                                    keyboardType="numeric" maxLength={5} 
+                                />
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* ÍCONE */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>ÍCONE</Text>
+                        <FlatList data={ICONS} horizontal showsHorizontalScrollIndicator={false} renderItem={renderIconItem} keyExtractor={i=>i} contentContainerStyle={{paddingVertical: 5}}/>
+                    </View>
+
+                    {/* TEMPLATE TOGGLE */}
+                    {!isEditingTemplate && (
+                        <TouchableOpacity style={[styles.templateBox, saveAsTemplate && styles.templateBoxActive]} activeOpacity={0.9} onPress={() => setSaveAsTemplate(!saveAsTemplate)}>
+                            <View style={[styles.checkbox, saveAsTemplate && {backgroundColor: COLORS.primary, borderColor: COLORS.primary}]}>
+                                {saveAsTemplate && <MaterialCommunityIcons name="check" size={14} color="#FFF" />}
+                            </View>
+                            <View style={{marginLeft: 10, flex: 1}}>
+                                <Text style={styles.templateTitle}>Salvar Modelo</Text>
+                                <Text style={styles.templateSubtitle}>Para usar em Missões Rápidas depois.</Text>
+                            </View>
+                            <MaterialCommunityIcons name="flash" size={20} color={saveAsTemplate ? COLORS.primary : "#94A3B8"} />
+                        </TouchableOpacity>
+                    )}
+
+                    {/* BOTÃO DE AÇÃO */}
+                    {isEditingTemplate ? (
+                        <View style={{marginBottom: 20}}>
+                            <TouchableOpacity style={[styles.createBtn, {backgroundColor: '#F59E0B', marginBottom: 15}]} onPress={() => handleLaunch(true)} disabled={loading}>
+                                <View style={[styles.createBtnShadow, {backgroundColor: '#B45309'}]} />
+                                <View style={[styles.createBtnFront, {backgroundColor: '#F59E0B', borderColor: '#B45309'}]}>
+                                    <MaterialCommunityIcons name="sync" size={24} color="#fff" style={{marginRight: 10}} />
+                                    <Text style={styles.btnText}>ATUALIZAR MODELO & LANÇAR</Text>
+                                </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.createBtn} onPress={() => handleLaunch(false)} disabled={loading}>
+                                <View style={styles.createBtnShadow} />
+                                <View style={styles.createBtnFront}>
+                                    <MaterialCommunityIcons name="rocket-launch-outline" size={24} color="#fff" style={{marginRight: 10}} />
+                                    <Text style={styles.btnText}>LANÇAR (SEM ATUALIZAR)</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
                         <TouchableOpacity style={styles.createBtn} onPress={() => handleLaunch(false)} disabled={loading}>
                             <View style={styles.createBtnShadow} />
                             <View style={styles.createBtnFront}>
-                                <MaterialCommunityIcons name="rocket-launch-outline" size={24} color="#fff" style={{marginRight: 10}} />
-                                <Text style={styles.btnText}>LANÇAR (SEM ATUALIZAR MODELO)</Text>
+                                <MaterialCommunityIcons name={missionToEdit ? "content-save-outline" : "rocket-launch-outline"} size={24} color="#fff" style={{marginRight: 10}} />
+                                <Text style={styles.btnText}>{missionToEdit ? "SALVAR ALTERAÇÕES" : "LANÇAR MISSÃO"}</Text>
                             </View>
                         </TouchableOpacity>
-                    </View>
-                ) : (
-                    <TouchableOpacity style={styles.createBtn} onPress={() => handleLaunch(false)} disabled={loading}>
-                        <View style={styles.createBtnShadow} />
-                        <View style={styles.createBtnFront}>
-                            <MaterialCommunityIcons name="rocket-launch-outline" size={24} color="#fff" style={{marginRight: 10}} />
-                            <Text style={styles.btnText}>{missionToEdit ? "SALVAR ALTERAÇÕES" : "LANÇAR MISSÃO"}</Text>
-                        </View>
-                    </TouchableOpacity>
-                )}
-                <View style={{height: 50}} /> 
+                    )}
+                    
+                    <View style={{height: 50}} /> 
+                </View>
             </ScrollView>
         </KeyboardAvoidingView>
 
+        {/* MODAL RECRUTA */}
         <Modal visible={showAssigneeModal} transparent={true} animationType="fade" onRequestClose={()=>setShowAssigneeModal(false)}>
             <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
@@ -405,57 +428,101 @@ export default function CreateMissionScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
-    header: { flexDirection:'row', justifyContent:'space-between', padding:20, paddingTop:50, alignItems:'center', backgroundColor: COLORS.surface, borderBottomWidth: 3, borderBottomColor: COLORS.primary },
-    headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.primary, letterSpacing: 1 },
-    backBtn: { padding: 5, backgroundColor: COLORS.surfaceAlt, borderRadius: 10, borderWidth: 2, borderColor: COLORS.primary },
+    container: { flex: 1, backgroundColor: '#F0F9FF' },
+    
+    // --- HEADER VERDE ESCURO (COLORS.primary) ---
+    topGreenArea: {
+        backgroundColor: COLORS.primary, // #064E3B
+        paddingTop: 50,
+        paddingBottom: 20,
+        borderBottomLeftRadius: 35, // Arredondamento suave
+        borderBottomRightRadius: 35,
+        zIndex: 10,
+        shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
+    },
+    header: { flexDirection:'row', justifyContent:'space-between', paddingHorizontal:20, alignItems:'center' },
+    headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
+    backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
+    
     content: { padding: 20 },
-    previewSection: { marginBottom: 25 },
-    sectionLabel: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.surface, marginBottom: 8, opacity: 0.9 },
-    previewWrapper: { position: 'relative' },
-    cardShadow: { position: 'absolute', top: 6, left: 6, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 20 },
-    cardPreview: { backgroundColor: COLORS.surface, padding: 15, borderRadius: 20, borderWidth: 3, borderColor: COLORS.primary },
-    previewIconBox: { width: 50, height: 50, borderRadius: 15, backgroundColor: COLORS.surfaceAlt, justifyContent: 'center', alignItems: 'center', marginRight: 15, borderWidth: 2, borderColor: COLORS.primary },
-    previewTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary },
-    previewTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, marginRight: 5 },
-    previewTagText: { fontSize: 12, fontWeight: 'bold', marginLeft: 4 },
-    divider: { height: 2, backgroundColor: COLORS.surfaceAlt, marginVertical: 10 },
+    
+    // --- SEÇÃO PREVIEW ---
+    sectionContainer: { marginBottom: 25 },
+    sectionLabel: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B', marginBottom: 10, opacity: 0.9, letterSpacing: 0.5 },
+    
+    // --- PREVIEW CARD (Borda Verde Escura 1px) ---
+    cardWrapper: { borderRadius: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
+    cardFront: { 
+        backgroundColor: '#FFF', 
+        borderRadius: 24, 
+        borderWidth: 1, 
+        borderColor: COLORS.primary, // <--- AQUI
+        padding: 16 
+    },
+    previewIconBox: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    previewTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B' },
+    previewTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
+    previewTagText: { fontSize: 11, fontWeight: 'bold', marginLeft: 4 },
+    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
     metaInfoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+    metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
     metaText: { fontSize: 10, fontWeight: 'bold', marginLeft: 4 },
-    daysText: { fontSize: 11, color: '#666', marginTop: 8, fontStyle: 'italic' },
-    inputGroup: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 15, marginBottom: 15, borderWidth: 3, borderColor: COLORS.primary },
-    label: { fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 12, marginBottom: 8 },
-    subLabel: { fontFamily: FONTS.regular, color: COLORS.primary, fontSize: 10, marginBottom: 4 },
-    input: { backgroundColor: COLORS.surfaceAlt, borderRadius: 10, padding: 12, fontFamily: FONTS.bold, color: COLORS.primary, borderWidth: 2, borderColor: COLORS.primary },
+
+    // --- FORMULÁRIO (Cards com Borda Verde Escura 1px) ---
+    formContainer: { gap: 15 },
+    inputGroup: { 
+        backgroundColor: '#FFF', 
+        borderRadius: 20, 
+        padding: 15, 
+        borderWidth: 1, 
+        borderColor: COLORS.primary, // <--- AQUI
+        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 
+    },
+    label: { fontFamily: FONTS.bold, color: '#64748B', fontSize: 11, marginBottom: 8, textTransform: 'uppercase' },
+    subLabel: { fontFamily: FONTS.bold, color: '#94A3B8', fontSize: 10, marginBottom: 4 },
+    
+    input: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, fontFamily: FONTS.bold, color: '#1E293B', borderWidth: 1, borderColor: COLORS.primary },
+    currencyInputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: COLORS.primary },
+    currencyInput: { flex: 1, paddingVertical: 12, fontFamily: FONTS.bold, color: '#1E293B', fontSize: 16 },
+    
+    inputCenter: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 10, fontFamily: FONTS.bold, color: '#1E293B', borderWidth: 1, borderColor: COLORS.primary, textAlign: 'center' },
     timeRowContainer: { flexDirection: 'row', gap: 10 },
     timeInputWrapper: { flex: 1 },
-    inputCenter: { backgroundColor: COLORS.surfaceAlt, borderRadius: 10, padding: 10, fontFamily: FONTS.bold, color: COLORS.primary, borderWidth: 2, borderColor: COLORS.primary, textAlign: 'center' },
+    
     row: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-    toggleBtn: { flex: 1, padding: 12, alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary, borderRadius: 10, backgroundColor: COLORS.surface },
-    toggleBtnActive: { backgroundColor: COLORS.primary },
-    toggleText: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary },
-    dropdown: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: COLORS.surfaceAlt, borderWidth: 2, borderColor: COLORS.primary, borderRadius: 10 },
-    dropdownText: { fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 16 },
+    toggleBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.primary, borderRadius: 24, backgroundColor: '#F8FAFC' },
+    toggleBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+    toggleText: { fontFamily: FONTS.bold, fontSize: 11, color: '#64748B' },
+    
+    dropdown: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: COLORS.primary, borderRadius: 12 },
+    dropdownText: { fontFamily: FONTS.bold, color: '#1E293B', fontSize: 14 },
+    
     weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-    dayCircle: { width: 35, height: 35, borderRadius: 18, borderWidth: 2, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.surface },
-    infoBox: { flexDirection: 'row', backgroundColor: '#e0f2fe', padding: 12, borderRadius: 10, marginTop: 15, borderWidth: 2, borderColor: '#0ea5e9', alignItems: 'flex-start' },
-    infoText: { fontFamily: FONTS.bold, fontSize: 11, color: '#0369a1', marginLeft: 8, flex: 1 },
-    templateBox: { flexDirection: 'row', backgroundColor: '#fffbeb', padding: 15, borderRadius: 16, borderWidth: 3, borderColor: COLORS.gold, alignItems: 'center', marginBottom: 20 },
-    templateBoxActive: { backgroundColor: COLORS.gold, borderColor: COLORS.primary },
-    checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: COLORS.primary, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center' },
-    templateTitle: { fontFamily: FONTS.bold, fontSize: 14, color: COLORS.primary },
-    templateSubtitle: { fontFamily: FONTS.regular, fontSize: 11, color: '#b45309' },
-    iconItem: { width: 50, height: 50, borderRadius: 25, backgroundColor: COLORS.surfaceAlt, justifyContent: 'center', alignItems: 'center', marginRight: 10, borderWidth: 2, borderColor: COLORS.primary },
-    iconSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.surface },
-    createBtn: { height: 60, position: 'relative', marginTop: 10, marginBottom: 20 },
+    dayCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+    
+    iconItem: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginRight: 10, borderWidth: 1, borderColor: COLORS.primary },
+    iconSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+    
+    templateBox: { flexDirection: 'row', backgroundColor: '#F0F9FF', padding: 15, borderRadius: 20, borderWidth: 1, borderColor: COLORS.primary, alignItems: 'center', marginBottom: 20 },
+    templateBoxActive: { backgroundColor: '#F0FDF4', borderColor: COLORS.primary },
+    checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: '#94A3B8', backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+    templateTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#1E293B' },
+    templateSubtitle: { fontFamily: FONTS.regular, fontSize: 11, color: '#64748B' },
+    
+    // --- BOTÕES DE AÇÃO ---
+    createBtn: { height: 56, position: 'relative', marginTop: 10 },
     createBtnShadow: { position: 'absolute', top: 4, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 16 },
-    createBtnFront: { width: '100%', height: '100%', backgroundColor: COLORS.secondary, borderRadius: 16, borderWidth: 3, borderColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: -2 },
-    btnText: { fontFamily: FONTS.bold, color: COLORS.surface, fontSize: 16, letterSpacing: 1 },
-    modalOverlay: { flex: 1, backgroundColor: COLORS.modalOverlay, justifyContent: 'center', alignItems: 'center', padding: 20 },
-    modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, borderWidth: 3, borderColor: COLORS.primary },
-    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: COLORS.primary, marginBottom: 10, fontSize: 18 },
-    modalOption: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, borderBottomWidth: 1, borderColor: '#eee' },
-    modalText: { fontFamily: FONTS.bold, color: COLORS.primary },
-    closeBtn: { marginTop: 15, padding: 10, alignItems: 'center', backgroundColor: '#eee', borderRadius: 10 }
+    createBtnFront: { width: '100%', height: '100%', backgroundColor: COLORS.secondary, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: -2 },
+    btnText: { fontFamily: FONTS.bold, color: '#FFF', fontSize: 14, letterSpacing: 1 },
+    
+    // --- MODAL ---
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    modalContent: { 
+        width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20,
+        borderWidth: 1, borderColor: COLORS.primary // <--- AQUI
+    },
+    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#1E293B', marginBottom: 15, fontSize: 16 },
+    modalOption: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, borderBottomWidth: 1, borderColor: '#F1F5F9' },
+    modalText: { fontFamily: FONTS.bold, color: '#334155' },
+    closeBtn: { marginTop: 15, padding: 12, alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 12 }
 });
