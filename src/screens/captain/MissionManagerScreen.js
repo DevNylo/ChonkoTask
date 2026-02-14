@@ -1,19 +1,23 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { BlurView } from 'expo-blur';
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    ImageBackground,
+    Modal,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
+
+const BACKGROUND_IMG = require('../../../assets/GenericBKG4.png');
 
 const STATUS_TABS = [
     { id: 'active', label: 'ATIVAS', icon: 'clipboard-play-outline', color: '#10B981' }, 
@@ -173,21 +177,18 @@ export default function MissionManagerScreen() {
       
       let cardBg, iconColor, titleColor, tagBg, tagBorder, tagText;
 
-      // Mantemos a borda fixa verde escura, mas mudamos o conteúdo interno
       if (isCompleted) {
-          cardBg = '#F0FDF4'; iconColor = '#16A34A'; titleColor = '#14532D'; tagBg = '#DCFCE7'; tagBorder = '#86EFAC'; tagText = '#15803D';
+          cardBg = 'rgba(240, 253, 244, 0.9)'; iconColor = '#16A34A'; titleColor = '#14532D'; tagBg = '#DCFCE7'; tagBorder = '#86EFAC'; tagText = '#15803D';
       } else if (isInactive) {
-          cardBg = '#F9FAFB'; iconColor = '#9CA3AF'; titleColor = '#9CA3AF'; tagBg = '#F3F4F6'; tagBorder = '#E5E7EB'; tagText = '#9CA3AF';
+          cardBg = 'rgba(249, 250, 251, 0.9)'; iconColor = '#9CA3AF'; titleColor = '#9CA3AF'; tagBg = '#F3F4F6'; tagBorder = '#E5E7EB'; tagText = '#9CA3AF';
       } else {
-          cardBg = '#FFF'; iconColor = COLORS.primary; titleColor = '#1E293B'; tagBg = isCustom ? '#FDF2F8' : '#FFFBEB'; tagBorder = isCustom ? '#DB2777' : '#F59E0B'; tagText = isCustom ? '#DB2777' : '#B45309';
+          cardBg = '#f9fefb'; iconColor = COLORS.primary; titleColor = '#1E293B'; tagBg = isCustom ? '#FDF2F8' : '#FFFBEB'; tagBorder = isCustom ? '#DB2777' : '#F59E0B'; tagText = isCustom ? '#DB2777' : '#B45309';
       }
 
       return (
         <View style={styles.cardWrapper}>
-            {/* Sombra Suave Atrás */}
+            {/* SOMBRA NOS CARDS RESTAURADA */}
             <View style={styles.cardShadow} />
-
-            {/* Card Frontal com Borda Verde Escura 1px */}
             <View style={[styles.cardFront, { backgroundColor: cardBg }]}>
                 
                 <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
@@ -257,20 +258,18 @@ export default function MissionManagerScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ImageBackground source={BACKGROUND_IMG} style={styles.container} resizeMode="repeat">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* HEADER VERDE ESCURO (COLORS.primary) */}
       <View style={styles.topGreenArea}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
+                <MaterialCommunityIcons name="arrow-left" size={24} color={'#ffffff'} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>GERENCIAR MISSÕES</Text>
             <View style={{width: 40}} /> 
           </View>
 
-          {/* Filtro com Borda Verde */}
           <View style={styles.filterContainer}>
              <Text style={styles.filterLabel}>Visualizando de:</Text>
              <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilterModal(true)}>
@@ -280,8 +279,9 @@ export default function MissionManagerScreen() {
           </View>
       </View>
 
-      {/* CONTEÚDO */}
       <View style={styles.contentContainer}>
+          <BlurView intensity={105} tint="light" style={StyleSheet.absoluteFill} />
+          
           <View style={styles.tabsWrapper}>
              <FlatList 
                 data={STATUS_TABS} 
@@ -295,8 +295,6 @@ export default function MissionManagerScreen() {
                         <TouchableOpacity 
                             style={[
                                 styles.tabItem, 
-                                // Se ativo: Fundo colorido e Borda da Cor
-                                // Se inativo: Fundo Branco e Borda Verde Escura 1px (Padrão Chonko)
                                 isActive 
                                     ? { backgroundColor: item.color, borderColor: item.color } 
                                     : { borderColor: COLORS.primary, backgroundColor: '#FFF' }
@@ -311,6 +309,8 @@ export default function MissionManagerScreen() {
              />
           </View>
 
+          <View style={styles.sectionDivider} />
+
           <FlatList 
             data={filteredMissions} 
             keyExtractor={item => item.id} 
@@ -321,7 +321,7 @@ export default function MissionManagerScreen() {
                 <View style={styles.emptyState}>
                     {loading ? <ActivityIndicator color={COLORS.primary} /> : (
                         <>
-                            <MaterialCommunityIcons name="clipboard-text-off-outline" size={60} color="#CBD5E1" />
+                            <MaterialCommunityIcons name="clipboard-text-off-outline" size={60} color="#64748B" />
                             <Text style={styles.emptyTitle}>
                                 {activeStatus === 'active' ? "Tudo limpo por aqui!" : "Nada nesta lista"}
                             </Text>
@@ -392,109 +392,113 @@ export default function MissionManagerScreen() {
               </View>
           </View>
       </Modal>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F9FF' },
+  container: { flex: 1 }, 
   
-  // --- HEADER VERDE ESCURO (COLORS.primary) ---
   topGreenArea: {
-      backgroundColor: COLORS.primary, // #064E3B
+      // 🟢 COR DO TOPO: MUDE 'COLORS.primary' AQUI POR UM HEX CODE SE QUISER OUTRA COR
+      backgroundColor: '#34af61',
       paddingTop: 50,
-      paddingBottom: 20,
+      paddingBottom: 30, 
       borderBottomLeftRadius: 35,
       borderBottomRightRadius: 35,
       zIndex: 10,
-      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 5, elevation: 8
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 0.5 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary, letterSpacing: 0.5 },
   backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
   
   filterContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
-  filterLabel: { fontFamily: FONTS.regular, fontSize: 12, color: '#D1FAE5' },
+  filterLabel: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.primary },
   
-  // FILTRO: Borda Verde 1px
   filterButton: { 
       flexDirection: 'row', alignItems: 'center', 
       backgroundColor: '#FFF', 
       paddingHorizontal: 12, paddingVertical: 6, 
       borderRadius: 20, gap: 5,
-      borderWidth: 1, borderColor: COLORS.primary // <--- AQUI
+      borderWidth: 1, borderColor: COLORS.primary,
+      // 🟢 SOMBRA NO BOTÃO DE FILTRO
+      shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4 
   },
   filterText: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary },
 
-  // --- CONTEÚDO ---
-  contentContainer: { flex: 1 },
-  tabsWrapper: { marginBottom: 5 },
+  contentContainer: { 
+      flex: 1,
+      marginTop: -25, // Sobreposição no header
+      borderTopLeftRadius: 30,
+      borderTopRightRadius: 30,
+      overflow: 'hidden',
+      paddingTop: 10,
+  },
+
+  // 🟢 ESPAÇAMENTO DOS BOTÕES DE ATIVA/FEITAS
+  tabsWrapper: { marginBottom: 5, marginTop: 30 }, // <--- Aumentei marginTop para desgrudar do topo
   
-  // ABAS: Borda Verde 1px
   tabItem: { 
       flexDirection: 'row', alignItems: 'center', 
       paddingHorizontal: 14, paddingVertical: 8, marginRight: 10, 
       borderRadius: 24, 
-      borderWidth: 1, // <--- AQUI
-      // borderColor definida dinamicamente
+      borderWidth: 1,
+      // 🟢 SOMBRA NAS ABAS DE STATUS
+      shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 2, elevation: 15
   },
   tabText: { fontFamily: FONTS.bold, fontSize: 11, marginLeft: 6 },
   
+  sectionDivider: {
+      height: 1,
+      backgroundColor: COLORS.primary,
+      opacity: 1,
+      marginHorizontal: 20,
+      marginBottom: 20,
+  },
+
   listContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
-  // --- CARDS (Borda Verde Escuro 1px) ---
+  // 🟢 SOMBRA NOS CARDS DAS MISSÕES
   cardWrapper: { 
-      marginBottom: 15, borderRadius: 24, position: 'relative'
+      marginBottom: 15, borderRadius: 24, position: 'relative',
+      shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 2, elevation: 8 
   },
   cardShadow: {
       position: 'absolute', top: 6, left: 0, width: '100%', height: '100%',
-      backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.05
+      backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.5
   },
   cardFront: { 
       backgroundColor: '#FFF', 
       borderRadius: 24, 
-      borderWidth: 1, borderColor: COLORS.primary, // <--- AQUI: Borda Verde Escuro
+      borderWidth: 1, borderColor: COLORS.primary, 
       padding: 16, overflow: 'hidden' 
   },
   
   iconBox: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B' },
-  
+  cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary },
   tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
   tagText: { fontFamily: FONTS.bold, fontSize: 11, marginLeft: 4 },
-  
   divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
-  
   metaInfoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   metaText: { fontSize: 10, fontWeight: 'bold', marginLeft: 4 },
   daysText: { fontSize: 11, color: '#64748B', marginTop: 10, marginLeft: 2 },
-  
   cardActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 15, gap: 15 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
   actionText: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B' },
-
-  // --- EMPTY STATE ---
   emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.8 },
   emptyTitle: { fontFamily: FONTS.bold, color: '#64748B', fontSize: 18, marginTop: 15 },
   emptySub: { fontFamily: FONTS.regular, color: '#94A3B8', fontSize: 14, marginTop: 5 },
-
-  // --- FAB ---
   fab: { position: 'absolute', bottom: 30, right: 20, borderRadius: 30, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 },
   fabInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-
-  // --- MODALS (Borda Verde Escuro 1px) ---
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { 
-      width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20,
-      borderWidth: 1, borderColor: COLORS.primary // <--- AQUI
-  },
+  modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: COLORS.primary },
   modalTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary, marginBottom: 15, textAlign: 'center' },
   modalOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   modalOptionText: { fontFamily: FONTS.bold, fontSize: 14, color: '#334155' },
   closeModalBtn: { marginTop: 15, padding: 12, backgroundColor: '#F1F5F9', borderRadius: 14, alignItems: 'center' },
   closeModalText: { fontFamily: FONTS.bold, color: '#64748B' },
-
   createOptionsContainer: { position: 'absolute', bottom: 30, width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: COLORS.primary },
   createHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   createOptionsTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#94A3B8' },

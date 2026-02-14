@@ -2,15 +2,15 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  FlatList,
-  RefreshControl,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Dimensions,
+    FlatList,
+    RefreshControl,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { COLORS, FONTS } from '../styles/theme';
@@ -37,7 +37,7 @@ export default function CaptainHomeScreen() {
         title: 'MISSÕES', 
         subtitle: 'Gerenciar Tarefas',
         icon: 'clipboard-list-outline', 
-        bg: '#86EFAC',      // Verde Claro
+        bg: '#44c975',      // Verde Claro
         dark: '#14532D',    // Verde Escuro
         route: 'MissionManager' 
     },
@@ -46,7 +46,7 @@ export default function CaptainHomeScreen() {
         title: 'LOJA', 
         subtitle: 'Recompensas',
         icon: 'storefront-outline', 
-        bg: '#C4B5FD',      // Roxo Claro
+        bg: '#9c84ff',      // Roxo Claro
         dark: '#4C1D95',    // Roxo Escuro
         route: 'RewardShop' 
     },
