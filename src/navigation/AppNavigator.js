@@ -17,13 +17,15 @@ import RecruitHomeScreen from '../screens/recruit/RecruitHomeScreen';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 
 // --- TELAS DO CAPITÃO (ADMIN) ---
-import RewardShopScreen from '../screens//captain/RewardShopScreen'; // <--- Importada aqui
 import CreateMissionScreen from '../screens/captain/CreateMissionScreen';
 import FamilySettingsScreen from '../screens/captain/FamilySettingsScreen';
 import MemberRequestsScreen from '../screens/captain/MemberRequestsScreen';
 import MissionManagerScreen from '../screens/captain/MissionManagerScreen';
 import QuickMissionsScreen from '../screens/captain/QuickMissionsScreen';
-import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen';
+import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen'; // Aprovação de Missões
+
+// --- TELAS DA LOJA ---
+import RewardShopScreen from '../screens/captain/RewardShopScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -81,15 +83,17 @@ export default function AppNavigator() {
             {/* --- TELAS COMUNS / COMPARTILHADAS --- */}
             <Stack.Screen name="MissionDetail" component={MissionDetailScreen} />
             
-            {/* --- AQUI ESTAVA FALTANDO A LOJA --- */}
+            {/* --- LOJA DE PRÊMIOS --- */}
             <Stack.Screen name="RewardShop" component={RewardShopScreen} />
-
+            
             {/* --- TELAS EXCLUSIVAS DO CAPITÃO --- */}
             <Stack.Screen name="MissionManager" component={MissionManagerScreen} />
             <Stack.Screen name="MemberRequests" component={MemberRequestsScreen} /> 
             <Stack.Screen name="CreateMission" component={CreateMissionScreen} />
             <Stack.Screen name="QuickMissions" component={QuickMissionsScreen} />
             <Stack.Screen name="FamilySettings" component={FamilySettingsScreen} />
+            
+            {/* Aprovação de Tarefas (Missões) */}
             <Stack.Screen name="TaskApprovals" component={TaskApprovalsScreen} />
             
           </Stack.Group>
