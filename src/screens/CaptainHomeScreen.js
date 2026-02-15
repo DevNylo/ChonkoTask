@@ -30,15 +30,15 @@ export default function CaptainHomeScreen() {
   const [chonkoGems, setChonkoGems] = useState(0); 
   const [refreshing, setRefreshing] = useState(false);
 
-  // CONFIGURAÇÃO DE CORES
+  // CONFIGURAÇÃO DOS CARDS DO DASHBOARD
   const DASHBOARD_ITEMS = [
     { 
         id: 'missions', 
         title: 'MISSÕES', 
         subtitle: 'Gerenciar Tarefas',
         icon: 'clipboard-list-outline', 
-        bg: '#44c975',      // Verde Claro
-        dark: '#14532D',    // Verde Escuro
+        bg: '#44c975',      
+        dark: '#14532D',    
         route: 'MissionManager' 
     },
     { 
@@ -46,8 +46,8 @@ export default function CaptainHomeScreen() {
         title: 'LOJA', 
         subtitle: 'Recompensas',
         icon: 'storefront-outline', 
-        bg: '#9c84ff',      // Roxo Claro
-        dark: '#4C1D95',    // Roxo Escuro
+        bg: '#9c84ff',      
+        dark: '#4C1D95',    
         route: 'RewardShop' 
     },
     { 
@@ -55,8 +55,8 @@ export default function CaptainHomeScreen() {
         title: 'PASSE', 
         subtitle: 'Temporada 1',
         icon: 'ticket-percent-outline', 
-        bg: '#FDE047',      // Amarelo
-        dark: '#713F12',    // Marrom
+        bg: '#FDE047',      
+        dark: '#713F12',    
         route: 'SeasonPass' 
     },
     { 
@@ -64,8 +64,8 @@ export default function CaptainHomeScreen() {
         title: 'DICAS', 
         subtitle: 'Tutoriais',
         icon: 'school-outline', 
-        bg: '#93C5FD',      // Azul Claro
-        dark: '#1E3A8A',    // Azul Escuro
+        bg: '#93C5FD',      
+        dark: '#1E3A8A',    
         route: 'Tutorials' 
     },
     { 
@@ -73,8 +73,8 @@ export default function CaptainHomeScreen() {
         title: 'GEMS', 
         subtitle: 'Comprar',
         icon: 'diamond-stone', 
-        bg: '#F9A8D4',      // Rosa
-        dark: '#831843',    // Vinho
+        bg: '#F9A8D4',      
+        dark: '#831843',    
         route: 'PremiumStore' 
     },
   ];
@@ -116,12 +116,10 @@ export default function CaptainHomeScreen() {
     }
   };
 
-  // --- CORREÇÃO AQUI: Agora gerencia a navegação para Loja e Missões ---
   const handleCardPress = (item) => {
       if (item.route === 'MissionManager') {
           navigation.navigate('MissionManager', { familyId: profile.family_id });
       } else if (item.route === 'RewardShop') {
-          // Passamos o profile também para saber se é capitão ou recruta na loja
           navigation.navigate('RewardShop', { familyId: profile.family_id, profile: profile });
       } else {
           Alert.alert("Em Breve", `A tela "${item.title}" está em desenvolvimento.`);
@@ -149,15 +147,25 @@ export default function CaptainHomeScreen() {
                   </View>
                   
                   <View style={styles.headerRight}>
+                      {/* 1. Trocar Perfil */}
                       <TouchableOpacity onPress={handleDevSwitchProfile} style={styles.iconBtn}>
-                          <MaterialCommunityIcons name="face-man-profile" size={26} color="#FFF" />
+                          <MaterialCommunityIcons name="face-man-profile" size={24} color="#FFF" />
+                      </TouchableOpacity>
+
+                      {/* 2. Ajustes (Movido para cá) */}
+                      <TouchableOpacity 
+                        style={styles.iconBtn}
+                        onPress={() => navigation.navigate('FamilySettings', { familyId: profile.family_id, currentProfileId: profile.id })}
+                      >
+                          <MaterialCommunityIcons name="cog-outline" size={24} color="#FFF" />
                       </TouchableOpacity>
                       
+                      {/* 3. Notificações */}
                       <TouchableOpacity 
                           style={styles.iconBtn} 
                           onPress={() => pendingAttempts > 0 ? navigation.navigate('TaskApprovals', { familyId: profile.family_id }) : Alert.alert("Tudo limpo!", "Sem pendências.")}
                       >
-                          <MaterialCommunityIcons name="bell" size={26} color="#FFF" />
+                          <MaterialCommunityIcons name="bell" size={24} color="#FFF" />
                           {pendingAttempts > 0 && (
                               <View style={styles.badge}>
                                   <Text style={styles.badgeText}>{pendingAttempts}</Text>
@@ -168,7 +176,7 @@ export default function CaptainHomeScreen() {
               </View>
           </View>
 
-          {/* BANNER DE STATUS (Bordas Suaves) */}
+          {/* BANNER DE STATUS */}
           <View style={styles.statsBannerWrapper}>
               <View style={styles.statsBannerShadow} />
               <TouchableOpacity 
@@ -214,10 +222,7 @@ export default function CaptainHomeScreen() {
         activeOpacity={0.85} 
         onPress={() => handleCardPress(item)}
     >
-        {/* Sombra colorida */}
         <View style={[styles.cardShadow, { backgroundColor: item.dark }]} />
-        
-        {/* Card Front: Borda Fina (1px) */}
         <View style={[styles.cardFront, { backgroundColor: item.bg, borderColor: item.dark }]}>
             <MaterialCommunityIcons name={item.icon} size={42} color={item.dark} style={{ opacity: 0.9, marginBottom: 5 }} />
             <Text style={[styles.cardTitle, { color: item.dark }]}>{item.title}</Text>
@@ -244,29 +249,34 @@ export default function CaptainHomeScreen() {
           }
       />
 
-      {/* DOCK INFERIOR (Bordas Suaves) */}
+      {/* DOCK INFERIOR ATUALIZADO */}
       <View style={styles.dockContainer}>
         <View style={styles.dockBar}>
+            {/* 1. Início */}
             <TouchableOpacity style={styles.dockBtn}>
                 <MaterialCommunityIcons name="home" size={28} color={COLORS.secondary} />
                 <Text style={[styles.dockLabel, {color: COLORS.secondary}]}>Início</Text>
             </TouchableOpacity>
             
+            {/* 2. Equipe */}
             <TouchableOpacity style={styles.dockBtn} onPress={() => navigation.navigate('FamilySettings', { familyId: profile.family_id, currentProfileId: profile.id })}>
                 <MaterialCommunityIcons name="account-group-outline" size={28} color="#64748B" />
                 <Text style={styles.dockLabel}>Equipe</Text>
             </TouchableOpacity>
 
+            {/* Espaço Central */}
             <View style={{ width: 60 }} /> 
 
-            <TouchableOpacity style={styles.dockBtn}>
+            {/* 3. Relatórios */}
+            <TouchableOpacity style={styles.dockBtn} onPress={() => navigation.navigate('Reports', { familyId: profile.family_id })}>
                 <MaterialCommunityIcons name="chart-bar" size={28} color="#64748B" />
                 <Text style={styles.dockLabel}>Relatórios</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.dockBtn}>
-                <MaterialCommunityIcons name="cog-outline" size={28} color="#64748B" />
-                <Text style={styles.dockLabel}>Ajustes</Text>
+            {/* 4. Ranking (No lugar de Ajustes) */}
+            <TouchableOpacity style={styles.dockBtn} onPress={() => navigation.navigate('Ranking', { familyId: profile.family_id })}>
+                <MaterialCommunityIcons name="podium" size={28} color="#64748B" />
+                <Text style={styles.dockLabel}>Ranking</Text>
             </TouchableOpacity>
         </View>
 
@@ -287,9 +297,8 @@ export default function CaptainHomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
   
-  // --- HEADER VERDE ESCURO ---
   topGreenArea: {
-      backgroundColor: COLORS.primary, // #064E3B
+      backgroundColor: COLORS.primary, 
       paddingTop: 60,
       paddingBottom: 50,
       borderBottomLeftRadius: 35,
@@ -311,10 +320,9 @@ const styles = StyleSheet.create({
   qgLabel: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.accent, letterSpacing: 1, marginBottom: 2 },
   familyTitle: { fontFamily: FONTS.bold, fontSize: 24, color: '#FFF' },
   
-  // Ícones do topo: Borda fina e suave
   iconBtn: { 
       width: 44, height: 44, 
-      borderRadius: 16, // Mais suave
+      borderRadius: 16, 
       backgroundColor: 'rgba(255,255,255,0.15)', 
       justifyContent: 'center', alignItems: 'center', 
       borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' 
@@ -332,22 +340,20 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 130 },
   listHeaderWrapper: { marginBottom: 15 },
 
-  // --- STATS BANNER SUAVE ---
   statsBannerWrapper: { paddingHorizontal: 20, marginTop: -35, marginBottom: 10, position: 'relative' },
-  statsBannerShadow: { position: 'absolute', top: 6, left: 20, right: 20, height: '100%', backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.2 }, // Opacidade reduzida
+  statsBannerShadow: { position: 'absolute', top: 6, left: 20, right: 20, height: '100%', backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.2 },
   statsBannerFront: { 
       flexDirection: 'row', backgroundColor: '#FFF', 
       borderRadius: 24, paddingVertical: 18, alignItems: 'center', 
-      borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' // Borda bem sutil
+      borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' 
   },
   
   statItem: { flex: 1, alignItems: 'center' },
   statLabel: { fontSize: 10, fontFamily: FONTS.bold, color: COLORS.primary, opacity: 0.6, marginBottom: 4 },
   statValueRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statValue: { fontSize: 18, fontFamily: FONTS.bold, color: COLORS.primary },
-  statDivider: { width: 1, height: '60%', backgroundColor: COLORS.surfaceAlt }, // Divisor fino
+  statDivider: { width: 1, height: '60%', backgroundColor: COLORS.surfaceAlt },
 
-  // --- DASHBOARD CARDS SUAVES ---
   listColumns: { justifyContent: 'space-between', paddingHorizontal: 20 },
   cardWrapper: { width: CARD_WIDTH, height: 150, marginBottom: 20, position: 'relative' },
   
@@ -360,13 +366,12 @@ const styles = StyleSheet.create({
   cardFront: { 
       flex: 1, alignItems: 'center', justifyContent: 'center', 
       padding: 15, borderRadius: 24, 
-      borderWidth: 1, // Borda Fina (1px)
+      borderWidth: 1, 
   },
   
   cardTitle: { fontFamily: FONTS.bold, fontSize: 15, textAlign: 'center', marginTop: 8 },
   cardSubtitle: { fontFamily: FONTS.regular, fontSize: 11, textAlign: 'center', marginTop: 2, opacity: 0.8 },
 
-  // --- DOCK INFERIOR SUAVE ---
   dockContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, height: 80, justifyContent: 'flex-end' },
   
   dockBar: { 
@@ -377,7 +382,6 @@ const styles = StyleSheet.create({
       alignItems: 'center', 
       justifyContent: 'space-between', 
       paddingHorizontal: 15, 
-      // Borda cinza suave e fina
       borderWidth: 1, 
       borderColor: 'rgba(0,0,0,0.1)', 
       shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10
@@ -397,6 +401,6 @@ const styles = StyleSheet.create({
       width: 64, height: 64, borderRadius: 32, 
       backgroundColor: COLORS.gold, 
       justifyContent: 'center', alignItems: 'center', 
-      borderWidth: 1.5, borderColor: '#ffffff' // Borda interna suave
+      borderWidth: 1.5, borderColor: '#ffffff' 
   },
 });

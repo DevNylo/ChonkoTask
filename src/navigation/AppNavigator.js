@@ -22,14 +22,17 @@ import FamilySettingsScreen from '../screens/captain/FamilySettingsScreen';
 import MemberRequestsScreen from '../screens/captain/MemberRequestsScreen';
 import MissionManagerScreen from '../screens/captain/MissionManagerScreen';
 import QuickMissionsScreen from '../screens/captain/QuickMissionsScreen';
-import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen'; // Aprovação de Missões
+import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen';
+
+// --- TELAS DE RELATÓRIOS E RANKING (NOVAS) ---
+import ReportsScreen from '../../src/screens/ReportsScreen';
+import RankingScreen from '../screens/RankingScreen';
 
 // --- TELAS DA LOJA ---
 import RewardShopScreen from '../screens/captain/RewardShopScreen';
 
 const Stack = createNativeStackNavigator();
 
-// 1. TEMA PERSONALIZADO
 const ChonkoTheme = {
   ...DefaultTheme,
   colors: {
@@ -41,7 +44,6 @@ const ChonkoTheme = {
 export default function AppNavigator() {
   const { session, loading, profile } = useAuth();
 
-  // 2. LOADING STATE
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
@@ -63,16 +65,13 @@ export default function AppNavigator() {
         {session ? (
           // --- ÁREA LOGADA ---
           <Stack.Group>
-             {/* LÓGICA DE ROTAS BASEADA NO PERFIL */}
              {profile?.role === 'recruit' ? (
-                // Rota única para Recruta
                 <Stack.Screen 
                     name="RecruitHome" 
                     component={RecruitHomeScreen} 
                     initialParams={{ profile: profile }} 
                 />
              ) : (
-                // Rotas para Capitão ou quem ainda não tem role definida
                 <Stack.Group>
                     <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
                     <Stack.Screen name="CaptainHome" component={CaptainHomeScreen} />
@@ -82,24 +81,24 @@ export default function AppNavigator() {
 
             {/* --- TELAS COMUNS / COMPARTILHADAS --- */}
             <Stack.Screen name="MissionDetail" component={MissionDetailScreen} />
-            
-            {/* --- LOJA DE PRÊMIOS --- */}
             <Stack.Screen name="RewardShop" component={RewardShopScreen} />
             
-            {/* --- TELAS EXCLUSIVAS DO CAPITÃO --- */}
+            {/* --- TELAS DO CAPITÃO --- */}
             <Stack.Screen name="MissionManager" component={MissionManagerScreen} />
             <Stack.Screen name="MemberRequests" component={MemberRequestsScreen} /> 
             <Stack.Screen name="CreateMission" component={CreateMissionScreen} />
             <Stack.Screen name="QuickMissions" component={QuickMissionsScreen} />
             <Stack.Screen name="FamilySettings" component={FamilySettingsScreen} />
-            
-            {/* Aprovação de Tarefas (Missões) */}
             <Stack.Screen name="TaskApprovals" component={TaskApprovalsScreen} />
+            
+            {/* NOVAS ROTAS ADICIONADAS */}
+            <Stack.Screen name="Ranking" component={RankingScreen} />
+            <Stack.Screen name="Reports" component={ReportsScreen} />
             
           </Stack.Group>
           
         ) : (
-          // --- ÁREA DE GUEST (NÃO LOGADO) ---
+          // --- ÁREA DE GUEST ---
           <Stack.Group>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
