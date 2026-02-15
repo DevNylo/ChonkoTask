@@ -115,7 +115,7 @@ export default function MemberRequestsScreen({ route, navigation }) {
       <View style={styles.topGreenArea}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
+                <MaterialCommunityIcons name="arrow-left" size={24} color={'#FFFF'} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>SOLICITAÇÕES</Text>
             <View style={{width: 40}} /> 

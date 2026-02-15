@@ -6,13 +6,13 @@ import {
     Alert,
     Dimensions,
     FlatList,
+    ImageBackground,
     RefreshControl,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
-    ImageBackground 
+    View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
@@ -211,12 +211,26 @@ export default function RecruitHomeScreen() {
                 else navigation.navigate('MissionDetail', { mission: item, profile: { id: profileId, family_id: familyId } });
             }}
         >
-            <View style={[styles.iconContainer, { backgroundColor: iconBg }]}>
+            <View style={[
+                styles.iconContainer, 
+                { 
+                    backgroundColor: iconBg, 
+                    borderWidth: 1, 
+                    borderColor: iconColor 
+                }
+            ]}>
                 <MaterialCommunityIcons name={iconName} size={32} color={iconColor} />
             </View>
 
             <View style={styles.cardInfo}>
-                <Text style={[styles.cardTitle, isMissed && styles.textMissed]} numberOfLines={1}>
+                <Text 
+                    style={[
+                        styles.cardTitle, 
+                        { color: COLORS.primary },
+                        isMissed && styles.textMissed
+                    ]} 
+                    numberOfLines={1}
+                >
                     {item.title}
                 </Text>
                 
@@ -225,8 +239,8 @@ export default function RecruitHomeScreen() {
                         name={isCompleted ? "check-all" : "clock-outline"} 
                         size={12} 
                         color={isCompleted ? '#10B981' : (isMissed ? '#94A3B8' : '#64748B')} 
-                     />
-                     <Text style={[styles.cardSub, isCompleted && {color: '#10B981'}]}>
+                      />
+                      <Text style={[styles.cardSub, isCompleted && {color: '#10B981'}]}>
                         {timeText}
                     </Text>
                 </View>
@@ -238,7 +252,7 @@ export default function RecruitHomeScreen() {
                     isCustom ? styles.rewardCustom : styles.rewardGold,
                     (isCompleted || isMissed) && { opacity: 0.5 } 
                 ]}>
-                     <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : '#B45309' }]}>
+                      <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : '#B45309' }]}>
                         {isCustom ? "🎁" : `+${item.reward}`}
                     </Text>
                 </View>
@@ -251,7 +265,13 @@ export default function RecruitHomeScreen() {
     );
   };
 
-  const handleShop = () => Alert.alert("Loja do Capitão", "Em breve você poderá trocar suas moedas por prêmios reais!");
+  const handleShop = () => {
+      navigation.navigate('RewardShop', { 
+          familyId: familyId, 
+          profile: initialProfile 
+      });
+  };
+
   const handleCustomize = () => Alert.alert("Estilo Chonko", "Em breve você poderá vestir seu Chonko!");
   const handleProfile = () => Alert.alert("Perfil", "Em breve suas estatísticas!");
 
@@ -265,7 +285,6 @@ export default function RecruitHomeScreen() {
       }
   };
 
-  // Ícones e Textos redefinidos para os Empty States
   let currentListData = [];
   let emptyIcon = "shield-star-outline";
   let emptyTextTitle = "Tudo limpo!";
@@ -273,17 +292,17 @@ export default function RecruitHomeScreen() {
 
   if (activeTab === 'todo') {
       currentListData = todoMissions;
-      emptyIcon = "shield-star-outline"; // Heroico
+      emptyIcon = "shield-star-outline"; 
       emptyTextTitle = "Tudo feito!";
       emptyTextSub = "Você completou suas missões, Recruta!";
   } else if (activeTab === 'missed') {
       currentListData = missedMissions;
-      emptyIcon = "emoticon-happy-outline"; // Positivo por não ter perdido
+      emptyIcon = "emoticon-happy-outline"; 
       emptyTextTitle = "Nenhuma missão perdida.";
       emptyTextSub = "Ótimo trabalho mantendo o foco!";
   } else if (activeTab === 'completed') {
       currentListData = completedMissions;
-      emptyIcon = "sword-cross"; // Batalha
+      emptyIcon = "sword-cross"; 
       emptyTextTitle = "Nenhuma missão feita hoje.";
       emptyTextSub = "Pegue sua espada e vá completar tarefas!";
   }
@@ -303,6 +322,7 @@ export default function RecruitHomeScreen() {
               </View>
           </ImageBackground>
 
+          {/* HUD ALINHADO */}
           <View style={styles.hudContainer}>
               <View style={styles.profileBadge}>
                   <View style={styles.levelCircle}>
@@ -418,7 +438,6 @@ export default function RecruitHomeScreen() {
 
         <TouchableOpacity style={styles.centerDockButton} activeOpacity={0.9} onPress={() => setActiveTab('todo')}>
             <View style={styles.centerBtnInner}>
-                {/* Foguete para o botão central de ação */}
                 <MaterialCommunityIcons name="rocket-launch" size={30} color="#fff" />
             </View>
         </TouchableOpacity>
@@ -451,9 +470,29 @@ const styles = StyleSheet.create({
   skyBackground: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   modelPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 20 },
 
-  hudContainer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, position: 'absolute', width: '100%', zIndex: 10 },
+  // --- HUD AJUSTADO ---
+  hudContainer: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', // <--- Isso alinha verticalmente pelo centro
+      paddingHorizontal: 20, 
+      paddingTop: 60, // <--- Ajuste seguro para não colar no topo
+      position: 'absolute', 
+      width: '100%', 
+      zIndex: 10 
+  },
   
-  profileBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingRight: 15, borderRadius: 30, paddingLeft: 4, paddingVertical: 4, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)' },
+  profileBadge: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      backgroundColor: 'rgba(0,0,0,0.5)', 
+      paddingRight: 15, 
+      borderRadius: 30, 
+      paddingLeft: 4, 
+      paddingVertical: 4, 
+      borderWidth: 1.5, 
+      borderColor: 'rgba(255,255,255,0.3)' 
+  },
   levelCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#8B5CF6', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff', zIndex: 2 },
   levelNumber: { color: '#fff', fontWeight: '900', fontSize: 20 },
   
@@ -464,7 +503,18 @@ const styles = StyleSheet.create({
   xpBarFill: { height: '100%', backgroundColor: '#10B981', borderRadius: 7 },
   xpText: { position: 'absolute', width: '100%', textAlign: 'center', fontSize: 9, color: '#fff', fontWeight: 'bold', lineHeight: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 1 },
 
-  coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 30, gap: 8, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)', height: 44 },
+  coinBadge: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      backgroundColor: 'rgba(0,0,0,0.5)', 
+      paddingHorizontal: 12, 
+      paddingVertical: 6, 
+      borderRadius: 30, 
+      gap: 8, 
+      borderWidth: 1.5, 
+      borderColor: 'rgba(255,255,255,0.3)', 
+      height: 44 // <--- Altura fixa para garantir alinhamento com o lado esquerdo
+  },
   coinText: { color: '#FFD700', fontSize: 20, fontFamily: FONTS.bold, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 2 },
   plusBtn: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fff' },
 
@@ -490,13 +540,14 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 11, fontWeight: 'bold', color: '#94A3B8' },
   tabTextActive: { color: COLORS.primary },
 
+  // --- CARD AJUSTADO ---
   card: { 
       flexDirection: 'row', 
       alignItems: 'center', 
       padding: 16, 
       borderRadius: 24, 
       marginBottom: 16, 
-      borderWidth: 3, 
+      borderWidth: 0.5, // <--- Borda fina conforme solicitado (.5)
       minHeight: 90, 
   },
   
@@ -518,7 +569,7 @@ const styles = StyleSheet.create({
   },
   
   cardInfo: { flex: 1 },
-  cardTitle: { fontSize: 18, fontFamily: FONTS.bold, color: '#1E293B', marginBottom: 6 },
+  cardTitle: { fontSize: 18, fontFamily: FONTS.bold, marginBottom: 6 },
   textMissed: { textDecorationLine: 'line-through', color: '#94A3B8' },
   
   timeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
