@@ -8,6 +8,7 @@ import {
     FlatList,
     ImageBackground,
     Modal,
+    RefreshControl,
     StatusBar,
     StyleSheet,
     Text,
@@ -19,16 +20,20 @@ import { COLORS, FONTS } from '../../styles/theme';
 
 const BACKGROUND_IMG = require('../../../assets/GenericBKG4.png');
 
+// --- CORES PASTÉIS AJUSTADAS ---
+const DIFFICULTY_CONFIG = {
+    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, // Verde Menta suave
+    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, // Laranja Pastel suave
+    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, // Vermelho Rosado suave
+    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, // Lilás suave
+    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  // Cinza gelo
+};
+
 const STATUS_TABS = [
     { id: 'active', label: 'ATIVAS', icon: 'clipboard-play-outline', color: '#10B981' }, 
     { id: 'completed', label: 'FEITAS', icon: 'check-circle-outline', color: '#3B82F6' }, 
     { id: 'expired', label: 'PERDIDAS', icon: 'clock-alert-outline', color: '#F59E0B' }, 
     { id: 'archived', label: 'LIXEIRA', icon: 'trash-can-outline', color: '#EF4444' }, 
-];
-
-const WEEKDAYS = [
-    { id: 0, label: 'DOM' }, { id: 1, label: 'SEG' }, { id: 2, label: 'TER' }, 
-    { id: 3, label: 'QUA' }, { id: 4, label: 'QUI' }, { id: 5, label: 'SEX' }, { id: 6, label: 'SÁB' }
 ];
 
 export default function MissionManagerScreen() {
@@ -43,84 +48,100 @@ export default function MissionManagerScreen() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [missions, setMissions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
+
+  const loadScreenData = useCallback(async () => {
+        if (!familyId) return;
+        setLoading(true);
+        try {
+            await ensureRecurringActive();
+            await checkExpiredOneOffMissions(); 
+            
+            const { data: profilesData } = await supabase
+                .from('profiles').select('id, name').eq('family_id', familyId).neq('role', 'captain');
+            setProfiles(profilesData || []);
+
+            const { data: missionsData, error } = await supabase
+                .from('missions')
+                .select('*')
+                .eq('family_id', familyId)
+                .eq('status', activeStatus)
+                .eq('is_template', false) 
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setMissions(missionsData || []);
+
+        } catch (error) {
+            console.log("Erro ao carregar:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+  }, [activeStatus, familyId]);
 
   useFocusEffect(
     useCallback(() => {
-        const runRoutine = async () => {
-            setLoading(true);
-            await processRecurringMissions();
-            await checkExpiredMissions();
-            await fetchData();
-            setLoading(false);
-        };
-        runRoutine();
-    }, [activeStatus]) 
+        loadScreenData();
+    }, [loadScreenData]) 
   );
 
-  const processRecurringMissions = async () => {
-      const todayIndex = new Date().getDay(); 
-      const todayStart = new Date();
-      todayStart.setHours(0,0,0,0);
-      const todayISO = todayStart.toISOString();
+  const onRefresh = () => {
+      setRefreshing(true);
+      loadScreenData();
+  };
 
+  const ensureRecurringActive = async () => {
       try {
           const { data: recurringMissions } = await supabase
               .from('missions')
-              .select('id, recurrence_days, status')
+              .select('id, status')
               .eq('family_id', familyId)
               .eq('is_recurring', true)
               .neq('status', 'archived');
 
           if (!recurringMissions || recurringMissions.length === 0) return;
 
-          const toActive = [];
-          const toSleep = [];
+          const toActive = recurringMissions
+              .filter(m => m.status !== 'active')
+              .map(m => m.id);
 
-          for (const m of recurringMissions) {
-              const isScheduledForToday = m.recurrence_days && m.recurrence_days.includes(todayIndex);
-
-              if (!isScheduledForToday) {
-                  if (m.status !== 'expired') toSleep.push(m.id);
-              } else {
-                  const { count } = await supabase
-                      .from('mission_attempts')
-                      .select('*', { count: 'exact', head: true })
-                      .eq('mission_id', m.id)
-                      .gte('created_at', todayISO);
-
-                  if (count === 0 && m.status !== 'active') {
-                      toActive.push(m.id);
-                  }
-              }
+          if (toActive.length > 0) {
+              await supabase.from('missions').update({ status: 'active' }).in('id', toActive);
           }
-
-          if (toActive.length > 0) await supabase.from('missions').update({ status: 'active' }).in('id', toActive);
-          if (toSleep.length > 0) await supabase.from('missions').update({ status: 'expired' }).in('id', toSleep);
-
       } catch (error) { console.log("Erro Recorrência:", error); }
   };
 
-  const checkExpiredMissions = async () => {
+  const checkExpiredOneOffMissions = async () => {
       const { data: activeMissions } = await supabase
         .from('missions')
-        .select('id, deadline')
+        .select('id, deadline, scheduled_date')
         .eq('family_id', familyId)
         .eq('status', 'active')
-        .eq('is_recurring', false)
-        .not('deadline', 'is', null);
+        .eq('is_recurring', false);
 
       if (!activeMissions || activeMissions.length === 0) return;
 
       const now = new Date();
+      const today = new Date(); 
+      today.setHours(0,0,0,0);
+      
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const expiredIds = [];
 
       activeMissions.forEach(m => {
-          const [h, min] = m.deadline.split(':').map(Number);
-          const deadlineMinutes = h * 60 + min;
-          if (deadlineMinutes < currentMinutes) {
+          const missionDate = m.scheduled_date ? new Date(m.scheduled_date + 'T00:00:00') : today;
+          
+          if (missionDate < today) {
               expiredIds.push(m.id);
+          } 
+          else if (missionDate.getTime() === today.getTime() && m.deadline) {
+              const [h, min] = m.deadline.split(':').map(Number);
+              const deadlineMinutes = h * 60 + min;
+              if (deadlineMinutes < currentMinutes) {
+                  expiredIds.push(m.id);
+              }
           }
       });
 
@@ -129,41 +150,35 @@ export default function MissionManagerScreen() {
       }
   };
 
-  const fetchData = async () => {
-      const { data: profilesData } = await supabase
-        .from('profiles').select('id, name').eq('family_id', familyId).neq('role', 'captain');
-      setProfiles(profilesData || []);
-
-      const { data: missionsData } = await supabase
-        .from('missions')
-        .select('*')
-        .eq('family_id', familyId)
-        .eq('status', activeStatus)
-        .eq('is_template', false) 
-        .order('created_at', { ascending: false });
-      
-      setMissions(missionsData || []);
-  };
-
   const filteredMissions = missions.filter(m => {
       if (!filterAssignee) return true;
       return m.assigned_to === filterAssignee;
   });
 
   const handleDelete = (id) => {
-      Alert.alert("Arquivar", "Mover para canceladas?", [
+      Alert.alert("Arquivar", "Mover para lixeira?", [
           { text: "Não" },
           { text: "Sim", style: 'destructive', onPress: async () => {
               await supabase.from('missions').update({ status: 'archived' }).eq('id', id);
-              fetchData();
+              loadScreenData();
           }}
       ]);
   };
 
   const getDayLabels = (days) => {
       if (!days || days.length === 0) return "";
+      const WEEK_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
       if (days.length === 7) return "Todos os dias";
-      return days.map(id => WEEKDAYS.find(d => d.id === id)?.label.substring(0,3)).join(", ");
+      return days.map(d => WEEK_LABELS[d]).join(", ");
+  };
+
+  const formatDate = (dateString) => {
+      if (!dateString) return "Hoje";
+      const date = new Date(dateString + 'T00:00:00');
+      const today = new Date(); today.setHours(0,0,0,0);
+      
+      if (date.getTime() === today.getTime()) return "Hoje";
+      return date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
   };
 
   const renderMissionCard = ({ item }) => {
@@ -175,69 +190,110 @@ export default function MissionManagerScreen() {
       const isCompleted = item.status === 'completed';
       const isInactive = item.status === 'expired' || item.status === 'archived'; 
       
-      let cardBg, iconColor, titleColor, tagBg, tagBorder, tagText;
+      // 1. PEGA DADOS DA DIFICULDADE
+      const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
+      
+      // 2. DEFINE CORES
+      let cardBg, iconColor, titleColor, borderColor;
 
       if (isCompleted) {
-          cardBg = 'rgba(240, 253, 244, 0.9)'; iconColor = '#16A34A'; titleColor = '#14532D'; tagBg = '#DCFCE7'; tagBorder = '#86EFAC'; tagText = '#15803D';
+          // Se completou, fica verdinho sucesso
+          cardBg = '#F0FDF4'; 
+          iconColor = '#16A34A'; 
+          titleColor = '#14532D';
+          borderColor = '#16A34A';
       } else if (isInactive) {
-          cardBg = 'rgba(249, 250, 251, 0.9)'; iconColor = '#9CA3AF'; titleColor = '#9CA3AF'; tagBg = '#F3F4F6'; tagBorder = '#E5E7EB'; tagText = '#9CA3AF';
+          // Se inativo, fica cinza apagado
+          cardBg = '#F9FAFB'; 
+          iconColor = '#9CA3AF'; 
+          titleColor = '#9CA3AF';
+          borderColor = '#E5E7EB';
       } else {
-          cardBg = '#f9fefb'; iconColor = COLORS.primary; titleColor = '#1E293B'; tagBg = isCustom ? '#FDF2F8' : '#FFFBEB'; tagBorder = isCustom ? '#DB2777' : '#F59E0B'; tagText = isCustom ? '#DB2777' : '#B45309';
+          // SE ATIVO: USA A COR PASTEL DA DIFICULDADE
+          cardBg = diffData.bg; 
+          iconColor = diffData.color; // Ícone na cor da dificuldade
+          titleColor = '#1E293B'; 
+          borderColor = diffData.color; // Borda na cor da dificuldade
       }
-
+      
       return (
         <View style={styles.cardWrapper}>
-            {/* SOMBRA NOS CARDS RESTAURADA */}
             <View style={styles.cardShadow} />
-            <View style={[styles.cardFront, { backgroundColor: cardBg }]}>
+            
+            <View style={[styles.cardFront, { backgroundColor: cardBg, borderColor: borderColor }]}>
                 
                 <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
-                    <View style={[styles.iconBox, isInactive ? {backgroundColor: '#E5E7EB'} : (isCompleted ? {backgroundColor: '#DCFCE7'} : {backgroundColor: '#F0FDF4'})]}>
+                    {/* Ícone com fundo branco para destacar no pastel */}
+                    <View style={[styles.iconBox, {backgroundColor: '#FFF', borderWidth: 1, borderColor: isInactive ? '#E5E7EB' : borderColor+'40' }]}>
                         <MaterialCommunityIcons name={isCompleted ? "check-decagram" : item.icon} size={28} color={iconColor} />
                     </View>
+                    
                     <View style={{flex:1}}>
-                        <Text style={[styles.cardTitle, {color: titleColor}]}>{item.title}</Text>
-                        <View style={{flexDirection: 'row', marginTop: 4}}>
-                            <View style={[styles.tagBase, { backgroundColor: tagBg, borderColor: tagBorder }]}>
-                                <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={10} color={tagText} />
-                                <Text style={[styles.tagText, { color: tagText }]}>
+                        <Text style={[styles.cardTitle, {color: titleColor}]} numberOfLines={1}>{item.title}</Text>
+                        
+                        <View style={{flexDirection: 'row', marginTop: 4, gap: 5}}>
+                            <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: isCustom ? '#DB2777' : '#F59E0B' }]}>
+                                <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={10} color={isCustom ? '#DB2777' : '#B45309'} />
+                                <Text style={[styles.tagText, { color: isCustom ? '#DB2777' : '#B45309' }]}>
                                     {isCustom ? (item.custom_reward || "Prêmio") : `+${item.reward}`}
                                 </Text>
                             </View>
+
+                            {/* Badge de Dificuldade com fundo branco para contraste */}
+                            {item.difficulty && (
+                                <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: diffData.color }]}>
+                                    <Text style={[styles.tagText, { color: diffData.color }]}>{diffData.label}</Text>
+                                </View>
+                            )}
                         </View>
                     </View>
                 </View>
 
-                <View style={styles.divider} />
+                {item.use_critical && !isInactive && (
+                    <View style={[
+                        styles.treasureBadge, 
+                        item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple
+                    ]}>
+                        <MaterialCommunityIcons 
+                            name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} 
+                            size={14} color="#FFF" style={{marginRight:5}} 
+                        />
+                        <Text style={styles.treasureText}>
+                            {item.critical_type === 'bonus_coins' 
+                                ? `+50% Bônus (${item.critical_chance}%)` 
+                                : `Item Surpresa (${item.critical_chance}%)`
+                            }
+                        </Text>
+                    </View>
+                )}
+
+                <View style={[styles.divider, {backgroundColor: borderColor+'20'}]} />
 
                 <View style={styles.metaInfoContainer}>
-                    <View style={[styles.metaTag, isInactive ? {borderColor:'#E5E7EB', backgroundColor:'#F3F4F6'} : (isCompleted ? {backgroundColor:'#F0FDF4', borderColor: '#BBF7D0'} : { backgroundColor: item.is_recurring ? '#FFF7ED' : '#FEF2F2', borderColor: item.is_recurring ? '#F97316' : '#EF4444' })]}>
-                        <MaterialCommunityIcons name={item.is_recurring ? "calendar-sync" : "calendar-check"} size={12} color={isInactive ? '#9CA3AF' : (isCompleted ? '#16A34A' : (item.is_recurring ? '#EA580C' : '#B91C1C'))} />
-                        <Text style={[styles.metaText, { color: isInactive ? '#9CA3AF' : (isCompleted ? '#16A34A' : (item.is_recurring ? '#EA580C' : '#B91C1C')) }]}>
-                            {item.is_recurring ? "Diária" : "Única"}
+                    <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'40' }]}>
+                        <MaterialCommunityIcons name={item.is_recurring ? "calendar-sync" : "calendar-check"} size={12} color="#64748B" />
+                        <Text style={[styles.metaText, {color: '#64748B'}]}>
+                            {item.is_recurring 
+                                ? (item.recurrence_days ? getDayLabels(item.recurrence_days) : "Diária") 
+                                : `Data: ${formatDate(item.scheduled_date)}`
+                            }
                         </Text>
                     </View>
 
                     {(item.start_time || item.deadline) && (
-                        <View style={[styles.metaTag, isInactive ? {borderColor:'#E5E7EB', backgroundColor:'#F3F4F6'} : (isCompleted ? {backgroundColor:'#EFF6FF', borderColor: '#BFDBFE'} : { backgroundColor: '#EFF6FF', borderColor: '#3B82F6' })]}>
-                            <MaterialCommunityIcons name="clock-outline" size={12} color={isInactive ? '#9CA3AF' : (isCompleted ? '#3B82F6' : "#2563EB")} />
-                            <Text style={[styles.metaText, { color: isInactive ? '#9CA3AF' : (isCompleted ? '#3B82F6' : '#2563EB') }]}>
-                                {item.start_time ? item.start_time.substring(0,5) : "00:00"} - {item.deadline ? item.deadline.substring(0,5) : "00:00"}
+                        <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'40' }]}>
+                            <MaterialCommunityIcons name="clock-outline" size={12} color="#0284C7" />
+                            <Text style={[styles.metaText, {color: '#0284C7'}]}>
+                                {item.start_time ? item.start_time.substring(0,5) : "00:00"} - {item.deadline ? item.deadline.substring(0,5) : "..."}
                             </Text>
                         </View>
                     )}
 
-                    <View style={[styles.metaTag, isInactive ? {borderColor:'#E5E7EB', backgroundColor:'#F3F4F6'} : (isCompleted ? {backgroundColor:'#F0FDF4', borderColor: '#BBF7D0'} : { backgroundColor: '#F0FDF4', borderColor: '#16A34A' })]}>
-                        <MaterialCommunityIcons name={item.assigned_to ? "account" : "account-group"} size={12} color={isInactive ? '#9CA3AF' : "#15803D"} />
-                        <Text style={[styles.metaText, { color: isInactive ? '#9CA3AF' : '#15803D' }]}>{assigneeName}</Text>
+                    <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'40' }]}>
+                        <MaterialCommunityIcons name="account" size={12} color="#16A34A" />
+                        <Text style={[styles.metaText, {color: '#16A34A'}]}>{assigneeName}</Text>
                     </View>
                 </View>
-
-                {item.is_recurring && item.recurrence_days && (
-                    <Text style={[styles.daysText, isInactive && {color: '#9CA3AF'}]}>
-                        <MaterialCommunityIcons name="calendar-range" size={12} /> {getDayLabels(item.recurrence_days)}
-                    </Text>
-                )}
 
                 {activeStatus === 'active' && (
                     <View style={styles.cardActions}>
@@ -245,7 +301,7 @@ export default function MissionManagerScreen() {
                             <MaterialCommunityIcons name="pencil-outline" size={18} color={COLORS.primary} />
                             <Text style={styles.actionText}>Editar</Text>
                         </TouchableOpacity>
-                        <View style={{width: 1, height: 16, backgroundColor: '#E5E7EB'}} />
+                        <View style={{width: 1, height: 16, backgroundColor: borderColor+'40'}} />
                         <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(item.id)}>
                             <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.error} />
                             <Text style={[styles.actionText, {color: COLORS.error}]}>Cancelar</Text>
@@ -274,13 +330,13 @@ export default function MissionManagerScreen() {
              <Text style={styles.filterLabel}>Visualizando de:</Text>
              <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilterModal(true)}>
                  <Text style={styles.filterText}>{filterName}</Text>
-                 <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textPrimary} />
+                 <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.primary} />
              </TouchableOpacity>
           </View>
       </View>
 
       <View style={styles.contentContainer}>
-          <BlurView intensity={105} tint="light" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={115} tint="light" style={StyleSheet.absoluteFill} />
           
           <View style={styles.tabsWrapper}>
              <FlatList 
@@ -317,16 +373,21 @@ export default function MissionManagerScreen() {
             renderItem={renderMissionCard}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+            }
             ListEmptyComponent={
                 <View style={styles.emptyState}>
-                    {loading ? <ActivityIndicator color={COLORS.primary} /> : (
+                    {loading ? <ActivityIndicator color={COLORS.primary} size="large" /> : (
                         <>
-                            <MaterialCommunityIcons name="clipboard-text-off-outline" size={60} color="#64748B" />
+                            <MaterialCommunityIcons name="clipboard-text-off-outline" size={60} color="#94A3B8" />
                             <Text style={styles.emptyTitle}>
                                 {activeStatus === 'active' ? "Tudo limpo por aqui!" : "Nada nesta lista"}
                             </Text>
                             <Text style={styles.emptySub}>
-                                {activeStatus === 'active' ? "Crie novas missões para a tropa." : ""}
+                                {activeStatus === 'active' 
+                                    ? "Toque no + para criar novas missões." 
+                                    : "Missões finalizadas ou expiradas aparecerão aqui."}
                             </Text>
                         </>
                     )}
@@ -343,7 +404,7 @@ export default function MissionManagerScreen() {
         </TouchableOpacity>
       )}
 
-      {/* MODAL FILTRO */}
+      {/* FILTROS E MODAIS MANTIDOS IGUAIS AO ANTERIOR */}
       <Modal visible={showFilterModal} transparent={true} animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
@@ -364,7 +425,6 @@ export default function MissionManagerScreen() {
           </View>
       </Modal>
 
-      {/* MODAL CRIAÇÃO */}
       <Modal visible={showCreateOptions} transparent={true} animationType="fade" onRequestClose={() => setShowCreateOptions(false)}>
           <View style={styles.modalOverlay}>
               <TouchableOpacity style={{flex:1, width:'100%'}} onPress={() => setShowCreateOptions(false)} />
@@ -375,15 +435,12 @@ export default function MissionManagerScreen() {
                           <MaterialCommunityIcons name="close" size={24} color="#94A3B8" />
                       </TouchableOpacity>
                   </View>
-                  
                   <TouchableOpacity style={styles.createOptionBtn} onPress={() => { setShowCreateOptions(false); navigation.navigate('QuickMissions', { familyId }); }}>
                       <View style={[styles.createOptionIcon, { backgroundColor: '#FEF3C7' }]}><MaterialCommunityIcons name="flash" size={24} color="#F59E0B" /></View>
                       <View style={{flex: 1}}><Text style={styles.createOptionTitle}>MISSÃO RÁPIDA</Text><Text style={styles.createOptionSubtitle}>Usar modelos prontos</Text></View>
                       <MaterialCommunityIcons name="chevron-right" size={24} color="#CBD5E1" />
                   </TouchableOpacity>
-                  
                   <View style={styles.createDivider} />
-                  
                   <TouchableOpacity style={styles.createOptionBtn} onPress={() => { setShowCreateOptions(false); navigation.navigate('CreateMission', { familyId }); }}>
                       <View style={[styles.createOptionIcon, { backgroundColor: '#DCFCE7' }]}><MaterialCommunityIcons name="plus" size={24} color="#10B981" /></View>
                       <View style={{flex: 1}}><Text style={styles.createOptionTitle}>NOVA MISSÃO</Text><Text style={styles.createOptionSubtitle}>Criar do zero</Text></View>
@@ -398,92 +455,63 @@ export default function MissionManagerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 }, 
-  
   topGreenArea: {
-      // 🟢 COR DO TOPO: MUDE 'COLORS.primary' AQUI POR UM HEX CODE SE QUISER OUTRA COR
       backgroundColor: '#34af61',
       paddingTop: 50,
       paddingBottom: 30, 
       borderBottomLeftRadius: 35,
       borderBottomRightRadius: 35,
       zIndex: 10,
-      shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 5, elevation: 8
+      shadowColor: "#000", shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.5, shadowRadius: 5, elevation: 8
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary, letterSpacing: 0.5 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 0.5 },
   backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
-  
   filterContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
-  filterLabel: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.primary },
-  
+  filterLabel: { fontFamily: FONTS.regular, fontSize: 15, color: '#E0F2F1' },
   filterButton: { 
       flexDirection: 'row', alignItems: 'center', 
       backgroundColor: '#FFF', 
       paddingHorizontal: 12, paddingVertical: 6, 
       borderRadius: 20, gap: 5,
-      borderWidth: 1, borderColor: COLORS.primary,
-      // 🟢 SOMBRA NO BOTÃO DE FILTRO
-      shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4 
+      shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4 
   },
   filterText: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary },
-
   contentContainer: { 
-      flex: 1,
-      marginTop: -25, // Sobreposição no header
-      borderTopLeftRadius: 30,
-      borderTopRightRadius: 30,
-      overflow: 'hidden',
-      paddingTop: 10,
+      flex: 1, marginTop: -25, borderTopLeftRadius: 30, borderTopRightRadius: 30, overflow: 'hidden', paddingTop: 10,
   },
-
-  // 🟢 ESPAÇAMENTO DOS BOTÕES DE ATIVA/FEITAS
-  tabsWrapper: { marginBottom: 5, marginTop: 30 }, // <--- Aumentei marginTop para desgrudar do topo
-  
+  tabsWrapper: { marginBottom: 5, marginTop: 30 },
   tabItem: { 
       flexDirection: 'row', alignItems: 'center', 
       paddingHorizontal: 14, paddingVertical: 8, marginRight: 10, 
-      borderRadius: 24, 
-      borderWidth: 1,
-      // 🟢 SOMBRA NAS ABAS DE STATUS
-      shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 2, elevation: 15
+      borderRadius: 24, borderWidth: 1,
+      shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 3
   },
   tabText: { fontFamily: FONTS.bold, fontSize: 11, marginLeft: 6 },
-  
-  sectionDivider: {
-      height: 1,
-      backgroundColor: COLORS.primary,
-      opacity: 1,
-      marginHorizontal: 20,
-      marginBottom: 20,
-  },
-
+  sectionDivider: { height: 1, backgroundColor: '#E2E8F0', marginHorizontal: 20, marginBottom: 20 },
   listContent: { paddingHorizontal: 20, paddingBottom: 100 },
-
-  // 🟢 SOMBRA NOS CARDS DAS MISSÕES
-  cardWrapper: { 
-      marginBottom: 15, borderRadius: 24, position: 'relative',
-      shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 2, elevation: 8 
-  },
+  cardWrapper: { marginBottom: 15, borderRadius: 24, position: 'relative' },
   cardShadow: {
-      position: 'absolute', top: 6, left: 0, width: '100%', height: '100%',
-      backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.5
+      position: 'absolute', top: 4, left: 0, width: '100%', height: '100%',
+      backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 24
   },
   cardFront: { 
-      backgroundColor: '#FFF', 
-      borderRadius: 24, 
-      borderWidth: 1, borderColor: COLORS.primary, 
+      backgroundColor: '#FFF', borderRadius: 24, 
+      borderWidth: 2, 
       padding: 16, overflow: 'hidden' 
   },
-  
   iconBox: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.primary },
-  tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
-  tagText: { fontFamily: FONTS.bold, fontSize: 11, marginLeft: 4 },
+  cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B', flex: 1 },
+  tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
+  tagText: { fontFamily: FONTS.bold, fontSize: 10, marginLeft: 4 },
+  treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginLeft: 60, marginBottom: 10 },
+  treasureGold: { backgroundColor: '#F59E0B' },
+  treasurePurple: { backgroundColor: '#8B5CF6' },
+  treasureText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
   divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
   metaInfoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   metaText: { fontSize: 10, fontWeight: 'bold', marginLeft: 4 },
-  daysText: { fontSize: 11, color: '#64748B', marginTop: 10, marginLeft: 2 },
   cardActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 15, gap: 15 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
   actionText: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B' },

@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   
   // --- HEADER VERDE ESCURO ---
   topGreenArea: {
-      backgroundColor: COLORS.primary, // #064E3B
+      backgroundColor: 'COLORS.primary',
       paddingTop: 50,
       paddingBottom: 25,
       borderBottomLeftRadius: 35, // Suave

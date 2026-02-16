@@ -53,7 +53,8 @@
           "behavior": "inset-swipe",
           "backgroundColor": "#00000000"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
