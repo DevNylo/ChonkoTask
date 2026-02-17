@@ -17,10 +17,18 @@ import {
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
 
-// Importe seu componente 3D
 import Chonko3D from '../../components/Chonko3D.js';
 
 const { width } = Dimensions.get('window');
+
+// --- CONFIGURAÇÃO DE CORES (PASTEL) ---
+const DIFFICULTY_CONFIG = {
+    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, 
+    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, 
+    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, 
+    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, 
+    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  
+};
 
 export default function RecruitHomeScreen() {
   const navigation = useNavigation();
@@ -136,9 +144,18 @@ export default function RecruitHomeScreen() {
 
           if (mission.status !== 'active') return;
 
-          if (mission.is_recurring && mission.recurrence_days) {
-              const days = mission.recurrence_days.map(Number);
-              if (!days.includes(currentDayIndex)) return;
+          if (mission.is_recurring) {
+              if (mission.recurrence_days) {
+                  const days = mission.recurrence_days.map(Number);
+                  if (!days.includes(currentDayIndex)) return;
+              }
+          } else {
+              if (mission.scheduled_date) {
+                  const schedDate = new Date(mission.scheduled_date + 'T00:00:00');
+                  schedDate.setHours(0,0,0,0);
+                  const todayZero = new Date(); todayZero.setHours(0,0,0,0);
+                  if (schedDate.getTime() !== todayZero.getTime()) return; 
+              }
           }
 
           let isExpired = false;
@@ -172,27 +189,30 @@ export default function RecruitHomeScreen() {
     const isMissed = tabType === 'missed';
     const isCompleted = tabType === 'completed';
     
+    const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
+
     let cardBorderColor, cardBg, iconColor, iconBg, iconName, timeText;
 
     if (isCompleted) {
-        cardBorderColor = '#A7F3D0'; 
+        cardBorderColor = '#10B981'; 
         cardBg = '#F0FDF4'; 
         iconColor = '#10B981';
-        iconBg = '#D1FAE5';
+        iconBg = '#FFF';
         iconName = "check-decagram";
         timeText = "Finalizada hoje!";
     } else if (isMissed) {
         cardBorderColor = '#CBD5E1';
-        cardBg = '#F1F5F9';
+        cardBg = '#F8FAFC';
         iconColor = '#94A3B8';
-        iconBg = '#E2E8F0';
+        iconBg = '#FFF';
         iconName = "clock-alert-outline";
         timeText = `Perdida às ${item.deadline?.slice(0,5)}`;
     } else {
-        cardBorderColor = isCustom ? '#D8B4FE' : '#6EE7B7';
-        cardBg = '#FFFFFF';
-        iconColor = isCustom ? '#9333EA' : '#059669';
-        iconBg = isCustom ? '#F3E8FF' : '#D1FAE5';
+        cardBorderColor = diffData.color; 
+        cardBg = diffData.bg;             
+        iconColor = diffData.color;       
+        iconBg = '#FFFFFF';               
+        
         iconName = item.icon || "star-circle";
         timeText = item.deadline ? `Até as ${item.deadline.slice(0,5)}` : "O dia todo";
     }
@@ -201,7 +221,7 @@ export default function RecruitHomeScreen() {
         <TouchableOpacity 
             style={[
                 styles.card, 
-                { borderColor: cardBorderColor, backgroundColor: cardBg },
+                { borderColor: cardBorderColor, backgroundColor: cardBg }, 
                 tabType === 'todo' && styles.cardActive 
             ]}
             activeOpacity={tabType === 'todo' ? 0.7 : 1}
@@ -216,7 +236,7 @@ export default function RecruitHomeScreen() {
                 { 
                     backgroundColor: iconBg, 
                     borderWidth: 1, 
-                    borderColor: iconColor 
+                    borderColor: isCompleted || isMissed ? 'transparent' : iconColor + '40' 
                 }
             ]}>
                 <MaterialCommunityIcons name={iconName} size={32} color={iconColor} />
@@ -226,7 +246,7 @@ export default function RecruitHomeScreen() {
                 <Text 
                     style={[
                         styles.cardTitle, 
-                        { color: COLORS.primary },
+                        { color: isMissed ? '#94A3B8' : '#1E293B' }, 
                         isMissed && styles.textMissed
                     ]} 
                     numberOfLines={1}
@@ -234,8 +254,27 @@ export default function RecruitHomeScreen() {
                     {item.title}
                 </Text>
                 
+                {/* --- AQUI: BADGE DE TESOURO --- */}
+                {item.use_critical && !isCompleted && !isMissed && (
+                    <View style={[
+                        styles.treasureBadge, 
+                        item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple
+                    ]}>
+                        <MaterialCommunityIcons 
+                            name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} 
+                            size={12} color="#FFF" style={{marginRight:4}} 
+                        />
+                        <Text style={styles.treasureText}>
+                            {item.critical_type === 'bonus_coins' 
+                                ? `+50% (${item.critical_chance}%)` 
+                                : `Surpresa (${item.critical_chance}%)`
+                            }
+                        </Text>
+                    </View>
+                )}
+
                 <View style={styles.timeBadge}>
-                     <MaterialCommunityIcons 
+                      <MaterialCommunityIcons 
                         name={isCompleted ? "check-all" : "clock-outline"} 
                         size={12} 
                         color={isCompleted ? '#10B981' : (isMissed ? '#94A3B8' : '#64748B')} 
@@ -249,16 +288,21 @@ export default function RecruitHomeScreen() {
             <View style={styles.rightColumn}>
                 <View style={[
                     styles.rewardPill, 
-                    isCustom ? styles.rewardCustom : styles.rewardGold,
-                    (isCompleted || isMissed) && { opacity: 0.5 } 
+                    isCustom 
+                        ? { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' }
+                        : { backgroundColor: '#FFF', borderColor: '#F59E0B' }, 
+                    (isCompleted || isMissed) && { opacity: 0.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9' } 
                 ]}>
-                      <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : '#B45309' }]}>
+                      <Text style={[
+                          styles.rewardText, 
+                          { color: isCustom ? '#9333EA' : (isCompleted || isMissed ? '#94A3B8' : '#B45309') }
+                      ]}>
                         {isCustom ? "🎁" : `+${item.reward}`}
                     </Text>
                 </View>
                 
                 {tabType === 'todo' && (
-                    <MaterialCommunityIcons name="chevron-right" size={24} color="#CBD5E1" style={{marginTop: 4}} />
+                    <MaterialCommunityIcons name="chevron-right" size={24} color={cardBorderColor} style={{marginTop: 4, opacity: 0.5}} />
                 )}
             </View>
         </TouchableOpacity>
@@ -266,10 +310,7 @@ export default function RecruitHomeScreen() {
   };
 
   const handleShop = () => {
-      navigation.navigate('RewardShop', { 
-          familyId: familyId, 
-          profile: initialProfile 
-      });
+      navigation.navigate('RewardShop', { familyId: familyId, profile: initialProfile });
   };
 
   const handleCustomize = () => Alert.alert("Estilo Chonko", "Em breve você poderá vestir seu Chonko!");
@@ -322,7 +363,6 @@ export default function RecruitHomeScreen() {
               </View>
           </ImageBackground>
 
-          {/* HUD ALINHADO */}
           <View style={styles.hudContainer}>
               <View style={styles.profileBadge}>
                   <View style={styles.levelCircle}>
@@ -351,39 +391,22 @@ export default function RecruitHomeScreen() {
           <View style={styles.dragHandle} />
           
           <View style={styles.tabsContainer}>
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'todo' && styles.tabActive]} 
-                onPress={() => setActiveTab('todo')}
-              >
+              <TouchableOpacity style={[styles.tab, activeTab === 'todo' && styles.tabActive]} onPress={() => setActiveTab('todo')}>
                   <View style={styles.tabInner}>
                       <MaterialCommunityIcons name="target" size={16} color={activeTab === 'todo' ? COLORS.primary : '#94A3B8'} />
-                      <Text style={[styles.tabText, activeTab === 'todo' && styles.tabTextActive]} numberOfLines={1}>
-                          FAZER ({todoMissions.length})
-                      </Text>
+                      <Text style={[styles.tabText, activeTab === 'todo' && styles.tabTextActive]} numberOfLines={1}>FAZER ({todoMissions.length})</Text>
                   </View>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'missed' && styles.tabActive]} 
-                onPress={() => setActiveTab('missed')}
-              >
+              <TouchableOpacity style={[styles.tab, activeTab === 'missed' && styles.tabActive]} onPress={() => setActiveTab('missed')}>
                   <View style={styles.tabInner}>
                       <MaterialCommunityIcons name="ghost-outline" size={16} color={activeTab === 'missed' ? COLORS.primary : '#94A3B8'} />
-                      <Text style={[styles.tabText, activeTab === 'missed' && styles.tabTextActive]} numberOfLines={1}>
-                          PERDIDAS ({missedMissions.length})
-                      </Text>
+                      <Text style={[styles.tabText, activeTab === 'missed' && styles.tabTextActive]} numberOfLines={1}>PERDIDAS ({missedMissions.length})</Text>
                   </View>
               </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'completed' && styles.tabActive]} 
-                onPress={() => setActiveTab('completed')}
-              >
+              <TouchableOpacity style={[styles.tab, activeTab === 'completed' && styles.tabActive]} onPress={() => setActiveTab('completed')}>
                   <View style={styles.tabInner}>
                       <MaterialCommunityIcons name="check-decagram" size={16} color={activeTab === 'completed' ? COLORS.primary : '#94A3B8'} />
-                      <Text style={[styles.tabText, activeTab === 'completed' && styles.tabTextActive]} numberOfLines={1}>
-                          FEITAS ({completedMissions.length})
-                      </Text>
+                      <Text style={[styles.tabText, activeTab === 'completed' && styles.tabTextActive]} numberOfLines={1}>FEITAS ({completedMissions.length})</Text>
                   </View>
               </TouchableOpacity>
           </View>
@@ -397,9 +420,7 @@ export default function RecruitHomeScreen() {
                   renderItem={({item}) => renderMissionCard({ item, tabType: activeTab })}
                   contentContainerStyle={{ paddingBottom: 160, paddingHorizontal: 5, paddingTop: 5 }}
                   showsVerticalScrollIndicator={false}
-                  refreshControl={
-                      <RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchFreshData();}} />
-                  }
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchFreshData();}} />}
                   ListEmptyComponent={
                       <View style={styles.emptyContainer}>
                           <MaterialCommunityIcons name={emptyIcon} size={60} color="#CBD5E1" />
@@ -413,33 +434,14 @@ export default function RecruitHomeScreen() {
 
       <View style={styles.bottomDockContainer}>
         <View style={styles.dockBackground}>
-            <TouchableOpacity style={styles.dockItem} onPress={handleShop}>
-                <MaterialCommunityIcons name="storefront-outline" size={28} color="#64748B" />
-                <Text style={styles.dockLabel}>Loja</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.dockItem} onPress={handleCustomize}>
-                <MaterialCommunityIcons name="palette-outline" size={28} color="#64748B" />
-                <Text style={styles.dockLabel}>Visual</Text>
-            </TouchableOpacity>
-
+            <TouchableOpacity style={styles.dockItem} onPress={handleShop}><MaterialCommunityIcons name="storefront-outline" size={28} color="#64748B" /><Text style={styles.dockLabel}>Loja</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.dockItem} onPress={handleCustomize}><MaterialCommunityIcons name="palette-outline" size={28} color="#64748B" /><Text style={styles.dockLabel}>Visual</Text></TouchableOpacity>
             <View style={{ width: 60 }} />
-
-            <TouchableOpacity style={styles.dockItem}>
-                <MaterialCommunityIcons name="medal-outline" size={28} color="#64748B" />
-                <Text style={styles.dockLabel}>Troféus</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.dockItem} onPress={handleProfile}>
-                <MaterialCommunityIcons name="card-account-details-outline" size={28} color="#64748B" />
-                <Text style={styles.dockLabel}>Perfil</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.dockItem}><MaterialCommunityIcons name="medal-outline" size={28} color="#64748B" /><Text style={styles.dockLabel}>Troféus</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.dockItem} onPress={handleProfile}><MaterialCommunityIcons name="card-account-details-outline" size={28} color="#64748B" /><Text style={styles.dockLabel}>Perfil</Text></TouchableOpacity>
         </View>
-
         <TouchableOpacity style={styles.centerDockButton} activeOpacity={0.9} onPress={() => setActiveTab('todo')}>
-            <View style={styles.centerBtnInner}>
-                <MaterialCommunityIcons name="rocket-launch" size={30} color="#fff" />
-            </View>
+            <View style={styles.centerBtnInner}><MaterialCommunityIcons name="rocket-launch" size={30} color="#fff" /></View>
         </TouchableOpacity>
       </View>
     </View>
@@ -448,216 +450,57 @@ export default function RecruitHomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' }, 
-  
-  devButton: {
-      position: 'absolute',
-      top: 100, 
-      right: 20,
-      backgroundColor: '#EF4444', 
-      padding: 10,
-      borderRadius: 25,
-      zIndex: 999,
-      borderWidth: 2,
-      borderColor: '#FFF',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 6,
-  },
-  
+  devButton: { position: 'absolute', top: 100, right: 20, backgroundColor: '#EF4444', padding: 10, borderRadius: 25, zIndex: 999, borderWidth: 2, borderColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 6 },
   chonkoStage: { height: '45%', position: 'relative' },
   skyBackground: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   modelPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 20 },
-
-  // --- HUD AJUSTADO ---
-  hudContainer: { 
-      flexDirection: 'row', 
-      justifyContent: 'space-between', 
-      alignItems: 'center', // <--- Isso alinha verticalmente pelo centro
-      paddingHorizontal: 20, 
-      paddingTop: 60, // <--- Ajuste seguro para não colar no topo
-      position: 'absolute', 
-      width: '100%', 
-      zIndex: 10 
-  },
-  
-  profileBadge: { 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      backgroundColor: 'rgba(0,0,0,0.5)', 
-      paddingRight: 15, 
-      borderRadius: 30, 
-      paddingLeft: 4, 
-      paddingVertical: 4, 
-      borderWidth: 1.5, 
-      borderColor: 'rgba(255,255,255,0.3)' 
-  },
+  hudContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, position: 'absolute', width: '100%', zIndex: 10 },
+  profileBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingRight: 15, borderRadius: 30, paddingLeft: 4, paddingVertical: 4, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)' },
   levelCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#8B5CF6', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff', zIndex: 2 },
   levelNumber: { color: '#fff', fontWeight: '900', fontSize: 20 },
-  
   profileInfoArea: { marginLeft: 8, justifyContent: 'center' },
   playerName: { color: '#fff', fontFamily: FONTS.bold, fontSize: 16, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 2 },
-  
   xpBarContainer: { width: 100, height: 14, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 7, marginTop: 4, overflow: 'hidden', position: 'relative', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   xpBarFill: { height: '100%', backgroundColor: '#10B981', borderRadius: 7 },
   xpText: { position: 'absolute', width: '100%', textAlign: 'center', fontSize: 9, color: '#fff', fontWeight: 'bold', lineHeight: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 1 },
-
-  coinBadge: { 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      backgroundColor: 'rgba(0,0,0,0.5)', 
-      paddingHorizontal: 12, 
-      paddingVertical: 6, 
-      borderRadius: 30, 
-      gap: 8, 
-      borderWidth: 1.5, 
-      borderColor: 'rgba(255,255,255,0.3)', 
-      height: 44 // <--- Altura fixa para garantir alinhamento com o lado esquerdo
-  },
+  coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 30, gap: 8, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)', height: 44 },
   coinText: { color: '#FFD700', fontSize: 20, fontFamily: FONTS.bold, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 2 },
   plusBtn: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fff' },
-
-  taskSheet: { 
-      flex: 1, 
-      backgroundColor: '#F0F9FF',
-      borderTopLeftRadius: 32, 
-      borderTopRightRadius: 32, 
-      paddingHorizontal: 16, 
-      paddingTop: 10,
-      shadowColor: "#092F47",
-      shadowOffset: { width: 0, height: -5 },
-      shadowOpacity: 0.2,
-      shadowRadius: 15,
-      elevation: 20
-  },
+  taskSheet: { flex: 1, backgroundColor: '#F0F9FF', borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 16, paddingTop: 10, shadowColor: "#092F47", shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 20 },
   dragHandle: { width: 60, height: 6, backgroundColor: '#CBD5E1', borderRadius: 10, alignSelf: 'center', marginBottom: 20, marginTop: 8 },
-  
   tabsContainer: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 16, padding: 4, marginBottom: 20 },
   tab: { flex: 1, paddingVertical: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: '#fff', shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
   tabInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tabText: { fontSize: 11, fontWeight: 'bold', color: '#94A3B8' },
   tabTextActive: { color: COLORS.primary },
-
-  // --- CARD AJUSTADO ---
-  card: { 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      padding: 16, 
-      borderRadius: 24, 
-      marginBottom: 16, 
-      borderWidth: 0.5, // <--- Borda fina conforme solicitado (.5)
-      minHeight: 90, 
-  },
   
-  cardActive: {
-      shadowColor: "#1E293B",
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4,
-      elevation: 6, 
-  },
-  
-  iconContainer: { 
-      width: 60, 
-      height: 60, 
-      borderRadius: 20, 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      marginRight: 16 
-  },
-  
+  // CARD
+  card: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 24, marginBottom: 16, borderWidth: 1, minHeight: 90 },
+  cardActive: { shadowColor: "#1E293B", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 6 },
+  iconContainer: { width: 60, height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   cardInfo: { flex: 1 },
   cardTitle: { fontSize: 18, fontFamily: FONTS.bold, marginBottom: 6 },
   textMissed: { textDecorationLine: 'line-through', color: '#94A3B8' },
-  
   timeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cardSub: { fontSize: 13, color: '#64748B', fontWeight: '600' },
-
   rightColumn: { alignItems: 'flex-end', justifyContent: 'center' },
-  
-  rewardPill: { 
-      paddingHorizontal: 10, 
-      paddingVertical: 6, 
-      borderRadius: 12, 
-      borderWidth: 2, 
-      marginBottom: 4,
-      minWidth: 50,
-      alignItems: 'center'
-  },
-  rewardGold: { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' },
-  rewardCustom: { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' },
-  
+  rewardPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 2, marginBottom: 4, minWidth: 50, alignItems: 'center' },
   rewardText: { fontSize: 15, fontWeight: '900' },
+  
+  // TREASURE BADGE
+  treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 6 },
+  treasureGold: { backgroundColor: '#F59E0B' },
+  treasurePurple: { backgroundColor: '#8B5CF6' },
+  treasureText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
   emptyContainer: { alignItems: 'center', marginTop: 40, opacity: 0.6 },
   emptyText: { marginTop: 15, fontSize: 18, fontWeight: 'bold', color: '#64748B', textAlign: 'center' },
   emptySubText: { marginTop: 5, fontSize: 14, fontWeight: '500', color: '#94A3B8', textAlign: 'center' },
-
-  bottomDockContainer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    height: 80,
-  },
-  dockBackground: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    height: 70,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: '#F1F5F9'
-  },
-  dockItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 60,
-    height: 60,
-  },
-  dockLabel: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#64748B',
-    marginTop: 2
-  },
-  
-  centerDockButton: {
-    position: 'absolute',
-    bottom: 25,
-    alignSelf: 'center',
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: '#F0F9FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 12,
-  },
-  centerBtnInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff'
-  }
+  bottomDockContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, alignItems: 'center', justifyContent: 'flex-end', height: 80 },
+  dockBackground: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 25, height: 70, width: '100%', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 10, borderWidth: 1, borderColor: '#F1F5F9' },
+  dockItem: { alignItems: 'center', justifyContent: 'center', width: 60, height: 60 },
+  dockLabel: { fontSize: 10, fontWeight: 'bold', color: '#64748B', marginTop: 2 },
+  centerDockButton: { position: 'absolute', bottom: 25, alignSelf: 'center', width: 76, height: 76, borderRadius: 38, backgroundColor: '#F0F9FF', justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 12 },
+  centerBtnInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' }
 });
