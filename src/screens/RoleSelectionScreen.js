@@ -92,7 +92,7 @@ export default function RoleSelectionScreen() {
 
   const proceedToHome = (profile) => {
     if (profile.role === 'captain') navigation.replace('CaptainHome', { profile: profile });
-    else navigation.replace('RecruitHome', { profile: profile });
+    else navigation.replace('RecruitTabs', { profile: profile });
   };
 
   const handleLogout = async () => { await signOut(); };

@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTANTE
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
@@ -146,23 +147,26 @@ export default function ReportsScreen() {
         <ImageBackground source={BACKGROUND_IMG} style={styles.container} resizeMode="cover">
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* HEADER */}
-            <View style={styles.header}>
+            {/* HEADER GRADIENTE */}
+            <LinearGradient
+                colors={['#064E3B', '#10B981']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.header}
+            >
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <MaterialCommunityIcons name="arrow-left" size={24} color={'#ffffff'} />
                 </TouchableOpacity>
                 
-                {/* TÍTULO RESTAURADO */}
                 <Text style={styles.headerTitle}>RELATÓRIOS</Text>
 
-                {/* DROPDOWN TRIGGER */}
                 <TouchableOpacity style={styles.dropdownTrigger} onPress={() => setShowUserModal(true)}>
                     <Text style={styles.dropdownText}>
                         {selectedProfile ? selectedProfile.name.toUpperCase() : "TODOS"}
                     </Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.primary} />
                 </TouchableOpacity>
-            </View>
+            </LinearGradient>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 
@@ -298,12 +302,11 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, paddingTop: 50, paddingBottom: 25,
-        backgroundColor: COLORS.primary,
         borderBottomLeftRadius: 35, borderBottomRightRadius: 35,
         zIndex: 10,
         shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 5, elevation: 8
     },
-    headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
+    headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
 
     // DROPDOWN
@@ -324,13 +327,13 @@ const styles = StyleSheet.create({
         width: '31%', height: 110, borderRadius: 20, overflow: 'hidden',
         justifyContent: 'center', alignItems: 'center',
         backgroundColor: '#FFF',
-        // ESTILO CORRIGIDO: Borda 1px + Sombra Sólida
+        // ESTILO GAMIFICADO
         borderWidth: 1, 
         borderColor: COLORS.primary,
         shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 }, // Altura da sombra sólida
-        shadowOpacity: 0.5, // Opacidade da sombra
-        shadowRadius: 0, // Raio 0 deixa a sombra dura/sólida
+        shadowOffset: { width: 0, height: 4 }, 
+        shadowOpacity: 0.5, 
+        shadowRadius: 0, 
         elevation: 8 
     },
     iconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
@@ -344,7 +347,6 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         marginBottom: 25,
         padding: 20,
-        // ESTILO CORRIGIDO: Borda 1px + Sombra Sólida
         borderWidth: 1,
         borderColor: COLORS.primary,
         shadowColor: COLORS.primary,

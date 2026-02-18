@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as MediaLibrary from 'expo-media-library';
+// REMOVIDO: import * as MediaLibrary from 'expo-media-library'; // Não vamos encher o celular do usuário
 
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { decode } from 'base64-arraybuffer';
@@ -25,7 +25,6 @@ import { FONTS } from '../../styles/theme';
 const { width } = Dimensions.get('window');
 
 // --- 1. CONFIGURAÇÃO DE CORES (PASTEL) ---
-// Usamos as mesmas cores suaves do card para o fundo da tela
 const DIFFICULTY_CONFIG = {
     'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, 
     'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, 
@@ -39,8 +38,8 @@ export default function MissionDetailScreen() {
   const route = useRoute();
   const { mission, profile } = route.params;
 
+  // Permissão apenas de Câmera (Removemos a de Galeria)
   const [permission, requestPermission] = useCameraPermissions();
-  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
   
   const cameraRef = useRef(null);
   const [photo, setPhoto] = useState(null);
@@ -51,9 +50,8 @@ export default function MissionDetailScreen() {
   useEffect(() => {
     (async () => {
         if (permission && !permission.granted) await requestPermission();
-        if (mediaPermission && !mediaPermission.granted) await requestMediaPermission();
     })();
-  }, [permission, mediaPermission]);
+  }, [permission]);
 
   // --- 2. PEGAR A COR DO TEMA ---
   const diffData = DIFFICULTY_CONFIG[mission.difficulty] || DIFFICULTY_CONFIG['custom'];
@@ -98,15 +96,13 @@ export default function MissionDetailScreen() {
       setUploading(true);
 
       try {
-          try {
-             if (mediaPermission && mediaPermission.granted) {
-                 await MediaLibrary.saveToLibraryAsync(photo.uri);
-             }
-          } catch (e) { console.log("Aviso Galeria:", e); }
+          // --- OTIMIZAÇÃO DE ESPAÇO ---
+          // Removemos o salvamento na galeria (MediaLibrary) para não ocupar espaço no celular.
+          // A foto existe apenas temporariamente aqui para o upload.
 
           const manipResult = await ImageManipulator.manipulateAsync(
               photo.uri,
-              [{ resize: { width: 800 } }],
+              [{ resize: { width: 800 } }], // Reduz tamanho para economizar banda e storage
               { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG }
           );
 
@@ -117,19 +113,21 @@ export default function MissionDetailScreen() {
           const fileName = `${Date.now()}_${profile.id}.${fileExt}`;
           const filePath = `${profile.family_id}/${fileName}`; 
 
+          // 1. Upload para o Supabase Storage
           const { error: uploadError } = await supabase.storage
             .from('mission-proofs')
             .upload(filePath, arrayBuffer, { contentType: 'image/jpeg', upsert: false });
 
           if (uploadError) throw uploadError;
 
+          // 2. Salva o link na tabela (proof_url)
           const { error: dbError } = await supabase
             .from('mission_attempts')
             .insert([{
                 mission_id: mission.id,
                 profile_id: profile.id,
                 status: 'pending', 
-                proof_url: filePath,
+                proof_url: filePath, // Caminho correto para o storage
                 earned_value: mission.reward 
             }]);
 

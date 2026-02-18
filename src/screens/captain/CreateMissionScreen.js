@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import {
     Alert,
@@ -18,6 +19,8 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
+// --- IMPORTAÇÃO DO CATÁLOGO ---
+import { ICONS_CATALOG } from '../../constants/IconsCatalog';
 
 // --- CONFIGURAÇÃO ---
 const DIFFICULTY_TIERS = [
@@ -28,14 +31,6 @@ const DIFFICULTY_TIERS = [
 ];
 
 const PROBABILITY_OPTIONS = [10, 25, 50, 100];
-
-const ICONS = [
-  'sword', 'shield', 'fire', 'flash', 'skull', 'crown', 'trophy',
-  'broom', 'bed', 'book-open-variant', 'dog-side', 
-  'trash-can-outline', 'water', 'silverware-fork-knife', 
-  'flower', 'gamepad-variant', 'tshirt-crew', 'shoe-sneaker', 
-  'toothbrush', 'school', 'music-note', 'star', 'emoticon-poop'
-];
 
 const WEEKDAYS = [
     { id: 0, label: 'DOM' }, { id: 1, label: 'SEG' }, { id: 2, label: 'TER' }, 
@@ -60,7 +55,11 @@ export default function CreateMissionScreen() {
   const [rewardType, setRewardType] = useState(initialData.reward_type || 'coins');
   const [coinReward, setCoinReward] = useState(initialData.reward ? String(initialData.reward) : '');
   const [customReward, setCustomReward] = useState(initialData.custom_reward || '');
+  
+  // Ícone e Categoria (NOVO STATE)
   const [selectedIcon, setSelectedIcon] = useState(initialData.icon || 'star');
+  const [selectedCategory, setSelectedCategory] = useState('casa'); // Padrão: Casa (tarefas domésticas)
+
   const [selectedDifficulty, setSelectedDifficulty] = useState(initialData.difficulty || null); 
   
   // Tesouro Chonko
@@ -182,7 +181,7 @@ export default function CreateMissionScreen() {
           custom_reward: rewardType === 'custom' ? customReward : null,
           is_recurring: isRecurring, 
           recurrence_days: isRecurring ? selectedDays : null,
-          scheduled_date: isRecurring ? null : formattedDate, // SALVA A DATA
+          scheduled_date: isRecurring ? null : formattedDate, 
           start_time: startTime.length === 5 ? startTime : null, 
           deadline: deadline.length === 5 ? deadline : null,
           is_template: false,
@@ -216,12 +215,6 @@ export default function CreateMissionScreen() {
           setLoading(false); 
       }
   };
-
-  const renderIconItem = ({ item }) => (
-    <TouchableOpacity style={[styles.iconItem, selectedIcon === item && styles.iconSelected]} onPress={() => setSelectedIcon(item)}>
-      <MaterialCommunityIcons name={item} size={28} color={selectedIcon === item ? '#fff' : '#64748B'} />
-    </TouchableOpacity>
-  );
 
   // --- PREVIEW CARD ---
   const MissionPreviewCard = () => {
@@ -267,18 +260,16 @@ export default function CreateMissionScreen() {
                     </View>
                 </View>
                 
-                {/* Linha de Data/Recorrência no Preview */}
                 <View style={{flexDirection:'row', alignItems:'center', marginTop: 10, paddingTop:10, borderTopWidth:1, borderColor:'#F1F5F9'}}>
                     <MaterialCommunityIcons name={isRecurring ? "calendar-sync" : "calendar"} size={14} color="#64748B" />
                     <Text style={{fontSize:12, color:'#64748B', marginLeft:5, fontWeight:'bold'}}>{recurrenceText}</Text>
                     {(startTime || deadline) && (
                         <Text style={{fontSize:12, color:'#64748B', marginLeft:10}}>
-                             •  {startTime || "00:00"} - {deadline || "..."}
+                              •  {startTime || "00:00"} - {deadline || "..."}
                         </Text>
                     )}
                 </View>
 
-                {/* Tesouro no Preview */}
                 {useCritical && (
                     <View style={[styles.previewTreasureBox, criticalType === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple]}>
                         <View style={{flexDirection:'row', alignItems:'center'}}>
@@ -298,13 +289,21 @@ export default function CreateMissionScreen() {
     <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         
-        <View style={styles.topGreenArea}>
+        {/* --- HEADER COM GRADIENTE --- */}
+        <LinearGradient
+            colors={['#064E3B', '#10B981']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.topGreenArea}
+        >
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}><MaterialCommunityIcons name="arrow-left" size={24} color={'#FFFF'}/></TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                    <MaterialCommunityIcons name="arrow-left" size={24} color={'#FFF'}/>
+                </TouchableOpacity>
                 <Text style={styles.headerTitle}>{missionToEdit ? "EDITAR" : "NOVA MISSÃO"}</Text>
                 <View style={{width: 40}}/>
             </View>
-        </View>
+        </LinearGradient>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex:1}}>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -358,7 +357,7 @@ export default function CreateMissionScreen() {
                         )}
                     </View>
 
-                    {/* 4. AGENDAMENTO E DATA (AQUI ESTÁ O NOVO SELETOR BONITO) */}
+                    {/* 4. AGENDAMENTO E DATA */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>QUANDO? <Text style={{color: '#EF4444'}}>*</Text></Text>
                         <View style={styles.tabSwitchContainer}>
@@ -372,7 +371,6 @@ export default function CreateMissionScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        {/* SELETOR DE DATA BONITO */}
                         {!isRecurring ? (
                             <TouchableOpacity style={styles.datePickerCard} onPress={() => setShowDatePicker(true)}>
                                 <View style={styles.dateIconBox}>
@@ -388,7 +386,6 @@ export default function CreateMissionScreen() {
                                 <MaterialCommunityIcons name="chevron-down" size={24} color="#CBD5E1" />
                             </TouchableOpacity>
                         ) : (
-                            /* SELETOR DE DIAS DA SEMANA */
                             <View style={{marginTop: 10}}>
                                 <Text style={styles.subLabel}>REPETIR NOS DIAS:</Text>
                                 <View style={styles.weekRow}>
@@ -401,7 +398,6 @@ export default function CreateMissionScreen() {
                             </View>
                         )}
 
-                        {/* HORÁRIOS */}
                         <View style={{marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderColor: '#F1F5F9'}}>
                             <Text style={styles.subLabel}>HORÁRIO LIMITE (OPCIONAL)</Text>
                             <View style={styles.timeRowContainer}>
@@ -411,7 +407,6 @@ export default function CreateMissionScreen() {
                             </View>
                         </View>
 
-                        {/* Picker Nativo (Invisível até clicar) */}
                         {showDatePicker && (
                             <DateTimePicker
                                 value={missionDate}
@@ -474,10 +469,39 @@ export default function CreateMissionScreen() {
                         )}
                     </View>
 
-                    {/* 6. ÍCONE E TEMPLATE */}
+                    {/* 6. ÍCONE COM CATEGORIAS (ATUALIZADO) */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>ÍCONE</Text>
-                        <FlatList data={ICONS} horizontal showsHorizontalScrollIndicator={false} renderItem={renderIconItem} keyExtractor={i=>i} contentContainerStyle={{paddingVertical: 5}}/>
+                        
+                        {/* Seletor de Categorias */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 8 }}>
+                            {Object.keys(ICONS_CATALOG).map(cat => (
+                                <TouchableOpacity 
+                                    key={cat} 
+                                    style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipSelected]} 
+                                    onPress={() => setSelectedCategory(cat)}
+                                >
+                                    <Text style={[styles.categoryText, selectedCategory === cat && styles.categoryTextSelected]}>
+                                        {cat.toUpperCase()}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        {/* Grade de Ícones da Categoria Selecionada */}
+                        <View style={styles.iconGridContainer}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 5, paddingHorizontal: 5 }}>
+                                {ICONS_CATALOG[selectedCategory].map(icon => (
+                                    <TouchableOpacity 
+                                        key={icon} 
+                                        style={[styles.iconOption, selectedIcon === icon && styles.iconOptionSelected]} 
+                                        onPress={() => setSelectedIcon(icon)}
+                                    >
+                                        <MaterialCommunityIcons name={icon} size={28} color={selectedIcon === icon ? '#FFF' : '#64748B'} />
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
                     </View>
 
                     {!isEditingTemplate && (
@@ -530,7 +554,17 @@ export default function CreateMissionScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F0F9FF' },
-    topGreenArea: { backgroundColor: '#16A34A', paddingTop: 50, paddingBottom: 20, borderBottomLeftRadius: 35, borderBottomRightRadius: 35, zIndex: 10, elevation: 5 },
+    
+    // --- CABEÇALHO GRADIENTE ---
+    topGreenArea: { 
+        paddingTop: 50, 
+        paddingBottom: 20, 
+        borderBottomLeftRadius: 35, 
+        borderBottomRightRadius: 35, 
+        zIndex: 10, 
+        elevation: 5 
+    },
+
     header: { flexDirection:'row', justifyContent:'space-between', paddingHorizontal:20, alignItems:'center' },
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#ffffff', letterSpacing: 1 },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
@@ -598,8 +632,25 @@ const styles = StyleSheet.create({
     dayCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
     inputCenter: { flex:1, backgroundColor: '#F8FAFC', borderRadius: 12, padding: 10, fontFamily: FONTS.bold, color: '#1E293B', borderWidth: 1, borderColor: '#E2E8F0', textAlign: 'center' },
     timeRowContainer: { flexDirection: 'row', gap: 10, alignItems:'center' },
-    iconItem: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginRight: 10, borderWidth: 1, borderColor: '#E2E8F0' },
-    iconSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+    
+    // --- ESTILOS NOVOS PARA O SELETOR DE CATEGORIAS ---
+    categoryChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', marginRight: 0 },
+    categoryChipSelected: { backgroundColor: COLORS.secondary, borderColor: COLORS.secondary },
+    categoryText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B' },
+    categoryTextSelected: { color: '#FFF' },
+    iconGridContainer: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+    
+    iconOption: { 
+        width: 50, height: 50, borderRadius: 25, 
+        backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 10, 
+        borderWidth: 1.5, borderColor: '#E2E8F0' 
+    },
+    iconOptionSelected: { 
+        backgroundColor: COLORS.secondary, borderColor: COLORS.secondary,
+        transform: [{scale: 1.1}] 
+    },
+    // ----------------------------------------------------
+
     templateBox: { flexDirection: 'row', backgroundColor: '#F0F9FF', padding: 15, borderRadius: 20, borderWidth: 1, borderColor: COLORS.primary, alignItems: 'center', marginBottom: 20 },
     templateBoxActive: { backgroundColor: '#F0FDF4', borderColor: COLORS.primary },
     checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: '#94A3B8', backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 10 },

@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTADO
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -17,16 +18,16 @@ import {
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
 
-// 1. IMPORTANDO O CATÁLOGO (Ajuste o caminho se sua pasta de screens for diferente)
+// 1. IMPORTANDO O CATÁLOGO
 import { MISSIONS_CATALOG } from '../../constants/MissionsCatalog';
 
-// 2. CONFIGURAÇÃO VISUAL COM CORES PASTÉIS
+// 2. CONFIGURAÇÃO VISUAL
 const DIFFICULTY_CONFIG = {
-    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, // Verde Menta
-    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, // Laranja Pastel
-    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, // Vermelho Rosado
-    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, // Lilás
-    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  // Cinza
+    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, 
+    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, 
+    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, 
+    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, 
+    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  
 };
 
 const WEEKDAYS = [
@@ -55,19 +56,18 @@ export default function QuickMissionsScreen() {
     useEffect(() => {
         const lowerSearch = searchText.toLowerCase();
         
-        // 1. Meus Modelos (Banco)
+        // 1. Meus Modelos
         const filteredTemplates = templates.filter(t => 
             t.title.toLowerCase().includes(lowerSearch)
         );
         
-        // 2. Sugestões do Sistema (Arquivo Importado)
+        // 2. Sugestões do Sistema
         const filteredIdeas = MISSIONS_CATALOG.filter(t => 
             t.title.toLowerCase().includes(lowerSearch)
         );
 
         let finalList = [...filteredTemplates];
 
-        // Se houver sugestões, adiciona o Separador antes delas
         if (filteredIdeas.length > 0) {
             finalList.push({ id: 'SEPARATOR_HEADER', is_separator: true, title: 'Sugestões do Chonko Task' });
             finalList = [...finalList, ...filteredIdeas];
@@ -94,7 +94,6 @@ export default function QuickMissionsScreen() {
             if (item.is_system) return; 
             toggleSelection(item.id);
         } else {
-            // Se for do sistema, limpamos o ID para criar um novo registro
             const templateData = item.is_system ? { ...item, id: null } : item;
             navigation.navigate('CreateMission', { familyId, templateData });
         }
@@ -155,7 +154,6 @@ export default function QuickMissionsScreen() {
         const isSystem = item.is_system;
         const isSelected = selectedIds.includes(item.id);
         
-        // 3. LÓGICA DE CORES (Igual ao Manager)
         const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
         const borderColor = diffData.color;
         const cardBg = diffData.bg;
@@ -167,7 +165,6 @@ export default function QuickMissionsScreen() {
                 onPress={() => handleSelectMission(item)}
                 onLongPress={() => handleLongPress(item)}
             >
-                {/* Seleção Overlay */}
                 {isSelectionMode && !isSystem && (
                     <View style={styles.selectionOverlay}>
                         <MaterialCommunityIcons 
@@ -180,15 +177,13 @@ export default function QuickMissionsScreen() {
 
                 <View style={styles.cardShadow} />
 
-                {/* CARD FRONTAL COM CORES DINÂMICAS */}
                 <View style={[
                     styles.cardFront, 
-                    { borderColor: borderColor, backgroundColor: cardBg }, // Aplica cor da dificuldade
-                    isSelected && { backgroundColor: '#F0FDF4', borderColor: COLORS.primary } // Se selecionado, fica verde padrão
+                    { borderColor: borderColor, backgroundColor: cardBg }, 
+                    isSelected && { backgroundColor: '#F0FDF4', borderColor: COLORS.primary } 
                 ]}>
                     
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
-                        {/* Ícone com fundo branco para destacar no pastel */}
                         <View style={[styles.iconBox, {backgroundColor: '#FFF', borderWidth: 1, borderColor: borderColor+'40'}]}>
                             <MaterialCommunityIcons name={item.icon || 'star'} size={28} color={borderColor} />
                         </View>
@@ -196,7 +191,6 @@ export default function QuickMissionsScreen() {
                         <View style={{flex:1}}>
                             <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
                                 <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                                {/* Badge de Sugestão */}
                                 {isSystem && (
                                     <View style={styles.systemBadge}>
                                         <Text style={styles.systemBadgeText}>SUGESTÃO</Text>
@@ -205,7 +199,6 @@ export default function QuickMissionsScreen() {
                             </View>
                             
                             <View style={{flexDirection: 'row', marginTop: 4, flexWrap:'wrap', gap: 5}}>
-                                {/* Badge Recompensa (Fundo Branco) */}
                                 <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: isCustom ? '#DB2777' : '#F59E0B' }]}>
                                     <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={10} color={isCustom ? '#DB2777' : '#B45309'} />
                                     <Text style={[styles.tagText, { color: isCustom ? '#DB2777' : '#B45309' }]}>
@@ -213,7 +206,6 @@ export default function QuickMissionsScreen() {
                                     </Text>
                                 </View>
                                 
-                                {/* Badge Dificuldade (Fundo Branco) */}
                                 {item.difficulty && (
                                     <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: diffData.color }]}>
                                         <Text style={[styles.tagText, { color: diffData.color }]}>{diffData.label}</Text>
@@ -223,7 +215,6 @@ export default function QuickMissionsScreen() {
                         </View>
                     </View>
 
-                    {/* Tesouro Chonko */}
                     {item.use_critical && (
                         <View style={[
                             styles.treasureBadge, 
@@ -262,7 +253,14 @@ export default function QuickMissionsScreen() {
             <View style={styles.container}>
                 <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
                 
-                <View style={[styles.topGreenArea, isSelectionMode && {backgroundColor: '#EF4444'}]}>
+                {/* --- HEADER COM GRADIENTE --- */}
+                <LinearGradient
+                    // Se estiver selecionando itens, muda para vermelho (exclusão)
+                    colors={isSelectionMode ? ['#991B1B', '#EF4444'] : ['#064E3B', '#10B981']} 
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.topGreenArea}
+                >
                     <View style={styles.header}>
                         {isSelectionMode ? (
                             <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
@@ -302,7 +300,8 @@ export default function QuickMissionsScreen() {
                             )}
                         </View>
                     )}
-                </View>
+                </LinearGradient>
+                {/* --------------------------- */}
 
                 <FlatList
                     data={combinedList}
@@ -330,8 +329,8 @@ export default function QuickMissionsScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F0F9FF' },
     
+    // --- ESTILO DO HEADER AJUSTADO ---
     topGreenArea: {
-        backgroundColor: COLORS.primary,
         paddingTop: 50,
         paddingBottom: 25,
         borderBottomLeftRadius: 30,
@@ -339,6 +338,8 @@ const styles = StyleSheet.create({
         zIndex: 10,
         shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
     },
+    // ---------------------------------
+    
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1, flex: 1, textAlign: 'center' },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
@@ -358,7 +359,6 @@ const styles = StyleSheet.create({
     cardWrapper: { marginBottom: 15, borderRadius: 24, position: 'relative' },
     cardShadow: { position: 'absolute', top: 6, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.05 },
     
-    // O estilo cardFront agora recebe cores via style inline no renderItem
     cardFront: { 
         borderRadius: 24, 
         borderWidth: 2, 

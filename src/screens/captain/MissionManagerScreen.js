@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTADO
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
@@ -20,13 +21,12 @@ import { COLORS, FONTS } from '../../styles/theme';
 
 const BACKGROUND_IMG = require('../../../assets/GenericBKG4.png');
 
-// --- CORES PASTÉIS AJUSTADAS ---
 const DIFFICULTY_CONFIG = {
-    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, // Verde Menta suave
-    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, // Laranja Pastel suave
-    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, // Vermelho Rosado suave
-    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, // Lilás suave
-    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  // Cinza gelo
+    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, 
+    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, 
+    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, 
+    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, 
+    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  
 };
 
 const STATUS_TABS = [
@@ -190,30 +190,25 @@ export default function MissionManagerScreen() {
       const isCompleted = item.status === 'completed';
       const isInactive = item.status === 'expired' || item.status === 'archived'; 
       
-      // 1. PEGA DADOS DA DIFICULDADE
       const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
       
-      // 2. DEFINE CORES
       let cardBg, iconColor, titleColor, borderColor;
 
       if (isCompleted) {
-          // Se completou, fica verdinho sucesso
           cardBg = '#F0FDF4'; 
           iconColor = '#16A34A'; 
           titleColor = '#14532D';
           borderColor = '#16A34A';
       } else if (isInactive) {
-          // Se inativo, fica cinza apagado
           cardBg = '#F9FAFB'; 
           iconColor = '#9CA3AF'; 
           titleColor = '#9CA3AF';
           borderColor = '#E5E7EB';
       } else {
-          // SE ATIVO: USA A COR PASTEL DA DIFICULDADE
           cardBg = diffData.bg; 
-          iconColor = diffData.color; // Ícone na cor da dificuldade
+          iconColor = diffData.color; 
           titleColor = '#1E293B'; 
-          borderColor = diffData.color; // Borda na cor da dificuldade
+          borderColor = diffData.color; 
       }
       
       return (
@@ -223,7 +218,6 @@ export default function MissionManagerScreen() {
             <View style={[styles.cardFront, { backgroundColor: cardBg, borderColor: borderColor }]}>
                 
                 <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
-                    {/* Ícone com fundo branco para destacar no pastel */}
                     <View style={[styles.iconBox, {backgroundColor: '#FFF', borderWidth: 1, borderColor: isInactive ? '#E5E7EB' : borderColor+'40' }]}>
                         <MaterialCommunityIcons name={isCompleted ? "check-decagram" : item.icon} size={28} color={iconColor} />
                     </View>
@@ -239,7 +233,6 @@ export default function MissionManagerScreen() {
                                 </Text>
                             </View>
 
-                            {/* Badge de Dificuldade com fundo branco para contraste */}
                             {item.difficulty && (
                                 <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: diffData.color }]}>
                                     <Text style={[styles.tagText, { color: diffData.color }]}>{diffData.label}</Text>
@@ -317,7 +310,13 @@ export default function MissionManagerScreen() {
     <ImageBackground source={BACKGROUND_IMG} style={styles.container} resizeMode="repeat">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <View style={styles.topGreenArea}>
+      {/* --- CABEÇALHO COM GRADIENTE --- */}
+      <LinearGradient
+          colors={['#064E3B', '#10B981']} // Verde Escuro para Verde Chonko
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.topGreenArea}
+      >
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                 <MaterialCommunityIcons name="arrow-left" size={24} color={'#ffffff'} />
@@ -333,7 +332,8 @@ export default function MissionManagerScreen() {
                  <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.primary} />
              </TouchableOpacity>
           </View>
-      </View>
+      </LinearGradient>
+      {/* -------------------------------- */}
 
       <View style={styles.contentContainer}>
           <BlurView intensity={115} tint="light" style={StyleSheet.absoluteFill} />
@@ -404,7 +404,7 @@ export default function MissionManagerScreen() {
         </TouchableOpacity>
       )}
 
-      {/* FILTROS E MODAIS MANTIDOS IGUAIS AO ANTERIOR */}
+      {/* FILTROS E MODAIS MANTIDOS IGUAIS */}
       <Modal visible={showFilterModal} transparent={true} animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
@@ -455,8 +455,10 @@ export default function MissionManagerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 }, 
+  
+  // --- ESTILO DO HEADER AJUSTADO ---
   topGreenArea: {
-      backgroundColor: '#34af61',
+      // backgroundColor: '#34af61', <--- REMOVIDO
       paddingTop: 50,
       paddingBottom: 30, 
       borderBottomLeftRadius: 35,
@@ -464,6 +466,7 @@ const styles = StyleSheet.create({
       zIndex: 10,
       shadowColor: "#000", shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.5, shadowRadius: 5, elevation: 8
   },
+  
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
   headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 0.5 },
   backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },

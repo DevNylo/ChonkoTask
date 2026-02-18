@@ -1,17 +1,18 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import * as Clipboard from 'expo-clipboard';
+import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTADO
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  StatusBar
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Share,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -216,8 +217,13 @@ export default function FamilySettingsScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* HEADER VERDE ESCURO */}
-      <View style={styles.topGreenArea}>
+      {/* --- HEADER COM GRADIENTE VERDE --- */}
+      <LinearGradient
+          colors={['#064E3B', '#10B981']} // Verde Escuro -> Verde Chonko
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.topGreenArea}
+      >
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                 <MaterialCommunityIcons name="arrow-left" size={24} color={'#FFFF'} />
@@ -225,7 +231,8 @@ export default function FamilySettingsScreen() {
             <Text style={styles.headerTitle}>GERENCIAR TROPA</Text>
             <View style={{width: 40}} /> 
           </View>
-      </View>
+      </LinearGradient>
+      {/* ---------------------------------- */}
 
       {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop:50}} /> : (
           <FlatList 
@@ -288,9 +295,8 @@ export default function FamilySettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
   
-  // --- HEADER VERDE ESCURO (COLORS.primary) ---
+  // --- ESTILO DO HEADER AJUSTADO ---
   topGreenArea: {
-      backgroundColor: COLORS.primary, // #064E3B
       paddingTop: 50,
       paddingBottom: 25,
       borderBottomLeftRadius: 35, // Suave
@@ -298,7 +304,7 @@ const styles = StyleSheet.create({
       zIndex: 10,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFFFFF', letterSpacing: 1 }, // Cor ajustada para branco
   backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 }, // Suave
 
   content: { padding: 20, paddingBottom: 50 },

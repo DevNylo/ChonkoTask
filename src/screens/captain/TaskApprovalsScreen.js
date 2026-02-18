@@ -1,20 +1,21 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import { BlurView } from 'expo-blur'; // <--- IMPORTANTE
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTADO
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  ImageBackground, // <--- IMPORTANTE
-  Modal,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    ImageBackground,
+    Modal,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
@@ -156,7 +157,6 @@ export default function TaskApprovalsScreen() {
     return (
         <View style={styles.cardWrapper}>
             <View style={styles.cardShadow} />
-            {/* Card com fundo levemente transparente */}
             <View style={[styles.cardFront, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 
                 <View style={styles.cardHeader}>
@@ -238,7 +238,13 @@ export default function TaskApprovalsScreen() {
     <ImageBackground source={BACKGROUND_IMG} style={styles.container} resizeMode="repeat">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <View style={styles.topGreenArea}>
+      {/* --- HEADER COM GRADIENTE VERDE --- */}
+      <LinearGradient
+          colors={['#064E3B', '#10B981']} // Verde Escuro -> Verde Chonko
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.topGreenArea}
+      >
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                 <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.primary} />
@@ -246,7 +252,8 @@ export default function TaskApprovalsScreen() {
             <Text style={styles.headerTitle}>VALIDAR MISSÕES</Text>
             <View style={{width: 40}} /> 
           </View>
-      </View>
+      </LinearGradient>
+      {/* ---------------------------------- */}
 
       {/* --- ÁREA DE CONTEÚDO COM VIDRO FOSCO --- */}
       <View style={styles.glassContainer}>
@@ -314,8 +321,8 @@ export default function TaskApprovalsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 }, 
   
+  // --- HEADER GRADIENTE ---
   topGreenArea: {
-      backgroundColor: COLORS.primary,
       paddingTop: 50,
       paddingBottom: 30, // Espaço extra para o vidro
       borderBottomLeftRadius: 35,
@@ -323,6 +330,7 @@ const styles = StyleSheet.create({
       zIndex: 10,
       shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
   },
+  
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
   headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
   backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },

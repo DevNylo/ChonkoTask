@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTADO
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
@@ -111,8 +112,13 @@ export default function MemberRequestsScreen({ route, navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* HEADER VERDE ESCURO */}
-      <View style={styles.topGreenArea}>
+      {/* --- HEADER COM GRADIENTE VERDE --- */}
+      <LinearGradient
+          colors={['#064E3B', '#10B981']} // Verde Escuro -> Verde Chonko
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.topGreenArea}
+      >
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                 <MaterialCommunityIcons name="arrow-left" size={24} color={'#FFFF'} />
@@ -120,7 +126,8 @@ export default function MemberRequestsScreen({ route, navigation }) {
             <Text style={styles.headerTitle}>SOLICITAÇÕES</Text>
             <View style={{width: 40}} /> 
           </View>
-      </View>
+      </LinearGradient>
+      {/* ---------------------------------- */}
 
       <FlatList 
         data={requests}
@@ -146,29 +153,29 @@ export default function MemberRequestsScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
   
-  // --- HEADER VERDE ESCURO ---
+  // --- HEADER VERDE ESCURO (COM GRADIENTE) ---
   topGreenArea: {
-      backgroundColor: 'COLORS.primary',
+      // backgroundColor removido para o gradiente funcionar
       paddingTop: 50,
       paddingBottom: 25,
-      borderBottomLeftRadius: 35, // Suave
-      borderBottomRightRadius: 35, // Suave
+      borderBottomLeftRadius: 35,
+      borderBottomRightRadius: 35,
       zIndex: 10,
       marginBottom: 10,
       shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#D1FAE5', letterSpacing: 1 },
+  headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 }, // Cor ajustada para branco puro
   backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
 
-  // --- CARD (Bordas Suaves) ---
+  // --- CARD ---
   cardWrapper: { 
       marginBottom: 15, borderRadius: 24, 
       shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 
   },
   cardFront: { 
       backgroundColor: '#FFF', borderRadius: 24, 
-      borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', // Borda Fina Cinza
+      borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', 
       padding: 16 
   },
   

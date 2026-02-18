@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState } from 'react';
 import {
     Alert,
@@ -30,15 +31,14 @@ export default function CaptainHomeScreen() {
   const [chonkoGems, setChonkoGems] = useState(0); 
   const [refreshing, setRefreshing] = useState(false);
 
-  // CONFIGURAÇÃO DOS CARDS DO DASHBOARD
   const DASHBOARD_ITEMS = [
     { 
         id: 'missions', 
         title: 'MISSÕES', 
         subtitle: 'Gerenciar Tarefas',
         icon: 'clipboard-list-outline', 
-        bg: '#44c975',      
-        dark: '#14532D',    
+        gradient: ['#F0FDF4', '#86EFAC'], 
+        dark: '#15803D', 
         route: 'MissionManager' 
     },
     { 
@@ -46,8 +46,8 @@ export default function CaptainHomeScreen() {
         title: 'LOJA', 
         subtitle: 'Recompensas',
         icon: 'storefront-outline', 
-        bg: '#9c84ff',      
-        dark: '#4C1D95',    
+        gradient: ['#F5F3FF', '#C4B5FD'], 
+        dark: '#6D28D9', 
         route: 'RewardShop' 
     },
     { 
@@ -55,8 +55,8 @@ export default function CaptainHomeScreen() {
         title: 'PASSE', 
         subtitle: 'Temporada 1',
         icon: 'ticket-percent-outline', 
-        bg: '#FDE047',      
-        dark: '#713F12',    
+        gradient: ['#FFFBEB', '#FCD34D'], 
+        dark: '#B45309', 
         route: 'SeasonPass' 
     },
     { 
@@ -64,8 +64,8 @@ export default function CaptainHomeScreen() {
         title: 'DICAS', 
         subtitle: 'Tutoriais',
         icon: 'school-outline', 
-        bg: '#93C5FD',      
-        dark: '#1E3A8A',    
+        gradient: ['#EFF6FF', '#93C5FD'], 
+        dark: '#1E40AF', 
         route: 'Tutorials' 
     },
     { 
@@ -73,8 +73,8 @@ export default function CaptainHomeScreen() {
         title: 'GEMS', 
         subtitle: 'Comprar',
         icon: 'diamond-stone', 
-        bg: '#F9A8D4',      
-        dark: '#831843',    
+        gradient: ['#FDF2F8', '#F9A8D4'], 
+        dark: '#BE185D', 
         route: 'PremiumStore' 
     },
   ];
@@ -138,8 +138,14 @@ export default function CaptainHomeScreen() {
   const renderListHeader = () => (
       <View style={styles.listHeaderWrapper}>
           
-          {/* TOPO VERDE ESCURO */}
-          <View style={styles.topGreenArea}>
+          {/* --- TOPO COM GRADIENTE VERDE (ALTERADO AQUI) --- */}
+          <LinearGradient
+              // Usei cores exemplo. Substitua por COLORS.primaryDark e COLORS.primary se tiver
+              colors={['#064E3B', '#10B981']} // Verde Escuro -> Verde Esmeralda
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.topGreenArea}
+          >
               <View style={styles.headerRow}>
                   <View style={styles.headerLeft}>
                       <Text style={styles.qgLabel}>PAINEL DO ADMIN</Text>
@@ -147,12 +153,10 @@ export default function CaptainHomeScreen() {
                   </View>
                   
                   <View style={styles.headerRight}>
-                      {/* 1. Trocar Perfil */}
                       <TouchableOpacity onPress={handleDevSwitchProfile} style={styles.iconBtn}>
                           <MaterialCommunityIcons name="face-man-profile" size={24} color="#FFF" />
                       </TouchableOpacity>
 
-                      {/* 2. Ajustes (Movido para cá) */}
                       <TouchableOpacity 
                         style={styles.iconBtn}
                         onPress={() => navigation.navigate('FamilySettings', { familyId: profile.family_id, currentProfileId: profile.id })}
@@ -160,7 +164,6 @@ export default function CaptainHomeScreen() {
                           <MaterialCommunityIcons name="cog-outline" size={24} color="#FFF" />
                       </TouchableOpacity>
                       
-                      {/* 3. Notificações */}
                       <TouchableOpacity 
                           style={styles.iconBtn} 
                           onPress={() => pendingAttempts > 0 ? navigation.navigate('TaskApprovals', { familyId: profile.family_id }) : Alert.alert("Tudo limpo!", "Sem pendências.")}
@@ -174,9 +177,9 @@ export default function CaptainHomeScreen() {
                       </TouchableOpacity>
                   </View>
               </View>
-          </View>
+          </LinearGradient>
+          {/* -------------------------------------------------- */}
 
-          {/* BANNER DE STATUS */}
           <View style={styles.statsBannerWrapper}>
               <View style={styles.statsBannerShadow} />
               <TouchableOpacity 
@@ -223,10 +226,18 @@ export default function CaptainHomeScreen() {
         onPress={() => handleCardPress(item)}
     >
         <View style={[styles.cardShadow, { backgroundColor: item.dark }]} />
-        <View style={[styles.cardFront, { backgroundColor: item.bg, borderColor: item.dark }]}>
-            <MaterialCommunityIcons name={item.icon} size={42} color={item.dark} style={{ opacity: 0.9, marginBottom: 5 }} />
-            <Text style={[styles.cardTitle, { color: item.dark }]}>{item.title}</Text>
-            <Text style={[styles.cardSubtitle, { color: item.dark }]}>{item.subtitle}</Text>
+        <View style={[styles.cardFront, { borderColor: item.dark }]}>
+            <LinearGradient
+                colors={item.gradient}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            />
+            <View style={styles.cardContent}>
+                <MaterialCommunityIcons name={item.icon} size={42} color={item.dark} style={{ marginBottom: 5 }} />
+                <Text style={[styles.cardTitle, { color: item.dark }]}>{item.title}</Text>
+                <Text style={[styles.cardSubtitle, { color: item.dark }]}>{item.subtitle}</Text>
+            </View>
         </View>
     </TouchableOpacity>
   );
@@ -249,31 +260,25 @@ export default function CaptainHomeScreen() {
           }
       />
 
-      {/* DOCK INFERIOR ATUALIZADO */}
       <View style={styles.dockContainer}>
         <View style={styles.dockBar}>
-            {/* 1. Início */}
             <TouchableOpacity style={styles.dockBtn}>
                 <MaterialCommunityIcons name="home" size={28} color={COLORS.secondary} />
                 <Text style={[styles.dockLabel, {color: COLORS.secondary}]}>Início</Text>
             </TouchableOpacity>
             
-            {/* 2. Equipe */}
             <TouchableOpacity style={styles.dockBtn} onPress={() => navigation.navigate('FamilySettings', { familyId: profile.family_id, currentProfileId: profile.id })}>
                 <MaterialCommunityIcons name="account-group-outline" size={28} color="#64748B" />
                 <Text style={styles.dockLabel}>Equipe</Text>
             </TouchableOpacity>
 
-            {/* Espaço Central */}
             <View style={{ width: 60 }} /> 
 
-            {/* 3. Relatórios */}
             <TouchableOpacity style={styles.dockBtn} onPress={() => navigation.navigate('Reports', { familyId: profile.family_id })}>
                 <MaterialCommunityIcons name="chart-bar" size={28} color="#64748B" />
                 <Text style={styles.dockLabel}>Relatórios</Text>
             </TouchableOpacity>
 
-            {/* 4. Ranking (No lugar de Ajustes) */}
             <TouchableOpacity style={styles.dockBtn} onPress={() => navigation.navigate('Ranking', { familyId: profile.family_id })}>
                 <MaterialCommunityIcons name="podium" size={28} color="#64748B" />
                 <Text style={styles.dockLabel}>Ranking</Text>
@@ -298,7 +303,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
   
   topGreenArea: {
-      backgroundColor: COLORS.primary, 
+      // backgroundColor: COLORS.primary,  <--- REMOVIDO (O Gradiente assume a cor)
       paddingTop: 60,
       paddingBottom: 50,
       borderBottomLeftRadius: 35,
@@ -355,18 +360,27 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: '60%', backgroundColor: COLORS.surfaceAlt },
 
   listColumns: { justifyContent: 'space-between', paddingHorizontal: 20 },
+  
   cardWrapper: { width: CARD_WIDTH, height: 150, marginBottom: 20, position: 'relative' },
   
   cardShadow: { 
-      position: 'absolute', top: 6, left: 0, 
+      position: 'absolute', top: 5, left: 0, 
       width: '100%', height: '100%', 
-      borderRadius: 24, opacity: 0.25 
+      borderRadius: 24, opacity: 0.2 
   },
   
   cardFront: { 
-      flex: 1, alignItems: 'center', justifyContent: 'center', 
-      padding: 15, borderRadius: 24, 
-      borderWidth: 1, 
+      flex: 1, 
+      borderRadius: 24, 
+      borderWidth: 1.5,
+      overflow: 'hidden',
+  },
+
+  cardContent: {
+      flex: 1, 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      padding: 10
   },
   
   cardTitle: { fontFamily: FONTS.bold, fontSize: 15, textAlign: 'center', marginTop: 8 },

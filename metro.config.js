@@ -1,17 +1,35 @@
-const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path'); // Importante para achar o caminho certo
+const { getDefaultConfig } = require("expo/metro-config");
+const path = require("path");
 
-const config = getDefaultConfig(__dirname);
+module.exports = (() => {
+  const config = getDefaultConfig(__dirname);
 
-// 1. Configuração dos Assets 3D (Mantive o que você já tinha)
-config.resolver.assetExts.push('glb', 'gltf');
+  const { transformer, resolver } = config;
 
-// 2. A CORREÇÃO DO CONFLITO (Single Source of Truth)
-// Isso diz pro compilador: "Sempre que alguém pedir 'three', 
-// pegue da pasta principal em node_modules/three"
-config.resolver.extraNodeModules = {
-  ...config.resolver.extraNodeModules,
-  'three': path.resolve(__dirname, 'node_modules/three'),
-};
+  // 1. CONFIGURAÇÃO DO SVG TRANSFORMER
+  // Isso permite importar .svg como componente: <Icon />
+  config.transformer = {
+    ...transformer,
+    babelTransformerPath: require.resolve("react-native-svg-transformer"),
+  };
 
-module.exports = config;
+  // 2. CONFIGURAÇÃO DE RESOLVER (EXTENSÕES)
+  
+  // A. Remove 'svg' da lista de assets (para não ser tratado como arquivo estático)
+  config.resolver.assetExts = resolver.assetExts.filter((ext) => ext !== "svg");
+
+  // B. Adiciona 'svg' na lista de código fonte (source)
+  config.resolver.sourceExts = [...resolver.sourceExts, "svg"];
+
+  // C. Adiciona suporte aos arquivos 3D (Mantendo o que você já tinha)
+  config.resolver.assetExts.push('glb', 'gltf');
+
+  // 3. A CORREÇÃO DO CONFLITO THREE.JS (Mantendo o que você já tinha)
+  // Garante uma única instância do Three.js para evitar crash de contexto
+  config.resolver.extraNodeModules = {
+    ...resolver.extraNodeModules,
+    'three': path.resolve(__dirname, 'node_modules/three'),
+  };
+
+  return config;
+})();
