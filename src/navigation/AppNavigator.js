@@ -13,6 +13,7 @@ import RegisterCaptainScreen from '../screens/auth/RegisterCaptainScreen';
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
 
 // --- TELAS GERAIS ---
+import OnboardingScreen from '../screens/OnboardingScreen'; // <-- JÁ ESTAVA AQUI
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import MissionDetailScreen from '../screens/recruit/MissionDetailScreen';
 
@@ -199,6 +200,10 @@ export default function AppNavigator() {
           
         ) : (
           <Stack.Group>
+            {/* AQUI ENTRA A TELA DE ONBOARDING */}
+            {/* Ela fica antes da WelcomeScreen */}
+            <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} /> 
+            
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="RegisterCaptain" component={RegisterCaptainScreen} />

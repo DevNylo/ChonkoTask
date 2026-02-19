@@ -18,25 +18,47 @@ import {
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
 
-import ChonkoCoinSvg from '../../../assets/icons/ChonkoCoins.svg';
 import Chonko3D from '../../components/Chonko3D.js';
+import ChonkoCoinIcon from '../../components/icons/ChonkoCoinIcon.js';
 
 const { width } = Dimensions.get('window');
 
-const AnimatedCoin = ({ size = 24, style }) => {
+// COMPONENTE MOEDA COM CORREÇÃO DE ESTILO E BRILHO REDUZIDO
+const AnimatedCoin = ({ size = 24, style = {} }) => { // style default como objeto vazio
     const glowOpacity = useRef(new Animated.Value(0.1)).current;
+
     useEffect(() => {
         Animated.loop(
             Animated.sequence([
-                Animated.timing(glowOpacity, { toValue: .5, duration: 1000, useNativeDriver: true }),
-                Animated.timing(glowOpacity, { toValue: 0.2, duration: 1000, useNativeDriver: true })
+                Animated.timing(glowOpacity, {
+                    toValue: .5,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(glowOpacity, {
+                    toValue: 0.2,
+                    duration: 1000,
+                    useNativeDriver: true,
+                })
             ])
         ).start();
     }, []);
+
     return (
         <View style={[styles.coinContainer, { width: size, height: size }, style]}>
-            <Animated.View style={[styles.coinGlow, { width: size * 1.5, height: size * 1.5, opacity: glowOpacity }]} />
-            <View style={styles.coinImageFront}><ChonkoCoinSvg width={size} height={size} /></View>
+            <Animated.View 
+                style={[
+                    styles.coinGlow, 
+                    { 
+                        width: size * 1.1, // Brilho reduzido conforme pedido
+                        height: size * 1.1,
+                        opacity: glowOpacity 
+                    }
+                ]} 
+            />
+            <View style={styles.coinImageFront}>
+                <ChonkoCoinIcon width={size} height={size} />
+            </View>
         </View>
     );
 };
@@ -52,6 +74,7 @@ const DIFFICULTY_CONFIG = {
 export default function RecruitHomeScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  
   const { profile: initialProfile } = route.params || {};
   const profileId = initialProfile?.id;
 
@@ -68,69 +91,125 @@ export default function RecruitHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('todo'); 
 
-  useFocusEffect(useCallback(() => { if (profileId) fetchFreshData(); }, [profileId]));
+  useFocusEffect(
+    useCallback(() => {
+      if (profileId) fetchFreshData();
+    }, [profileId])
+  );
 
   useEffect(() => {
       if (!profileId) return;
       const channel = supabase.channel('recruit_dashboard')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profileId}` }, 
-            (payload) => { setCurrentBalance(payload.new.balance); setCurrentExperience(payload.new.experience || 0); })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, () => fetchFreshData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'mission_attempts', filter: `profile_id=eq.${profileId}` }, () => fetchFreshData())
+            (payload) => {
+                setCurrentBalance(payload.new.balance);
+                setCurrentExperience(payload.new.experience || 0); 
+            })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, 
+            () => fetchFreshData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'mission_attempts', filter: `profile_id=eq.${profileId}` }, 
+            () => fetchFreshData())
         .subscribe();
       return () => { supabase.removeChannel(channel); };
   }, [profileId]);
 
   const fetchFreshData = async () => {
     try {
-        const { data: freshProfile } = await supabase.from('profiles').select('*').eq('id', profileId).single();
+        const { data: freshProfile } = await supabase
+            .from('profiles').select('*').eq('id', profileId).single();
+
         if (freshProfile) {
             setProfileName(freshProfile.name);
             setCurrentBalance(freshProfile.balance);
             setCurrentExperience(freshProfile.experience || 0); 
             setFamilyId(freshProfile.family_id);
         }
-        const { data: activeMissions } = await supabase.from('missions').select('*').eq('family_id', freshProfile?.family_id || familyId).eq('status', 'active');
+
+        const { data: activeMissions, error: mError } = await supabase
+            .from('missions').select('*')
+            .eq('family_id', freshProfile?.family_id || familyId)
+            .eq('status', 'active');
+
+        if (mError) throw mError;
+
         const todayStr = new Date().toISOString().split('T')[0]; 
-        const { data: attempts } = await supabase.from('mission_attempts').select('mission_id, status, missions(*)').eq('profile_id', profileId).gte('created_at', todayStr);
+        const { data: attempts } = await supabase
+            .from('mission_attempts')
+            .select('mission_id, status, missions(*)')
+            .eq('profile_id', profileId).gte('created_at', todayStr);
 
         const attemptsMap = new Map();
         const attemptedMissions = [];
-        if (attempts) { attempts.forEach(a => { attemptsMap.set(a.mission_id, a.status); if (a.missions) attemptedMissions.push(a.missions); }); }
+
+        if (attempts) {
+            attempts.forEach(a => {
+                attemptsMap.set(a.mission_id, a.status);
+                if (a.missions) attemptedMissions.push(a.missions);
+            });
+        }
 
         const allMissionsMap = new Map();
         activeMissions?.forEach(m => allMissionsMap.set(m.id, m));
         attemptedMissions.forEach(m => allMissionsMap.set(m.id, m));
+
         processMissions(Array.from(allMissionsMap.values()), attemptsMap, profileId);
-    } catch (error) { console.log("Erro no refresh:", error.message); } finally { setLoading(false); setRefreshing(false); }
+
+    } catch (error) {
+        console.log("Erro no refresh:", error.message);
+    } finally {
+        setLoading(false);
+        setRefreshing(false);
+    }
   };
 
   const processMissions = (missions, attemptsMap, myId) => {
       const today = new Date();
       const currentDayIndex = today.getDay(); 
       const nowTime = today.getHours() * 60 + today.getMinutes();
-      const listTodo = [], listMissed = [], listCompleted = [];
+
+      const listTodo = [];
+      const listMissed = [];
+      const listCompleted = [];
 
       missions.forEach(mission => {
           if (mission.assigned_to && mission.assigned_to !== myId) return;
+
           const attemptStatus = attemptsMap.get(mission.id);
-          if (attemptStatus === 'pending' || attemptStatus === 'approved') { listCompleted.push(mission); return; }
+
+          if (attemptStatus === 'pending' || attemptStatus === 'approved') {
+              listCompleted.push(mission);
+              return; 
+          }
+
           if (mission.status !== 'active') return;
 
           if (mission.is_recurring) {
-              if (mission.recurrence_days && !mission.recurrence_days.map(Number).includes(currentDayIndex)) return;
+              if (mission.recurrence_days) {
+                  const days = mission.recurrence_days.map(Number);
+                  if (!days.includes(currentDayIndex)) return;
+              }
           } else {
               if (mission.scheduled_date) {
-                  const schedDate = new Date(mission.scheduled_date + 'T00:00:00'); schedDate.setHours(0,0,0,0);
+                  const schedDate = new Date(mission.scheduled_date + 'T00:00:00');
+                  schedDate.setHours(0,0,0,0);
                   const todayZero = new Date(); todayZero.setHours(0,0,0,0);
                   if (schedDate.getTime() !== todayZero.getTime()) return; 
               }
           }
+
           let isExpired = false;
-          if (mission.deadline) { const [h, m] = mission.deadline.split(':').map(Number); if (nowTime > (h * 60 + m)) isExpired = true; }
-          if (isExpired) listMissed.push(mission); else listTodo.push(mission);
+          if (mission.deadline) {
+              const [h, m] = mission.deadline.split(':').map(Number);
+              if (nowTime > (h * 60 + m)) isExpired = true;
+          }
+
+          if (isExpired) listMissed.push(mission);
+          else listTodo.push(mission);
       });
-      setTodoMissions(listTodo); setMissedMissions(listMissed); setCompletedMissions(listCompleted); 
+
+      setTodoMissions(listTodo);
+      setMissedMissions(listMissed);
+      setCompletedMissions(listCompleted); 
   };
 
   const calculateLevelInfo = (totalXp) => {
@@ -138,9 +217,22 @@ export default function RecruitHomeScreen() {
       const level = Math.floor(totalXp / XP_PER_LEVEL) + 1;
       const currentLevelXp = totalXp % XP_PER_LEVEL;
       const xpProgressPercentage = (currentLevelXp / XP_PER_LEVEL) * 100;
+
       return { level, currentLevelXp, XP_PER_LEVEL, xpProgressPercentage };
   };
+
   const { level, currentLevelXp, XP_PER_LEVEL, xpProgressPercentage } = calculateLevelInfo(currentExperience);
+
+  const handleSwitchProfile = () => {
+      Alert.alert(
+          "Menu de Acesso", "O que deseja fazer?",
+          [
+              { text: "Cancelar", style: "cancel" },
+              { text: "Sair da Conta", style: 'destructive', onPress: async () => { await supabase.auth.signOut(); } },
+              { text: "Trocar Perfil", onPress: () => { try { navigation.navigate('RoleSelection'); } catch (e) { Alert.alert("Aviso", "Você só possui este perfil. Para trocar, é necessário sair da conta.", [{ text: "Ok" }, { text: "Sair Agora", onPress: () => supabase.auth.signOut(), style: 'destructive' }]); } } }
+          ]
+      );
+  };
 
   const renderMissionCard = ({ item, tabType }) => {
     const isCustom = item.reward_type === 'custom';
@@ -187,10 +279,6 @@ export default function RecruitHomeScreen() {
     );
   };
 
-  const handleDevSwitchProfile = async () => {
-      try { if (navigation.canGoBack()) navigation.goBack(); else navigation.navigate('RoleSelection'); } catch (e) { await supabase.auth.signOut(); }
-  };
-
   let currentListData = [];
   let emptyIcon = "shield-star-outline";
   let emptyTextTitle = "Tudo limpo!";
@@ -203,24 +291,39 @@ export default function RecruitHomeScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <TouchableOpacity style={styles.devButton} onPress={handleDevSwitchProfile} activeOpacity={0.8}><MaterialCommunityIcons name="account-switch" size={20} color="#FFF" /></TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={styles.devButton} 
+        onPress={handleSwitchProfile} 
+        activeOpacity={0.8}
+        hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+      >
+          <MaterialCommunityIcons name="account-switch" size={20} color="#FFF" />
+      </TouchableOpacity>
       
       <View style={styles.chonkoStage}>
           <ImageBackground source={require('../../../assets/GenericBKG2.png')} style={styles.skyBackground} resizeMode="cover">
-              <View style={styles.modelPlaceholder}><Chonko3D /></View>
+              <View style={styles.modelPlaceholder}>
+                  <Chonko3D />
+              </View>
           </ImageBackground>
           <View style={styles.hudContainer}>
               <View style={styles.profileBadge}>
                   <View style={styles.levelCircle}><Text style={styles.levelNumber}>{level}</Text></View>
                   <View style={styles.profileInfoArea}>
                       <Text style={styles.playerName}>{profileName}</Text>
-                      <View style={styles.xpBarContainer}><View style={[styles.xpBarFill, { width: `${xpProgressPercentage}%` }]} /><Text style={styles.xpText}>{currentLevelXp}/{XP_PER_LEVEL} XP</Text></View>
+                      <View style={styles.xpBarContainer}>
+                          <View style={[styles.xpBarFill, { width: `${xpProgressPercentage}%` }]} />
+                          <Text style={styles.xpText}>{currentLevelXp}/{XP_PER_LEVEL} XP</Text>
+                      </View>
                   </View>
               </View>
               <TouchableOpacity style={styles.coinBadge} onPress={fetchFreshData}>
                   <AnimatedCoin size={24} style={{ marginRight: 8 }} />
                   <Text style={styles.coinText}>{currentBalance}</Text>
-                  <View style={styles.plusBtn}><MaterialCommunityIcons name="plus" size={14} color="#fff" /></View>
+                  <View style={styles.plusBtn}>
+                      <MaterialCommunityIcons name="plus" size={14} color="#fff" />
+                  </View>
               </TouchableOpacity>
           </View>
       </View>
@@ -241,11 +344,16 @@ export default function RecruitHomeScreen() {
                   contentContainerStyle={{ paddingBottom: 160, paddingHorizontal: 5, paddingTop: 5 }}
                   showsVerticalScrollIndicator={false}
                   refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchFreshData();}} />}
-                  ListEmptyComponent={<View style={styles.emptyContainer}><MaterialCommunityIcons name={emptyIcon} size={50} color="#CBD5E1" /><Text style={styles.emptyText}>{emptyTextTitle}</Text><Text style={styles.emptySubText}>{emptyTextSub}</Text></View>}
+                  ListEmptyComponent={
+                      <View style={styles.emptyContainer}>
+                          <MaterialCommunityIcons name={emptyIcon} size={50} color="#CBD5E1" />
+                          <Text style={styles.emptyText}>{emptyTextTitle}</Text>
+                          <Text style={styles.emptySubText}>{emptyTextSub}</Text>
+                      </View>
+                  }
               />
           )}
       </View>
-      {/* SEM BARRA DE NAVEGAÇÃO HARDCODED AQUI */}
     </View>
   );
 }
@@ -255,7 +363,7 @@ const styles = StyleSheet.create({
   coinImageFront: { zIndex: 2 },
   coinGlow: { position: 'absolute', backgroundColor: '#FFD700', borderRadius: 50, zIndex: 1, shadowColor: "#FFD700", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10, elevation: 10 },
   container: { flex: 1, backgroundColor: '#F0F9FF' }, 
-  devButton: { position: 'absolute', top: 100, right: 20, backgroundColor: '#EF4444', padding: 10, borderRadius: 25, zIndex: 999, borderWidth: 2, borderColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 6 },
+  devButton: { position: 'absolute', top: 120, right: 20, backgroundColor: '#EF4444', padding: 10, borderRadius: 25, zIndex: 999, borderWidth: 2, borderColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 6 },
   chonkoStage: { height: '45%', position: 'relative' },
   skyBackground: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   modelPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 20 },

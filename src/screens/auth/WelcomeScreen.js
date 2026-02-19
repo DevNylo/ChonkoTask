@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Dimensions, Image, ImageBackground, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, ImageBackground, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Importa o tema OFICIAL
 import { COLORS, FONTS } from '../../styles/theme';
@@ -28,48 +28,52 @@ export default function WelcomeScreen() {
         <View style={{ width: '100%', marginBottom: 25 }}>
             <TouchableOpacity 
               style={styles.cardWrapper}
-              activeOpacity={0.9}
+              activeOpacity={0.8}
               onPress={() => navigation.navigate('RegisterCaptain')}
             >
-              {/* Sombra Suave Saltada */}
+              {/* Sombra Estilo Bubbly (Off-set sólido) */}
               <View style={styles.cardShadow} />
               
-              <View style={styles.cardFront}>
-                <View style={styles.iconWrapper}>
-                   <Image 
-                     source={require('../../../assets/icons/familly-icon1.png')} 
-                     style={styles.customIcon} resizeMode="contain"
-                   />
+              <View style={[styles.cardFront, { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' }]}>
+                <View style={[styles.iconCircle, { backgroundColor: '#FFF', borderColor: '#FCD34D' }]}>
+                   <MaterialCommunityIcons name="crown" size={32} color="#F59E0B" />
                 </View>
+                
                 <View style={styles.cardTextContainer}>
-                  <Text style={styles.cardTitle}>Criar Família</Text>
-                  <Text style={styles.cardDesc}>Vou criar e gerenciar missões.</Text>
+                  <Text style={[styles.cardTitle, { color: '#92400E' }]}>Criar Família</Text>
+                  <Text style={[styles.cardDesc, { color: '#B45309' }]}>Vou criar e gerenciar missões.</Text>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} />
+                
+                <View style={[styles.chevronCircle, { backgroundColor: '#FEF3C7' }]}>
+                    <MaterialCommunityIcons name="chevron-right" size={24} color="#D97706" />
+                </View>
               </View>
             </TouchableOpacity>
         </View>
 
-        {/* OPÇÃO 2: RECRUTA */}
+        {/* OPÇÃO 2: RECRUTA / AVENTUREIRO */}
         <View style={{ width: '100%' }}>
             <TouchableOpacity 
               style={styles.cardWrapper}
-              activeOpacity={0.9}
+              activeOpacity={0.8}
               onPress={() => navigation.navigate('JoinFamily')} 
             >
               <View style={styles.cardShadow} />
-              <View style={styles.cardFront}>
-                <View style={styles.iconWrapper}>
-                   <Image 
-                     source={require('../../../assets/icons/rookie-icon1.png')} 
-                     style={styles.customIcon} resizeMode="contain"
-                   />
+              
+              <View style={[styles.cardFront, { backgroundColor: '#F0FDF4', borderColor: '#6EE7B7' }]}>
+                <View style={[styles.iconCircle, { backgroundColor: '#FFF', borderColor: '#6EE7B7' }]}>
+                   {/* Ícone de foguete combinando com "Aventureiro/Missões" */}
+                   <MaterialCommunityIcons name="rocket-launch" size={30} color="#10B981" />
                 </View>
+                
                 <View style={styles.cardTextContainer}>
-                  <Text style={styles.cardTitle}>Entrar na Equipe</Text>
-                  <Text style={styles.cardDesc}>Vou cumprir missões e ganhar prêmios.</Text>
+                  <Text style={[styles.cardTitle, { color: '#065F46' }]}>Entrar na Equipe</Text>
+                  <Text style={[styles.cardDesc, { color: '#059669' }]}>Vou cumprir missões e ganhar prêmios.</Text>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} />
+                
+                <View style={[styles.chevronCircle, { backgroundColor: '#D1FAE5' }]}>
+                    <MaterialCommunityIcons name="chevron-right" size={24} color="#059669" />
+                </View>
               </View>
             </TouchableOpacity>
         </View>
@@ -93,70 +97,93 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  headerSpacer: { height: height * 0.40 }, 
+  headerSpacer: { height: height * 0.35 }, 
   
   contentContainer: {
     flex: 1, paddingHorizontal: 25, justifyContent: 'flex-start', paddingTop: 20,
   },
   
   questionText: {
-    fontSize: 28, fontFamily: FONTS.bold, color: COLORS.primary, // Verde Escuro
-    marginBottom: 30, textAlign: 'left', marginLeft: 5, letterSpacing: 0.5
+    fontSize: 32, 
+    fontFamily: FONTS.bold, 
+    color: '#064E3B', // Verde bem escuro para contraste
+    marginBottom: 25, 
+    textAlign: 'left', 
+    marginLeft: 5, 
+    letterSpacing: 0.5
   },
   
-  // --- CARDS (Soft Premium) ---
+  // --- CARDS (Estilo Chonko Premium) ---
   cardWrapper: { 
       position: 'relative', 
-      height: 100,
+      height: 110,
       width: '100%',
   },
   
-  // Sombra mais suave e difusa
+  // Sombra sólida e levemente deslocada (estilo jogo)
   cardShadow: {
       position: 'absolute', 
       top: 6, 
-      left: 6, 
+      left: 0, 
       width: '100%', 
       height: '100%', 
-      backgroundColor: COLORS.shadow, 
-      borderRadius: 24,
-      opacity: 0.2 // Opacidade reduzida para suavidade
+      backgroundColor: 'rgba(0,0,0,0.1)', 
+      borderRadius: 28,
   },
   
   cardFront: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, 
-    paddingHorizontal: 20, borderRadius: 24, 
-    // Borda Fina (1px) e Sutil
-    borderWidth: 1, 
-    borderColor: COLORS.primary, 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 16, 
+    borderRadius: 28, 
+    borderWidth: 3, // Borda grossa
   },
   
-  iconWrapper: { 
-      marginRight: 15, justifyContent: 'center', alignItems: 'center',
+  // Círculo customizado para o ícone
+  iconCircle: { 
+      width: 60, 
+      height: 60, 
+      borderRadius: 30, 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      borderWidth: 2,
+      marginRight: 15,
+      shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, elevation: 2
   },
   
-  customIcon: { width: 56, height: 56 },
+  cardTextContainer: { flex: 1, justifyContent: 'center' },
   
-  cardTextContainer: { flex: 1 },
+  cardTitle: { fontSize: 20, fontFamily: FONTS.bold, marginBottom: 4 },
   
-  // Títulos em Verde Escuro
-  cardTitle: { fontSize: 18, fontFamily: FONTS.bold, marginBottom: 4, color: COLORS.primary },
+  cardDesc: { fontSize: 13, opacity: 0.85, fontFamily: FONTS.regular, lineHeight: 18, paddingRight: 10 },
   
-  // Descrição
-  cardDesc: { fontSize: 13, color: COLORS.primary, opacity: 0.7, fontFamily: FONTS.regular },
-  
+  // Círculo sutil atrás da setinha
+  chevronCircle: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
+
   // --- FOOTER ---
-  footer: { paddingBottom: 50, alignItems: 'center', height: 120, justifyContent: 'center' },
+  footer: { paddingBottom: Platform.OS === 'ios' ? 50 : 30, alignItems: 'center', height: 120, justifyContent: 'center' },
   
   ghostButton: {
-    paddingVertical: 14, paddingHorizontal: 30, borderRadius: 30, 
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-    // Borda Fina
-    borderWidth: 1, borderColor: COLORS.primary,
-    shadowColor: COLORS.shadow, shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3
+    paddingVertical: 16, 
+    paddingHorizontal: 35, 
+    borderRadius: 30, 
+    backgroundColor: '#FFF', 
+    borderWidth: 3, 
+    borderColor: '#E2E8F0', // Borda cinza suave
+    shadowColor: "#000", shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3
   },
   
   ghostButtonText: {
-    color: COLORS.primary, fontFamily: FONTS.bold, fontSize: 14, letterSpacing: 0.5
+    color: '#64748B', 
+    fontFamily: FONTS.bold, 
+    fontSize: 16, 
+    letterSpacing: 0.5
   },
 });
