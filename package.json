@@ -11,6 +11,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo-google-fonts/fredoka": "^0.4.1",
     "@expo-google-fonts/lilita-one": "^0.4.1",
     "@expo-google-fonts/roboto-condensed": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",

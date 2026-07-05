@@ -114,6 +114,15 @@ export default function CreateFamilyScreen() {
       setCurrentStep(1);
   };
 
+  // Nova função para o botão superior
+  const handleTopBack = () => {
+      if (currentStep === 2) {
+          handlePrevStep();
+      } else {
+          navigation.goBack();
+      }
+  };
+
   const getSubmitLabel = () => {
     if (currentStep === 1) return "CONTINUAR";
     if (!selectedArchetype) return "CRIAR CONTA";
@@ -170,6 +179,11 @@ export default function CreateFamilyScreen() {
       resizeMode="cover"
     >
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      {/* BOTÃO SUPERIOR FIXO (Voltar / Sair) */}
+      <TouchableOpacity style={styles.topBackBtn} onPress={handleTopBack} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="arrow-left" size={28} color="#D97706" />
+      </TouchableOpacity>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -339,7 +353,25 @@ export default function CreateFamilyScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingHorizontal: 25, paddingTop: Platform.OS === 'ios' ? 70 : 60 },
+
+  // Botão Superior Fixo de Voltar
+  topBackBtn: {
+      position: 'absolute',
+      top: Platform.OS === 'ios' ? 60 : 50,
+      left: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: '#FFFBEB',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: '#FDE68A',
+      zIndex: 20 // Garante que fica por cima de tudo
+  },
+
+  // Aumentado o paddingTop para acomodar o botão superior sem conflitar com o Header
+  scrollContent: { paddingHorizontal: 25, paddingTop: Platform.OS === 'ios' ? 120 : 110 },
 
   // Header
   headerContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },

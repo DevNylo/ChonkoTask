@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
-  ActivityIndicator, Alert, ImageBackground, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Platform, ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -9,18 +9,20 @@ import {
   View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
-import { COLORS, FONTS } from '../../styles/theme';
+import { FONTS } from '../../styles/theme';
 
-// Componente de Input
+const { width } = Dimensions.get('window');
+
+// Componente de Input Padronizado (Soft Premium)
 const LoginInput = ({ label, icon, ...props }) => (
-    <View style={{ marginBottom: 18 }}>
+    <View style={{ marginBottom: 20 }}>
         <Text style={styles.inputLabel}>{label}</Text>
         <View style={styles.inputWrapper}>
-            <MaterialCommunityIcons name={icon} size={24} color={COLORS.primary} style={{ marginLeft: 15 }} />
-            <TextInput 
+            <MaterialCommunityIcons name={icon} size={26} color="#0EA5E9" style={{ marginLeft: 15 }} />
+            <TextInput
                 style={styles.textInput}
-                placeholderTextColor={COLORS.placeholder} 
-                cursorColor={COLORS.primary}
+                placeholderTextColor="#94A3B8"
+                cursorColor="#0EA5E9"
                 {...props}
             />
         </View>
@@ -57,7 +59,7 @@ export default function LoginScreen({ navigation }) {
         .single();
 
       if (profile) {
-        return; 
+        return;
       }
 
       const { data: request } = await supabase
@@ -69,11 +71,11 @@ export default function LoginScreen({ navigation }) {
         .single();
 
       if (request && request.status === 'pending') {
-        await supabase.auth.signOut(); 
+        await supabase.auth.signOut();
         Alert.alert("✋ Aguardando Aprovação", "Você já pediu para entrar, mas o Capitão ainda não aprovou.");
         return;
-      } 
-      
+      }
+
       if (request && request.status === 'rejected') {
         await supabase.auth.signOut();
         Alert.alert("Acesso Negado", "Sua solicitação de entrada foi recusada.");
@@ -91,26 +93,30 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <ImageBackground 
-        source={require('../../../assets/Onboarding/WelcomeScreenBKG.png')}
-        style={styles.container} 
-        resizeMode="cover"
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-      
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+
+      {/* IMAGEM DE RODAPÉ (Escalonamento Seguro e Não Clicável) */}
+      <Image
+          source={require('../../../assets/Onboarding/CreateFamilyBKG.png')} // <-- CERTIFIQUE-SE DE QUE O NOME ESTÁ CORRETO
+          style={styles.footerImage}
+          resizeMode="contain"
+          pointerEvents="none"
+      />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{flex:1}}
       >
-        <ScrollView 
-            contentContainerStyle={styles.content} 
+        <ScrollView
+            contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
         >
-            
+
             {/* Botão Voltar */}
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.primary} />
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="arrow-left" size={28} color="#0EA5E9" />
             </TouchableOpacity>
 
             {/* Cabeçalho */}
@@ -119,41 +125,43 @@ export default function LoginScreen({ navigation }) {
                 <Text style={styles.subtitle}>Entre para acessar suas missões</Text>
             </View>
 
-            {/* CARD DE LOGIN */}
+            {/* CARD COM SOMBRA SALTADA (Soft Premium - Tema Azul) */}
             <View style={styles.cardWrapper}>
                 <View style={styles.cardShadow} />
-                
+
                 <View style={styles.cardFront}>
-                    <LoginInput 
-                        label="EMAIL" 
-                        icon="email-outline" 
-                        placeholder="exemplo@email.com" 
+                    <LoginInput
+                        label="E-MAIL"
+                        icon="email-outline"
+                        placeholder="exemplo@email.com"
                         value={email}
                         onChangeText={setEmail}
                         autoCapitalize="none"
                         keyboardType="email-address"
                     />
 
-                    <LoginInput 
-                        label="SENHA" 
-                        icon="lock-outline" 
-                        placeholder="••••••••" 
+                    <LoginInput
+                        label="SENHA"
+                        icon="lock-outline"
+                        placeholder="••••••••"
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry
                     />
 
-                    <TouchableOpacity style={styles.forgotBtn} onPress={() => Alert.alert("Dica", "Peça ao Capitão para redefinir ou crie uma nova conta.")}>
+                    <TouchableOpacity style={styles.forgotBtn} onPress={() => Alert.alert("Dica", "Peça ao Capitão para redefinir ou crie uma nova conta.")} activeOpacity={0.7}>
                         <Text style={styles.forgotText}>Esqueceu a senha?</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+                        {/* SOMBRA SOLIDIA (3D Dinâmico Azul Escuro) */}
                         <View style={styles.btnShadow} />
+                        {/* FRENTE SÓLIDA (3D Dinâmico Azul) */}
                         <View style={styles.btnFront}>
                             {loading ? <ActivityIndicator color="#fff" /> : (
                                 <>
                                     <Text style={styles.loginText}>ENTRAR</Text>
-                                    <MaterialCommunityIcons name="login" size={24} color="#fff" style={{marginLeft: 10}} />
+                                    <MaterialCommunityIcons name="login" size={24} color="#FFF" style={{marginLeft: 10}} />
                                 </>
                             )}
                         </View>
@@ -164,91 +172,97 @@ export default function LoginScreen({ navigation }) {
             {/* Rodapé */}
             <View style={styles.footer}>
                 <Text style={styles.footerText}>Ainda não tem conta?</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Welcome')}>
+                <TouchableOpacity onPress={() => navigation.navigate('Welcome')} activeOpacity={0.7}>
                     <Text style={styles.footerLink}>Criar ou Entrar em uma Família</Text>
                 </TouchableOpacity>
             </View>
 
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  
-  content: { 
-      padding: 25, 
-      paddingTop: 180, 
-      flexGrow: 1, 
-      justifyContent: 'center' 
-  },
-  
-  backBtn: { 
-      position: 'absolute', top: 50, left: 20, 
-      width: 44, height: 44, borderRadius: 14, 
-      backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center',
-      borderWidth: 1, borderColor: COLORS.primary, zIndex: 10
-  },
-  
-  header: { alignItems: 'center', marginBottom: 30 },
-  
-  title: { fontSize: 28, fontFamily: FONTS.bold, color: COLORS.primary, textAlign: 'center', marginBottom: 5 },
-  subtitle: { fontSize: 16, fontFamily: FONTS.regular, color: COLORS.primary, opacity: 0.7, textAlign: 'center' },
+  container: { flex: 1, backgroundColor: '#FDFCF8' }, // Fundo Creme Liso
 
-  // --- CARD ---
-  cardWrapper: { 
-      position: 'relative', 
+  // IMAGEM DE RODAPÉ OTIMIZADA
+  footerImage: {
+    position: 'absolute',
+    bottom: 0,
+    width: width,
+    height: width * 0.65,
+    opacity: 0.9,
+  },
+
+  content: {
+      padding: 25,
+      paddingTop: Platform.OS === 'ios' ? 140 : 120,
+      flexGrow: 1,
+      justifyContent: 'center'
+  },
+
+  backBtn: {
+      position: 'absolute', top: Platform.OS === 'ios' ? 60 : 50, left: 20,
+      width: 44, height: 44, borderRadius: 14,
+      backgroundColor: '#F0F9FF', justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1, borderColor: '#BAE6FD', zIndex: 10 // Borda Fina Azul Claro
+  },
+
+  header: { alignItems: 'center', marginBottom: 30 },
+
+  title: { fontSize: 28, fontFamily: FONTS.bold, color: '#0F172A', textAlign: 'center', marginBottom: 5 },
+  subtitle: { fontSize: 16, fontFamily: FONTS.regular, color: '#64748B', textAlign: 'center' },
+
+  // --- CARD COM SOMBRA SALTADA (Soft Premium Azul) ---
+  cardWrapper: {
+      position: 'relative',
       marginBottom: 20
   },
   cardShadow: {
-      position: 'absolute', 
-      top: 6, 
-      left: 6, 
-      width: '100%', 
-      height: '100%', 
-      backgroundColor: COLORS.shadow, 
-      borderRadius: 24,
-      opacity: 0.3
+      position: 'absolute',
+      top: 6, // Sombra Sólida
+      left: 0,
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(14, 165, 233, 0.15)', // Sombra Sólida Translúcida do Azul Primário
+      borderRadius: 24, // Cantos Suaves
   },
   cardFront: {
-      backgroundColor: '#FFF', 
-      borderRadius: 24, 
+      backgroundColor: '#FFF',
+      borderRadius: 24, // Cantos Suaves
       padding: 25,
-      // AQUI ESTÁ: Borda 1px Verde Escuro
-      borderWidth: 1, 
-      borderColor: COLORS.primary 
+      borderWidth: 1, // Borda Fina
+      borderColor: 'rgba(0,0,0,0.08)'
   },
-  
-  // Inputs
-  inputLabel: { fontFamily: FONTS.bold, fontSize: 12, color: COLORS.primary, marginBottom: 6, paddingLeft: 2 },
-  inputWrapper: { 
-      flexDirection: 'row', alignItems: 'center', 
-      backgroundColor: '#F8FAFC', 
-      borderRadius: 14, 
-      height: 56, 
-      // AQUI ESTÁ: Borda 1px Verde Escuro
-      borderWidth: 1, 
-      borderColor: COLORS.primary 
+
+  // Inputs (Soft Premium)
+  inputLabel: { fontFamily: FONTS.bold, fontSize: 13, color: '#0F172A', marginBottom: 8, paddingLeft: 4, letterSpacing: 0.5 },
+  inputWrapper: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: '#FFF', // Fundo Branco Liso
+      borderRadius: 18,
+      height: 60,
+      borderWidth: 1, // Borda Fina
+      borderColor: '#E2E8F0'
   },
-  textInput: { flex: 1, paddingHorizontal: 12, fontSize: 16, fontFamily: FONTS.bold, color: COLORS.primary },
-  
+  textInput: { flex: 1, paddingHorizontal: 15, fontSize: 16, fontFamily: FONTS.bold, color: '#0F172A' },
+
   forgotBtn: { alignSelf: 'flex-end', marginBottom: 25 },
-  forgotText: { color: COLORS.primary, fontSize: 13, fontFamily: FONTS.bold, textDecorationLine: 'underline' },
-  
-  // Botão 3D
-  loginBtn: { height: 60, position: 'relative' },
-  btnShadow: { position: 'absolute', top: 4, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 16 },
-  btnFront: { 
-      width: '100%', height: '100%', backgroundColor: COLORS.primary, 
-      borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', 
-      marginTop: -2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' 
+  forgotText: { color: '#0EA5E9', fontSize: 14, fontFamily: FONTS.bold, textDecorationLine: 'underline' },
+
+  // Botão 3D Dinâmico (Azul)
+  loginBtn: { width: '100%', height: 60, position: 'relative' },
+  btnShadow: { position: 'absolute', top: 5, left: 0, width: '100%', height: '100%', backgroundColor: '#0284C7', borderRadius: 16 }, // Sombra Sólida Escura
+  btnFront: {
+      width: '100%', height: '100%', backgroundColor: '#0EA5E9',
+      borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' // Borda Fina Clara
   },
-  loginText: { color: '#fff', fontSize: 18, fontFamily: FONTS.bold, letterSpacing: 1 },
+  loginText: { color: '#FFF', fontSize: 18, fontFamily: FONTS.bold, letterSpacing: 1 },
 
   // Footer
-  footer: { marginTop: 20, alignItems: 'center', paddingBottom: 40 },
-  footerText: { color: COLORS.primary, marginBottom: 5, fontFamily: FONTS.regular, opacity: 0.7 },
-  footerLink: { color: COLORS.primary, fontFamily: FONTS.bold, fontSize: 16 }
+  footer: { marginTop: 25, alignItems: 'center', paddingBottom: 40 },
+  footerText: { color: '#64748B', marginBottom: 5, fontFamily: FONTS.regular, fontSize: 15 },
+  footerLink: { color: '#0EA5E9', fontFamily: FONTS.bold, fontSize: 16 }
 });
