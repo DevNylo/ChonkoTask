@@ -92,7 +92,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <ImageBackground 
-        source={require('../../../assets/WelcomeScreenBKG.png')} 
+        source={require('../../../assets/Onboarding/WelcomeScreenBKG.png')}
         style={styles.container} 
         resizeMode="cover"
     >

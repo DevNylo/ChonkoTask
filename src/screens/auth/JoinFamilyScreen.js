@@ -5,24 +5,24 @@ import { useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    ImageBackground,
     StatusBar,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    ImageBackground
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { COLORS, FONTS } from '../../styles/theme';
+import { FONTS } from '../../styles/theme';
 
 export default function JoinFamilyScreen() {
   const navigation = useNavigation();
-  const { setSession, setProfile } = useAuth(); 
+  const { setSession, setProfile } = useAuth();
 
   // ESTADOS
-  const [step, setStep] = useState(1); 
+  const [step, setStep] = useState(1);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,7 +70,7 @@ export default function JoinFamilyScreen() {
 
           // 1. Cria o perfil no Banco
           const { data: newProfile, error } = await supabase
-            .rpc('join_family_as_recruit', { 
+            .rpc('join_family_as_recruit', {
                 p_invite_code: cleanCode,
                 p_name: name
             });
@@ -79,7 +79,7 @@ export default function JoinFamilyScreen() {
 
           // 2. Monta a sessão "Modo Criança"
           const sessionData = {
-              user: { id: 'child_mode' }, 
+              user: { id: 'child_mode' },
               access_token: 'child_mode_token',
           };
 
@@ -89,12 +89,12 @@ export default function JoinFamilyScreen() {
               profile: newProfile,
               role: 'recruit'
           }));
-          
+
           Alert.alert("BEM-VINDO À TROPA! 🎖️", `Perfil ${newProfile.name} criado com sucesso.`);
 
           // 4. ATUALIZA O ESTADO GLOBAL
-          if (setProfile) setProfile(newProfile); 
-          setSession(sessionData); 
+          if (setProfile) setProfile(newProfile);
+          setSession(sessionData);
 
       } catch (e) {
           Alert.alert("Erro ao entrar", e.message || "Tente novamente.");
@@ -105,44 +105,46 @@ export default function JoinFamilyScreen() {
   };
 
   return (
-    <ImageBackground 
-        source={require('../../../assets/WelcomeScreenBKG.png')} 
-        style={styles.container} 
+    <ImageBackground
+        source={require('../../../assets/Onboarding/ChonkoKid.png')} // <-- AJUSTE O NOME AQUI SE NECESSÁRIO
+        style={styles.container}
         resizeMode="cover"
     >
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-        
-        {/* Overlay leve para legibilidade */}
-        <View style={styles.overlay} />
-        
+
         <View style={styles.content}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.primary} />
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="arrow-left" size={28} color="#059669" />
             </TouchableOpacity>
 
-            {/* CARD COM SOMBRA SALTADA (Soft Premium) */}
+            {/* CARD COM SOMBRA SALTADA (Soft Premium Verde) */}
             <View style={styles.cardWrapper}>
+                {/* SOMBRA SÓLIDA (Soft Premium) */}
                 <View style={styles.cardShadow} />
-                
+
+                {/* CONTEÚDO DO CARD (Soft Premium) */}
                 <View style={styles.cardFront}>
                     {step === 1 && (
                         <>
                             <Text style={styles.title}>CÓDIGO DA FAMÍLIA</Text>
                             <Text style={styles.subtitle}>Peça o código para o Admin</Text>
-                            
-                            <TextInput 
+
+                            <TextInput
                                 style={styles.inputCode}
-                                placeholder="EX: 7AB50E" 
-                                placeholderTextColor={COLORS.placeholder}
+                                placeholder="EX: 7AB50E"
+                                placeholderTextColor="#94A3B8"
                                 maxLength={6}
                                 autoCapitalize="characters"
                                 autoCorrect={false}
+                                cursorColor="#10B981"
                                 value={code}
                                 onChangeText={(text) => setCode(text.toUpperCase().trim())}
                             />
 
                             <TouchableOpacity style={styles.btnPrimary} onPress={handleVerifyCode} disabled={loading} activeOpacity={0.8}>
+                                {/* SOMBRA SOLIDIA (3D Dinâmico Verde Escuro) */}
                                 <View style={styles.btnShadow} />
+                                {/* FRENTE SÓLIDA (3D Dinâmico Verde) */}
                                 <View style={styles.btnFront}>
                                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>VALIDAR CÓDIGO</Text>}
                                 </View>
@@ -153,29 +155,32 @@ export default function JoinFamilyScreen() {
                     {step === 2 && (
                         <>
                             <Text style={styles.title}>QUEM É VOCÊ?</Text>
-                            <Text style={styles.subtitle}>Entrando na família: <Text style={{fontWeight:'bold'}}>{familyName}</Text></Text>
-                            
+                            <Text style={styles.subtitle}>Entrando na família: <Text style={{fontWeight:'bold', color: '#064E3B'}}>{familyName}</Text></Text>
+
                             <View style={styles.avatarPlaceholder}>
-                                <MaterialCommunityIcons name="account" size={50} color={COLORS.primary} />
+                                <MaterialCommunityIcons name="account" size={50} color="#10B981" />
                             </View>
 
                             <Text style={styles.label}>Qual seu nome (ou apelido)?</Text>
-                            <TextInput 
+                            <TextInput
                                 style={styles.inputName}
                                 placeholder="Ex: Enzo, Campeão..."
-                                placeholderTextColor={COLORS.placeholder}
+                                placeholderTextColor="#94A3B8"
+                                cursorColor="#10B981"
                                 value={name}
                                 onChangeText={setName}
                             />
-                            
+
                             <TouchableOpacity style={styles.btnPrimary} onPress={handleJoin} disabled={loading} activeOpacity={0.8}>
+                                {/* SOMBRA SOLIDIA (3D Dinâmico Verde Escuro) */}
                                 <View style={styles.btnShadow} />
+                                {/* FRENTE SÓLIDA (3D Dinâmico Verde) */}
                                 <View style={styles.btnFront}>
                                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>CRIAR E ENTRAR</Text>}
                                 </View>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.btnSecondary} onPress={() => setStep(1)} disabled={loading}>
+                            <TouchableOpacity style={styles.btnSecondary} onPress={() => setStep(1)} disabled={loading} activeOpacity={0.7}>
                                 <Text style={styles.btnTextSec}>Voltar</Text>
                             </TouchableOpacity>
                         </>
@@ -188,62 +193,71 @@ export default function JoinFamilyScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.3)' }, // Overlay branco leve
+  container: { flex: 1 }, // A ImageBackground agora cuida de flex e preenchimento
+
   content: { flex: 1, justifyContent: 'center', padding: 25 },
-  
-  backBtn: { 
-      position: 'absolute', top: 50, left: 20, 
-      width: 44, height: 44, borderRadius: 14, 
-      backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center',
-      borderWidth: 1, borderColor: COLORS.primary, zIndex: 10
+
+  backBtn: {
+      position: 'absolute', top: 50, left: 20,
+      width: 44, height: 44, borderRadius: 14,
+      backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1, borderColor: '#6EE7B7', zIndex: 10 // Borda Fina
   },
 
-  // --- CARD (Soft Premium) ---
+  // --- CARD COM SOMBRA SALTADA (Soft Premium Verde) ---
   cardWrapper: { position: 'relative' },
   cardShadow: {
-      position: 'absolute', top: 6, left: 6, width: '100%', height: '100%', 
-      backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.2
+      position: 'absolute',
+      top: 6, // Sombra Sólida
+      left: 0,
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(5, 150, 105, 0.15)', // Sombra Sólida Translúcida do Verde Primário
+      borderRadius: 24, // Cantos Suaves
   },
-  cardFront: { 
-      backgroundColor: '#FFF', borderRadius: 24, padding: 30, alignItems: 'center', 
-      borderWidth: 1, borderColor: COLORS.primary 
+  cardFront: {
+      backgroundColor: '#FFF',
+      borderRadius: 24, // Cantos Suaves
+      padding: 30,
+      alignItems: 'center',
+      borderWidth: 1, // Borda Fina
+      borderColor: 'rgba(0,0,0,0.08)'
   },
 
-  title: { fontFamily: FONTS.bold, fontSize: 22, color: COLORS.primary, marginBottom: 5, textAlign: 'center' },
-  subtitle: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.primary, opacity: 0.7, marginBottom: 25, textAlign: 'center' },
-  
-  // Inputs
-  inputCode: { 
-      width: '100%', height: 60, backgroundColor: '#F8FAFC', borderRadius: 14, 
-      borderWidth: 1, borderColor: COLORS.primary, 
-      textAlign: 'center', fontSize: 24, fontFamily: FONTS.bold, color: COLORS.primary, letterSpacing: 4, marginBottom: 25 
+  title: { fontFamily: FONTS.bold, fontSize: 22, color: '#064E3B', marginBottom: 5, textAlign: 'center' },
+  subtitle: { fontFamily: FONTS.regular, fontSize: 14, color: '#059669', opacity: 0.8, marginBottom: 25, textAlign: 'center' },
+
+  // Inputs (Soft Premium)
+  inputCode: {
+      width: '100%', height: 60, backgroundColor: '#FFF', borderRadius: 14,
+      borderWidth: 1, borderColor: '#10B981', // Borda Fina Verde
+      textAlign: 'center', fontSize: 24, fontFamily: FONTS.bold, color: '#064E3B', letterSpacing: 4, marginBottom: 25
   },
-  
-  inputName: { 
-      width: '100%', height: 56, backgroundColor: '#F8FAFC', borderRadius: 14, 
-      borderWidth: 1, borderColor: COLORS.primary, 
-      paddingHorizontal: 15, fontSize: 16, fontFamily: FONTS.bold, color: COLORS.primary, marginBottom: 25 
+
+  inputName: {
+      width: '100%', height: 56, backgroundColor: '#FFF', borderRadius: 14,
+      borderWidth: 1, borderColor: '#10B981', // Borda Fina Verde
+      paddingHorizontal: 15, fontSize: 16, fontFamily: FONTS.bold, color: '#064E3B', marginBottom: 25
   },
-  
-  label: { alignSelf: 'flex-start', fontFamily: FONTS.bold, color: COLORS.primary, fontSize: 12, marginBottom: 8, paddingLeft: 4 },
-  
-  avatarPlaceholder: { 
-      width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0FDF4', 
-      justifyContent: 'center', alignItems: 'center', marginBottom: 25, 
-      borderWidth: 1, borderColor: COLORS.primary 
+
+  label: { alignSelf: 'flex-start', fontFamily: FONTS.bold, color: '#064E3B', fontSize: 13, marginBottom: 8, paddingLeft: 4 },
+
+  avatarPlaceholder: {
+      width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0FDF4',
+      justifyContent: 'center', alignItems: 'center', marginBottom: 25,
+      borderWidth: 1, borderColor: '#10B981' // Borda Fina Verde
   },
-  
-  // Botão 3D
+
+  // Botão 3D Dinâmico (Verde)
   btnPrimary: { width: '100%', height: 56, position: 'relative' },
-  btnShadow: { position: 'absolute', top: 4, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 16 },
-  btnFront: { 
-      width: '100%', height: '100%', backgroundColor: COLORS.primary, 
-      borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', 
-      marginTop: -2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' 
+  btnShadow: { position: 'absolute', top: 5, left: 0, width: '100%', height: '100%', backgroundColor: '#059669', borderRadius: 16 }, // Sombra Sólida Escura
+  btnFront: {
+      width: '100%', height: '100%', backgroundColor: '#10B981',
+      borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' // Borda Fina Clara
   },
   btnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: 16, letterSpacing: 1 },
-  
+
   btnSecondary: { marginTop: 20, padding: 10 },
-  btnTextSec: { fontFamily: FONTS.bold, color: COLORS.primary, opacity: 0.7 },
+  btnTextSec: { fontFamily: FONTS.bold, color: '#059669', opacity: 0.8 },
 });

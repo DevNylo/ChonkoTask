@@ -9,7 +9,7 @@ import { COLORS } from '../styles/theme';
 // --- TELAS DE AUTENTICAÇÃO ---
 import JoinFamilyScreen from '../screens/auth/JoinFamilyScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
-import RegisterCaptainScreen from '../screens/auth/RegisterCaptainScreen';
+import CreateFamilyScreen from '../screens/auth/CreateFamilyScreen';
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
 
 // --- TELAS GERAIS ---
@@ -204,9 +204,9 @@ export default function AppNavigator() {
             {/* Ela fica antes da WelcomeScreen */}
             <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} /> 
             
-            <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen name="WelcomeScreen" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="RegisterCaptain" component={RegisterCaptainScreen} />
+            <Stack.Screen name="CreateFamily" component={CreateFamilyScreen} />
             <Stack.Screen name="JoinFamily" component={JoinFamilyScreen} />
           </Stack.Group>
         )}

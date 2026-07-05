@@ -3,9 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, LogBox, StatusBar, StyleSheet, Dimensions } from 'react-native';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import CustomSplashScreen from './src/screens/SplashScreen'; 
 
-import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
 import { Asset } from 'expo-asset';
 // Importação condicional para evitar erros web/mobile se necessário, mas aqui está padrão
@@ -40,7 +38,6 @@ console.error = (...args) => { if (!shouldIgnore(args)) originalError(...args); 
 LogBox.ignoreLogs(ignoredMessages);
 // ----------------------------
 
-SplashScreen.preventAutoHideAsync();
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('screen');
 
 export default function App() {
@@ -84,14 +81,6 @@ export default function App() {
          <AppNavigator />
       </AuthProvider>
 
-      {/* Overlay da Splash Screen */}
-      {isSplashVisible && (
-        <View style={styles.splashOverlay}>
-          <CustomSplashScreen 
-            onFinish={() => setIsSplashVisible(false)} 
-          />
-        </View>
-      )}
     </View>
   );
 }
