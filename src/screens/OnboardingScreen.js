@@ -23,7 +23,7 @@ const SLIDES = [
   {
     id: '1',
     title: 'Transforme Deveres\nem Aventuras',
-    description: 'Chega de repetir a mesma coisa 10 vezes. Crie missões diárias e deixe que o Chonko motive seus filhos a cumprirem a rotina brincando.',
+    description: 'Chega de repetir a mesma coisa 10 vezes. Crie missões diárias e motive-os a cumprirem a rotina brincando.',
     image: require('../../assets/Onboarding/Char-1.png'),
     color: '#0ea5e9', // Azul
     shadowColor: '#bae6fd',
@@ -31,7 +31,7 @@ const SLIDES = [
   {
     id: '2',
     title: 'A Moeda\ndo Esforço',
-    description: 'Defina recompensas reais — como sorvete ou videogame. Seu filho aprende que para ganhar, é preciso conquistar. Sem mesada automática.',
+    description: 'Defina recompensas reais — como sorvete ou videogame. Ensine que para ganhar, é preciso conquistar. Sem mesada automática.',
     image: require('../../assets/Onboarding/Char-2.png'),
     color: '#f59e0b', // Laranja/Dourado
     shadowColor: '#fde68a',
@@ -202,12 +202,13 @@ const styles = StyleSheet.create({
     padding: 10,
     minHeight: 45,
     justifyContent: 'center',
+
   },
   skipText: {
     fontFamily: FONTS.bold,
     fontSize: 16,
     color: '#94A3B8',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
 
   carouselContainer: {

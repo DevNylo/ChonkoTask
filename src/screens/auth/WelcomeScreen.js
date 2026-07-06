@@ -57,7 +57,7 @@ export default function WelcomeScreen() {
                     <TouchableOpacity
                         style={styles.cardWrapper}
                         activeOpacity={0.8}
-                        onPress={() => navigation.navigate('RegisterCaptain')}
+                        onPress={() => navigation.navigate('CreateFamily')}
                     >
                         {/* Sombra Escura para dar peso 3D */}
                         <View style={[styles.cardShadow, { backgroundColor: '#D97706' }]} />
