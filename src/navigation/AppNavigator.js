@@ -27,7 +27,7 @@ import CustomizeScreen from '../screens/recruit/CustomizeScreen';
 import TrophiesScreen from '../screens/recruit/TrophiesScreen';
 
 // --- TELAS DO CAPITÃO (ADMIN) ---
-import CaptainHomeScreen from '../screens/CaptainHomeScreen';
+import AdminHomeScreen from '../screens/AdminHomeScreen';
 import RankingScreen from '../screens/RankingScreen';
 import ReportsScreen from '../screens/ReportsScreen';
 import CreateMissionScreen from '../screens/captain/CreateMissionScreen';
@@ -176,7 +176,7 @@ export default function AppNavigator() {
              ) : (
                 <Stack.Group>
                     <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
-                    <Stack.Screen name="CaptainHome" component={CaptainHomeScreen} />
+                    <Stack.Screen name="AdminHome" component={AdminHomeScreen} />
                     <Stack.Screen name="RecruitTabs" component={RecruitTabs} />
                 </Stack.Group>
              )}

@@ -112,7 +112,7 @@ export default function RoleSelectionScreen() {
     };
 
     const proceedToHome = (profile) => {
-        if (profile.role === 'captain') navigation.replace('CaptainHome', { profile: profile });
+        if (profile.role === 'captain') navigation.replace('AdminHome', { profile: profile });
         else navigation.replace('RecruitTabs', { profile: profile });
     };
 
