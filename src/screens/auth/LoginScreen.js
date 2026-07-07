@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
 
     header: { alignItems: 'center', marginBottom: 30 },
 
-    title: { fontSize: 28, fontFamily: FONTS.bold, color: '#0F172A', textAlign: 'center', marginBottom: 5, letterSpacing: 1},
+    title: { fontSize: 32, fontFamily: FONTS.bold, color: '#0ea5e9', textAlign: 'center', marginBottom: 5, letterSpacing: 1},
     subtitle: { fontSize: 16, fontFamily: FONTS.regular, color: '#64748B', textAlign: 'center' },
 
     // --- CARD COM SOMBRA SALTADA (Soft Premium Azul) ---

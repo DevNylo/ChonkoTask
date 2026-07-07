@@ -176,15 +176,15 @@ export default function RoleSelectionScreen() {
 
             {/* HEADER GRADIENTE COM BORDA ARREDONDADA */}
             <LinearGradient
-                colors={['#c8e6b2', '#76ce8f']}
+                colors={['#F59E0B', '#F59E0B']}
                 start={{ x: 1, y: 0}}
                 end={{ x: 1, y: 0 }}
-                style={styles.topGreenArea}
+                style={styles.topArea}
             >
                 <View style={styles.headerContent}>
                     <View>
                         <Text style={styles.headerTitle}>QUEM ESTÁ NO COMANDO?</Text>
-                        <Text style={styles.headerSubtitle}>Escolha seu perfil para começar</Text>
+                        <Text style={styles.headerSubtitle}>Escolha um perfil para começar.</Text>
                     </View>
                     <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
                         <MaterialCommunityIcons name="door-open" size={26} color="#FFF" />
@@ -259,17 +259,15 @@ const styles = StyleSheet.create({
     loadingText: { color: '#065F46', marginTop: 15, fontFamily: FONTS.bold, fontSize: 16 },
 
     // --- HEADER GRADIENTE ---
-    topGreenArea: {
+    topArea: {
         paddingTop: Platform.OS === 'ios' ? 60 : StatusBar.currentHeight + 20,
         paddingBottom: 35,
         borderBottomLeftRadius: 40,
         borderBottomRightRadius: 40,
         marginBottom: 25,
-        shadowColor: "#059669",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
         elevation: 8,
+        borderWidth:1,
+        borderColor:'#CD7C00FF'
     },
     headerContent: {
         flexDirection: 'row',
@@ -278,7 +276,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 25,
     },
     headerTitle: { fontSize: 20, fontFamily: FONTS.bold, color: '#FFF', letterSpacing: 0.5 },
-    headerSubtitle: { fontSize: 15, fontFamily: FONTS.regular, color: '#D1FAE5', marginTop: 4 },
+    headerSubtitle: { fontSize: 15, fontFamily: FONTS.regular, color: '#FFFFF', marginTop: 4 },
     logoutBtn: { padding: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16 },
 
     // --- LISTA ---
@@ -344,12 +342,12 @@ const styles = StyleSheet.create({
     modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
     modalContent: {
         width: '95%', maxWidth: 360, backgroundColor: '#FFF', borderRadius: 32, padding: 30, alignItems: 'center',
-        borderWidth: 4, borderColor: '#6EE7B7',
+        borderWidth: 4, borderColor: '#F59E0B',
     },
     modalIcon: {
         width: 80, height: 80, backgroundColor: '#D1FAE5', borderRadius: 40,
         justifyContent: 'center', alignItems: 'center', marginBottom: 20,
-        borderWidth: 3, borderColor: '#34D399', marginTop: -60,
+        borderWidth: 3, borderColor: '#F59E0B', marginTop: -60,
     },
     modalTitle: { fontSize: 24, fontFamily: FONTS.bold, color: '#064E3B', marginBottom: 5 },
     modalSubtitle: { fontSize: 15, color: '#64748B', marginBottom: 25, fontFamily: FONTS.regular, textAlign: 'center' },
