@@ -1,32 +1,34 @@
+import { LilitaOne_400Regular, useFonts } from '@expo-google-fonts/lilita-one';
 import React from 'react';
-import { ImageBackground, Text, StyleSheet, View } from 'react-native';
-import { useFonts, LilitaOne_400Regular } from '@expo-google-fonts/lilita-one';
+import { StyleSheet, Text, View } from 'react-native';
 
-// Importe sua imagem local aqui
-const signImage = require('../../assets/images/ChonkoTaskPlaca.png'); 
-
-export default function SignBoard() {
+export default function SignBoard({ title = "LOJINHA DO PAPAI" }) {
   // Carrega a fonte antes de renderizar
   let [fontsLoaded] = useFonts({
     LilitaOne_400Regular,
   });
 
   if (!fontsLoaded) {
-    return null; // Ou um <ActivityIndicator />
+    return null; // O App vai aguardar o carregamento silenciosamente
   }
 
   return (
-    <View style={styles.container}>
-      <ImageBackground 
-        source={signImage} 
-        style={styles.signBackground}
-        resizeMode="contain" // Garante que a placa não distorça
-      >
-        <Text style={styles.signText}>
-          LOJINHA DO PAPAI
-        </Text>
-      </ImageBackground>
-    </View>
+      <View style={styles.container}>
+
+        {/* Cordinhas/Hastes de sustentação da placa */}
+        <View style={styles.ropesContainer}>
+          <View style={styles.rope} />
+          <View style={styles.rope} />
+        </View>
+
+        {/* Placa Sólida */}
+        <View style={styles.solidSign}>
+          <Text style={styles.signText} numberOfLines={2}>
+            {title}
+          </Text>
+        </View>
+
+      </View>
   );
 }
 
@@ -34,28 +36,57 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 20,
+    marginVertical: 10,
   },
-  signBackground: {
-    width: 300,  // Ajuste a largura conforme necessário
-    height: 120, // Ajuste a altura proporcional à imagem original
-    justifyContent: 'center', // Centraliza verticalmente
-    alignItems: 'center',     // Centraliza horizontalmente
-    // Se o texto precisar subir/descer um pouco devido à perspectiva da arte, use padding:
-    paddingTop: 10, 
+
+  // --- HASTES/CORDAS ---
+  ropesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: 140, // Distância entre as cordas
+    marginBottom: -6, // Faz a corda "entrar" na placa
+    zIndex: 1,
   },
+  rope: {
+    width: 10,
+    height: 25,
+    backgroundColor: '#78350F', // Marrom escuro da madeira/corda
+    borderRadius: 5,
+  },
+
+  // --- PLACA SÓLIDA ---
+  solidSign: {
+    backgroundColor: '#F59E0B', // Laranja Sólido
+    paddingHorizontal: 40,
+    paddingVertical: 15,
+    borderRadius: 16,
+    borderWidth: 4,
+    borderColor: '#B45309', // Borda mais escura para dar profundidade
+
+    // Sombra para destacar do fundo
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 8,
+
+    minWidth: 260,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+
+  // --- TEXTO ---
   signText: {
-    fontFamily: 'LilitaOne_400Regular', // Nome exato da fonte carregada
-    fontSize: 24,
-    color: '#FDE047', // Um amarelo claro/creme costuma contrastar bem com madeira
+    fontFamily: 'LilitaOne_400Regular',
+    fontSize: 26,
+    color: '#FEF3C7', // Amarelo bem clarinho (creme) para contraste
     textAlign: 'center',
-    
-    // Efeito de sombra para dar leitura na madeira (stroke fake)
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 3,
-    
-    // Caso precise quebrar linha
-    width: '80%', 
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+
+    // Efeito de sombra no texto para imitar entalhe/profundidade
+    textShadowColor: 'rgba(69, 26, 3, 0.5)',
+    textShadowOffset: { width: 1, height: 2 },
+    textShadowRadius: 2,
   },
 });
