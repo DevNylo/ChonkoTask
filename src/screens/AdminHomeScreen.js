@@ -14,7 +14,7 @@ import {
     View
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { COLORS, FONTS } from '../styles/theme';
+import { FONTS } from '../styles/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -130,7 +130,7 @@ export default function AdminHomeScreen() {
             <View style={styles.topOrangeArea}>
                 <View style={styles.headerRow}>
                     <View style={styles.headerLeft}>
-                        <Text style={styles.qgLabel}>PAINEL DO ADMIN</Text>
+                        <Text style={styles.qgLabel}>PAINEL DE ADMIN</Text>
                         <Text style={styles.familyTitle} numberOfLines={1}>
                             {family?.name || 'Sua Família'}
                         </Text>
@@ -150,10 +150,16 @@ export default function AdminHomeScreen() {
                             <MaterialCommunityIcons name="cog-outline" size={24} color="#FFF" />
                         </TouchableOpacity>
 
-                        {/* Botão de Alertas (Pendências) */}
+                        {/* Botão de Alertas (Pendências) -> CORRIGIDO PARA NAVEGAR PARA A TELA DE APROVAÇÃO */}
                         <TouchableOpacity
                             style={styles.iconBtn}
-                            onPress={() => pendingAttempts > 0 ? navigation.navigate('TaskApprovals', { familyId: profile.family_id }) : Alert.alert("Tudo limpo!", "Sem pendências.")}
+                            onPress={() => {
+                                if (pendingAttempts > 0) {
+                                    navigation.navigate('TaskApprovals', { familyId: profile.family_id });
+                                } else {
+                                    Alert.alert("Tudo limpo!", "Não há tarefas precisando de aprovação.");
+                                }
+                            }}
                         >
                             <MaterialCommunityIcons name={pendingAttempts > 0 ? "bell-ring" : "bell"} size={24} color="#FFF" />
                             {pendingAttempts > 0 && (
@@ -185,10 +191,17 @@ export default function AdminHomeScreen() {
                         <Text style={styles.statNumber}>{activeMissionsCount}</Text>
                         <Text style={styles.statLabel}>ATIVAS</Text>
                     </View>
+                    {/* Botão de Pendências -> CORRIGIDO PARA NAVEGAR PARA A TELA DE APROVAÇÃO */}
                     <TouchableOpacity
                         style={styles.statBox}
                         activeOpacity={0.8}
-                        onPress={() => pendingAttempts > 0 && navigation.navigate('TaskApprovals', { familyId: profile.family_id })}
+                        onPress={() => {
+                            if (pendingAttempts > 0) {
+                                navigation.navigate('TaskApprovals', { familyId: profile.family_id });
+                            } else {
+                                Alert.alert("Tudo limpo!", "Não há tarefas precisando de aprovação.");
+                            }
+                        }}
                     >
                         <MaterialCommunityIcons name="bell-ring" size={24} color={pendingAttempts > 0 ? "#EF4444" : "#F59E0B"} />
                         <Text style={[styles.statNumber, pendingAttempts > 0 && { color: '#EF4444' }]}>{pendingAttempts}</Text>
@@ -278,7 +291,6 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FDFCF8' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-    // --- HEADER SÓLIDO ---
     topOrangeArea: {
         paddingTop: 60,
         paddingBottom: 30,
@@ -301,7 +313,7 @@ const styles = StyleSheet.create({
     headerRight: { flexDirection: 'row', gap: 10, alignItems: 'center' },
 
     qgLabel: { fontFamily: FONTS.bold, fontSize: 12, color: '#FEF3C7', letterSpacing: 1, marginBottom: 2 },
-    familyTitle: { fontFamily: FONTS.bold, fontSize: 24, color: '#FFF' },
+    familyTitle: { fontFamily: FONTS.bold, fontSize: 24, color: '#FFF', letterSpacing: 1 },
 
     iconBtn: {
         width: 44, height: 44,
@@ -315,11 +327,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#EF4444',
         width: 20, height: 20, borderRadius: 10,
         justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1.5, borderColor: '#F59E0B' // Borda combinando com o fundo laranja
+        borderWidth: 1.5, borderColor: '#F59E0B'
     },
     badgeTextTop: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
-    // --- CONTEÚDO ---
     listContent: { padding: 25, paddingBottom: 130 },
 
     statsRow: { flexDirection: 'row', gap: 10, marginBottom: 30 },
@@ -332,12 +343,11 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E2E8F0',
     },
-    statNumber: { fontFamily: FONTS.bold, fontSize: 22, color: '#1E293B', marginTop: 5 },
-    statLabel: { fontFamily: FONTS.bold, fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
+    statNumber: { fontFamily: FONTS.regular, fontSize: 18, color: '#1E293B', marginTop: 5 },
+    statLabel: { fontFamily: FONTS.regular, fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
 
     sectionTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#94A3B8', letterSpacing: 1.5, marginBottom: 20 },
 
-    // --- GRADE DE MENU 3D ---
     menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     menuBtnWrapper: { width: (width - 65) / 2, height: 120, marginBottom: 20 },
     menuBtnShadow: { position: 'absolute', bottom: -5, width: '100%', height: '100%', borderRadius: 24 },
@@ -350,13 +360,13 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.2)',
     },
-    menuBtnTitle: { fontFamily: FONTS.bold, fontSize: 15, color: '#FFF', marginTop: 5, textAlign: 'center' },
-    menuBtnSubtitle: { fontFamily: FONTS.regular, fontSize: 11, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
+    menuBtnTitle: { fontFamily: FONTS.bold, fontSize: 15, color: '#FFF', marginTop: 5, textAlign: 'center', letterSpacing: 1.2 },
+    menuBtnSubtitle: { fontFamily: FONTS.regular, fontSize: 12, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
 
-    // --- DOCK INFERIOR ---
     dockContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, height: 80, justifyContent: 'flex-end' },
 
     dockBar: {
+        marginBottom:5,
         flexDirection: 'row',
         backgroundColor: '#FFF',
         height: 70,
@@ -366,13 +376,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.1)',
-        shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10
+        borderBottomWidth: 5
     },
 
     dockBtn: { alignItems: 'center', justifyContent: 'center', width: 60 },
     dockLabel: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B', marginTop: 3 },
 
-    // Botão central atualizado para o tema laranja
     centerDockBtn: {
         position: 'absolute', bottom: 25, alignSelf: 'center',
         width: 76, height: 76, borderRadius: 38,

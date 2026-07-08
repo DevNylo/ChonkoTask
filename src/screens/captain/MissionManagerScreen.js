@@ -7,13 +7,14 @@ import {
     FlatList,
     Modal,
     RefreshControl,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from 'react-native';
-import { useAuth } from '../../context/AuthContext'; // <-- Adicionado para segurança
+import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
 
@@ -24,6 +25,14 @@ const DIFFICULTY_CONFIG = {
     'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' },
     'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }
 };
+
+// ARRAY QUE FALTAVA PARA RENDERIZAR OS FILTROS
+const DIFFICULTY_TIERS = [
+    { id: 'easy', label: 'FÁCIL' },
+    { id: 'medium', label: 'MÉDIO' },
+    { id: 'hard', label: 'DIFÍCIL' },
+    { id: 'epic', label: 'ÉPICO' },
+];
 
 const STATUS_TABS = [
     { id: 'active', label: 'ATIVAS', icon: 'clipboard-play-outline', color: '#10B981' },
@@ -37,18 +46,22 @@ export default function MissionManagerScreen() {
     const route = useRoute();
     const { profile } = useAuth();
 
-    // Trava de segurança: Se a rota não passar o familyId, ele pega do perfil logado automaticamente
     const familyId = route.params?.familyId || profile?.family_id;
 
+    // Estados de Tela
     const [activeStatus, setActiveStatus] = useState('active');
     const [profiles, setProfiles] = useState([]);
-    const [filterAssignee, setFilterAssignee] = useState(null);
-    const [filterName, setFilterName] = useState('TODOS');
-    const [showFilterModal, setShowFilterModal] = useState(false);
     const [missions, setMissions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [showCreateOptions, setShowCreateOptions] = useState(false);
+    const [showFilterModal, setShowFilterModal] = useState(false);
+
+    // Estados de Filtro
+    const [filterAssignee, setFilterAssignee] = useState(null);
+    const [filterRecurrence, setFilterRecurrence] = useState('all'); // all, single, recurring
+    const [filterRewardType, setFilterRewardType] = useState('all'); // all, coins, custom
+    const [filterDifficulty, setFilterDifficulty] = useState('all'); // all, easy, medium, hard, epic
 
     const loadScreenData = useCallback(async () => {
         if (!familyId) return;
@@ -122,20 +135,21 @@ export default function MissionManagerScreen() {
 
         if (!activeMissions || activeMissions.length === 0) return;
 
-        const now = new Date();
         const today = new Date();
         today.setHours(0,0,0,0);
-
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
         const expiredIds = [];
 
         activeMissions.forEach(m => {
-            const missionDate = m.scheduled_date ? new Date(m.scheduled_date + 'T00:00:00') : today;
+            let missionDate = today;
+            if (m.scheduled_date) {
+                const [year, month, day] = m.scheduled_date.split('-');
+                missionDate = new Date(year, month - 1, day);
+            }
 
             if (missionDate < today) {
                 expiredIds.push(m.id);
-            }
-            else if (missionDate.getTime() === today.getTime() && m.deadline) {
+            } else if (missionDate.getTime() === today.getTime() && m.deadline) {
                 const [h, min] = m.deadline.split(':').map(Number);
                 const deadlineMinutes = h * 60 + min;
                 if (deadlineMinutes < currentMinutes) {
@@ -149,14 +163,35 @@ export default function MissionManagerScreen() {
         }
     };
 
+    // LÓGICA DE FILTRAGEM AVANÇADA
     const filteredMissions = missions.filter(m => {
-        if (!filterAssignee) return true;
-        return m.assigned_to === filterAssignee;
+        let pass = true;
+        if (filterAssignee && m.assigned_to !== filterAssignee) pass = false;
+        if (filterRecurrence === 'single' && m.is_recurring) pass = false;
+        if (filterRecurrence === 'recurring' && !m.is_recurring) pass = false;
+        if (filterRewardType !== 'all' && m.reward_type !== filterRewardType) pass = false;
+        if (filterDifficulty !== 'all' && m.difficulty !== filterDifficulty) pass = false;
+        return pass;
     });
+
+    const activeFiltersCount = [
+        filterAssignee !== null,
+        filterRecurrence !== 'all',
+        filterRewardType !== 'all',
+        filterDifficulty !== 'all'
+    ].filter(Boolean).length;
+
+    const clearFilters = () => {
+        setFilterAssignee(null);
+        setFilterRecurrence('all');
+        setFilterRewardType('all');
+        setFilterDifficulty('all');
+        setShowFilterModal(false);
+    };
 
     const handleDelete = (id) => {
         Alert.alert("Arquivar", "Mover para lixeira?", [
-            { text: "Não" },
+            { text: "Não", style: 'cancel' },
             { text: "Sim", style: 'destructive', onPress: async () => {
                     await supabase.from('missions').update({ status: 'archived' }).eq('id', id);
                     loadScreenData();
@@ -173,8 +208,10 @@ export default function MissionManagerScreen() {
 
     const formatDate = (dateString) => {
         if (!dateString) return "Hoje";
-        const date = new Date(dateString + 'T00:00:00');
-        const today = new Date(); today.setHours(0,0,0,0);
+        const [year, month, day] = dateString.split('-');
+        const date = new Date(year, month - 1, day);
+        const today = new Date();
+        today.setHours(0,0,0,0);
 
         if (date.getTime() === today.getTime()) return "Hoje";
         return date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
@@ -194,28 +231,17 @@ export default function MissionManagerScreen() {
         let cardBg, iconColor, titleColor, borderColor;
 
         if (isCompleted) {
-            cardBg = '#F0FDF4';
-            iconColor = '#16A34A';
-            titleColor = '#14532D';
-            borderColor = '#16A34A';
+            cardBg = '#F0FDF4'; iconColor = '#16A34A'; titleColor = '#14532D'; borderColor = '#16A34A';
         } else if (isInactive) {
-            cardBg = '#F9FAFB';
-            iconColor = '#9CA3AF';
-            titleColor = '#9CA3AF';
-            borderColor = '#E5E7EB';
+            cardBg = '#F9FAFB'; iconColor = '#9CA3AF'; titleColor = '#9CA3AF'; borderColor = '#E5E7EB';
         } else {
-            cardBg = diffData.bg;
-            iconColor = diffData.color;
-            titleColor = '#1E293B';
-            borderColor = diffData.color;
+            cardBg = diffData.bg; iconColor = diffData.color; titleColor = '#1E293B'; borderColor = diffData.color;
         }
 
         return (
             <View style={styles.cardWrapper}>
                 <View style={styles.cardShadow} />
-
                 <View style={[styles.cardFront, { backgroundColor: cardBg, borderColor: borderColor }]}>
-
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
                         <View style={[styles.iconBox, {backgroundColor: '#FFF', borderWidth: 1, borderColor: isInactive ? '#E5E7EB' : borderColor+'40' }]}>
                             <MaterialCommunityIcons name={isCompleted ? "check-decagram" : item.icon} size={28} color={iconColor} />
@@ -224,7 +250,7 @@ export default function MissionManagerScreen() {
                         <View style={{flex:1}}>
                             <Text style={[styles.cardTitle, {color: titleColor}]} numberOfLines={1}>{item.title}</Text>
 
-                            <View style={{flexDirection: 'row', marginTop: 4, gap: 5}}>
+                            <View style={{flexDirection: 'row', marginTop: 4, flexWrap: 'wrap', gap: 5}}>
                                 <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: isCustom ? '#DB2777' : '#F59E0B' }]}>
                                     <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={10} color={isCustom ? '#DB2777' : '#B45309'} />
                                     <Text style={[styles.tagText, { color: isCustom ? '#DB2777' : '#B45309' }]}>
@@ -242,19 +268,10 @@ export default function MissionManagerScreen() {
                     </View>
 
                     {item.use_critical && !isInactive && (
-                        <View style={[
-                            styles.treasureBadge,
-                            item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple
-                        ]}>
-                            <MaterialCommunityIcons
-                                name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"}
-                                size={14} color="#FFF" style={{marginRight:5}}
-                            />
+                        <View style={[styles.treasureBadge, item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple]}>
+                            <MaterialCommunityIcons name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} size={14} color="#FFF" style={{marginRight:5}} />
                             <Text style={styles.treasureText}>
-                                {item.critical_type === 'bonus_coins'
-                                    ? `+50% Bônus (${item.critical_chance}%)`
-                                    : `Item Surpresa (${item.critical_chance}%)`
-                                }
+                                {item.critical_type === 'bonus_coins' ? `+50% Bônus (${item.critical_chance}%)` : `Item Surpresa (${item.critical_chance}%)`}
                             </Text>
                         </View>
                     )}
@@ -265,10 +282,7 @@ export default function MissionManagerScreen() {
                         <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'40' }]}>
                             <MaterialCommunityIcons name={item.is_recurring ? "calendar-sync" : "calendar-check"} size={12} color="#64748B" />
                             <Text style={[styles.metaText, {color: '#64748B'}]}>
-                                {item.is_recurring
-                                    ? (item.recurrence_days ? getDayLabels(item.recurrence_days) : "Diária")
-                                    : `Data: ${formatDate(item.scheduled_date)}`
-                                }
+                                {item.is_recurring ? (item.recurrence_days ? getDayLabels(item.recurrence_days) : "Diária") : `Data: ${formatDate(item.scheduled_date)}`}
                             </Text>
                         </View>
 
@@ -319,15 +333,18 @@ export default function MissionManagerScreen() {
                     <View style={{width: 40}} />
                 </View>
 
-                <View style={styles.filterContainer}>
-                    <Text style={styles.filterLabel}>Visualizando de:</Text>
+                <View style={styles.filterBar}>
+                    <Text style={styles.filterTitle}>
+                        {filteredMissions.length} Tarefa{filteredMissions.length !== 1 && 's'}
+                    </Text>
                     <TouchableOpacity style={styles.filterButton} activeOpacity={0.8} onPress={() => setShowFilterModal(true)}>
-                        <Text style={styles.filterText}>{filterName}</Text>
-                        <MaterialCommunityIcons name="chevron-down" size={20} color="#10B981" />
+                        <MaterialCommunityIcons name="filter-variant" size={16} color="#10B981" />
+                        <Text style={styles.filterText}>
+                            Filtros {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ''}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
-            {/* -------------------------------- */}
 
             <View style={styles.contentContainer}>
                 <View style={styles.tabsWrapper}>
@@ -341,12 +358,7 @@ export default function MissionManagerScreen() {
                             const isActive = activeStatus === item.id;
                             return (
                                 <TouchableOpacity
-                                    style={[
-                                        styles.tabItem,
-                                        isActive
-                                            ? { backgroundColor: item.color, borderColor: item.color }
-                                            : { borderColor: '#10B981', backgroundColor: '#FFF' }
-                                    ]}
+                                    style={[styles.tabItem, isActive ? { backgroundColor: item.color, borderColor: item.color } : { borderColor: '#10B981', backgroundColor: '#FFF' }]}
                                     activeOpacity={0.8}
                                     onPress={() => setActiveStatus(item.id)}
                                 >
@@ -366,21 +378,17 @@ export default function MissionManagerScreen() {
                     renderItem={renderMissionCard}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />
-                    }
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
                             {loading ? <ActivityIndicator color="#10B981" size="large" /> : (
                                 <>
                                     <MaterialCommunityIcons name="clipboard-text-off-outline" size={60} color="#94A3B8" />
                                     <Text style={styles.emptyTitle}>
-                                        {activeStatus === 'active' ? "Tudo limpo por aqui!" : "Nada nesta lista"}
+                                        {activeFiltersCount > 0 ? "Nenhum resultado" : (activeStatus === 'active' ? "Tudo limpo por aqui!" : "Nada nesta lista")}
                                     </Text>
                                     <Text style={styles.emptySub}>
-                                        {activeStatus === 'active'
-                                            ? "Toque no + para criar novas missões."
-                                            : "Missões finalizadas ou expiradas aparecerão aqui."}
+                                        {activeFiltersCount > 0 ? "Tente limpar os filtros para ver mais opções." : "Toque no + para criar novas missões."}
                                     </Text>
                                 </>
                             )}
@@ -397,24 +405,78 @@ export default function MissionManagerScreen() {
                 </TouchableOpacity>
             )}
 
-            {/* MODAL DE FILTRO */}
-            <Modal visible={showFilterModal} transparent={true} animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
+            {/* --- MODAL DE FILTROS AVANÇADOS --- */}
+            <Modal visible={showFilterModal} transparent={true} animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>FILTRAR POR MEMBRO</Text>
-                        <TouchableOpacity style={styles.modalOption} onPress={() => { setFilterAssignee(null); setFilterName('TODOS'); setShowFilterModal(false); }}>
-                            <Text style={styles.modalOptionText}>TODOS</Text>
-                            {filterAssignee === null && <MaterialCommunityIcons name="check" size={20} color="#10B981" />}
-                        </TouchableOpacity>
-                        <FlatList data={profiles} keyExtractor={item => item.id} style={{ maxHeight: 300 }} renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.modalOption} onPress={() => { setFilterAssignee(item.id); setFilterName(item.name); setShowFilterModal(false); }}>
-                                <Text style={styles.modalOptionText}>{item.name}</Text>
-                                {filterAssignee === item.id && <MaterialCommunityIcons name="check" size={20} color="#10B981" />}
+                    <TouchableOpacity style={{flex: 1, width: '100%'}} onPress={() => setShowFilterModal(false)} />
+                    <View style={styles.filterModalContent}>
+                        <View style={styles.filterModalHeader}>
+                            <Text style={styles.filterModalTitle}>Filtros Avançados</Text>
+                            <TouchableOpacity onPress={clearFilters}>
+                                <Text style={styles.clearFilterText}>Limpar</Text>
                             </TouchableOpacity>
-                        )}
-                        />
-                        <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowFilterModal(false)}>
-                            <Text style={styles.closeModalText}>FECHAR</Text>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+
+                            {/* Filtro: Membro */}
+                            <Text style={styles.filterSectionLabel}>MEMBRO</Text>
+                            <View style={styles.chipGroup}>
+                                <TouchableOpacity style={[styles.filterChip, filterAssignee === null && styles.filterChipActive]} onPress={() => setFilterAssignee(null)}>
+                                    <Text style={[styles.filterChipText, filterAssignee === null && styles.filterChipTextActive]}>Todos</Text>
+                                </TouchableOpacity>
+                                {profiles.map(p => (
+                                    <TouchableOpacity key={p.id} style={[styles.filterChip, filterAssignee === p.id && styles.filterChipActive]} onPress={() => setFilterAssignee(p.id)}>
+                                        <Text style={[styles.filterChipText, filterAssignee === p.id && styles.filterChipTextActive]}>{p.name}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Filtro: Frequência */}
+                            <Text style={styles.filterSectionLabel}>FREQUÊNCIA</Text>
+                            <View style={styles.chipGroup}>
+                                <TouchableOpacity style={[styles.filterChip, filterRecurrence === 'all' && styles.filterChipActive]} onPress={() => setFilterRecurrence('all')}>
+                                    <Text style={[styles.filterChipText, filterRecurrence === 'all' && styles.filterChipTextActive]}>Todas</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.filterChip, filterRecurrence === 'single' && styles.filterChipActive]} onPress={() => setFilterRecurrence('single')}>
+                                    <Text style={[styles.filterChipText, filterRecurrence === 'single' && styles.filterChipTextActive]}>Data Única</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.filterChip, filterRecurrence === 'recurring' && styles.filterChipActive]} onPress={() => setFilterRecurrence('recurring')}>
+                                    <Text style={[styles.filterChipText, filterRecurrence === 'recurring' && styles.filterChipTextActive]}>Recorrentes</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Filtro: Tipo de Recompensa */}
+                            <Text style={styles.filterSectionLabel}>TIPO DE PRÊMIO</Text>
+                            <View style={styles.chipGroup}>
+                                <TouchableOpacity style={[styles.filterChip, filterRewardType === 'all' && styles.filterChipActive]} onPress={() => setFilterRewardType('all')}>
+                                    <Text style={[styles.filterChipText, filterRewardType === 'all' && styles.filterChipTextActive]}>Todos</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.filterChip, filterRewardType === 'coins' && styles.filterChipActive]} onPress={() => setFilterRewardType('coins')}>
+                                    <Text style={[styles.filterChipText, filterRewardType === 'coins' && styles.filterChipTextActive]}>Moedas</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.filterChip, filterRewardType === 'custom' && styles.filterChipActive]} onPress={() => setFilterRewardType('custom')}>
+                                    <Text style={[styles.filterChipText, filterRewardType === 'custom' && styles.filterChipTextActive]}>Item/Manual</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Filtro: Dificuldade */}
+                            <Text style={styles.filterSectionLabel}>DIFICULDADE</Text>
+                            <View style={styles.chipGroup}>
+                                <TouchableOpacity style={[styles.filterChip, filterDifficulty === 'all' && styles.filterChipActive]} onPress={() => setFilterDifficulty('all')}>
+                                    <Text style={[styles.filterChipText, filterDifficulty === 'all' && styles.filterChipTextActive]}>Todas</Text>
+                                </TouchableOpacity>
+                                {DIFFICULTY_TIERS.map(tier => (
+                                    <TouchableOpacity key={tier.id} style={[styles.filterChip, filterDifficulty === tier.id && styles.filterChipActive]} onPress={() => setFilterDifficulty(tier.id)}>
+                                        <Text style={[styles.filterChipText, filterDifficulty === tier.id && styles.filterChipTextActive]}>{tier.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={{height: 20}}/>
+                        </ScrollView>
+
+                        <TouchableOpacity style={styles.applyFilterBtn} activeOpacity={0.8} onPress={() => setShowFilterModal(false)}>
+                            <Text style={styles.applyFilterText}>Ver Resultados</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -459,26 +521,25 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
         zIndex: 10,
+        elevation: 5
     },
 
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
 
-    filterContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
-    filterLabel: { fontFamily: FONTS.regular, fontSize: 15, color: '#D1FAE5' },
+    filterBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
+    filterTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#D1FAE5' },
     filterButton: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#FFF',
-        paddingHorizontal: 12, paddingVertical: 6,
-        borderRadius: 20, gap: 5,
+        paddingHorizontal: 12, paddingVertical: 8,
+        borderRadius: 20, gap: 6,
         shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 4
     },
     filterText: { fontFamily: FONTS.bold, fontSize: 12, color: '#10B981' },
 
-    contentContainer: {
-        flex: 1, marginTop: -25, overflow: 'hidden', paddingTop: 10,
-    },
+    contentContainer: { flex: 1, marginTop: -25, overflow: 'hidden', paddingTop: 10 },
     tabsWrapper: { marginBottom: 5, marginTop: 25 },
     tabItem: {
         flexDirection: 'row', alignItems: 'center',
@@ -495,21 +556,16 @@ const styles = StyleSheet.create({
         position: 'absolute', top: 4, left: 0, width: '100%', height: '100%',
         backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 24
     },
-    cardFront: {
-        backgroundColor: '#FFF', borderRadius: 24,
-        borderWidth: 2,
-        padding: 16, overflow: 'hidden'
-    },
+    cardFront: { backgroundColor: '#FFF', borderRadius: 24, borderWidth: 2, padding: 16, overflow: 'hidden' },
+    previewIconBox: { width: 50, height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     iconBox: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B', flex: 1 },
     tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
     tagText: { fontFamily: FONTS.bold, fontSize: 10, marginLeft: 4 },
-
     treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginLeft: 60, marginBottom: 10 },
     treasureGold: { backgroundColor: '#F59E0B' },
     treasurePurple: { backgroundColor: '#8B5CF6' },
     treasureText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-
     divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
     metaInfoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
@@ -525,15 +581,23 @@ const styles = StyleSheet.create({
     fab: { position: 'absolute', bottom: 30, right: 20, borderRadius: 30, shadowColor: '#10B981', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 },
     fabInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
 
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 2, borderColor: '#10B981' },
-    modalTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#10B981', marginBottom: 15, textAlign: 'center' },
-    modalOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-    modalOptionText: { fontFamily: FONTS.bold, fontSize: 14, color: '#334155' },
-    closeModalBtn: { marginTop: 15, padding: 12, backgroundColor: '#F1F5F9', borderRadius: 14, alignItems: 'center' },
-    closeModalText: { fontFamily: FONTS.bold, color: '#64748B' },
+    // --- MODAL DE FILTRO AVANÇADO ---
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    filterModalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25, maxHeight: '85%' },
+    filterModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    filterModalTitle: { fontFamily: FONTS.bold, fontSize: 18, color: '#1E293B' },
+    clearFilterText: { fontFamily: FONTS.bold, fontSize: 14, color: '#EF4444' },
+    filterSectionLabel: { fontFamily: FONTS.bold, fontSize: 12, color: '#94A3B8', marginTop: 15, marginBottom: 10 },
+    chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
+    filterChipActive: { backgroundColor: '#ECFDF5', borderColor: '#10B981' },
+    filterChipText: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B' },
+    filterChipTextActive: { color: '#10B981' },
+    applyFilterBtn: { backgroundColor: '#10B981', paddingVertical: 15, borderRadius: 16, alignItems: 'center', marginTop: 20 },
+    applyFilterText: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF' },
 
-    createOptionsContainer: { position: 'absolute', bottom: 30, width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 2, borderColor: '#10B981' },
+    // Modal de Criação
+    createOptionsContainer: { position: 'absolute', bottom: 30, width: '90%', alignSelf: 'center', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#10B981', shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 10 },
     createHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     createOptionsTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#94A3B8' },
     createOptionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
