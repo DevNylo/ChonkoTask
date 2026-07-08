@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTADO
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -15,6 +14,7 @@ import {
     TouchableWithoutFeedback,
     View
 } from 'react-native';
+import { useAuth } from '../../context/AuthContext'; // <-- Importado para segurança
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
 
@@ -23,53 +23,56 @@ import { MISSIONS_CATALOG } from '../../constants/MissionsCatalog';
 
 // 2. CONFIGURAÇÃO VISUAL
 const DIFFICULTY_CONFIG = {
-    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, 
-    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, 
-    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, 
-    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, 
-    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  
+    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' },
+    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' },
+    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' },
+    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' },
+    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }
 };
 
 const WEEKDAYS = [
-    { id: 0, label: 'DOM' }, { id: 1, label: 'SEG' }, { id: 2, label: 'TER' }, 
+    { id: 0, label: 'DOM' }, { id: 1, label: 'SEG' }, { id: 2, label: 'TER' },
     { id: 3, label: 'QUA' }, { id: 4, label: 'QUI' }, { id: 5, label: 'SEX' }, { id: 6, label: 'SÁB' }
 ];
 
 export default function QuickMissionsScreen() {
     const navigation = useNavigation();
     const route = useRoute();
-    const { familyId } = route.params;
-    
+    const { profile } = useAuth(); // Segurança extra
+
+    // Puxa da rota ou do perfil do usuário para nunca ficar undefined
+    const familyId = route.params?.familyId || profile?.family_id;
+
     const [templates, setTemplates] = useState([]);
     const [combinedList, setCombinedList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
-    
+
     const [selectedIds, setSelectedIds] = useState([]);
     const isSelectionMode = selectedIds.length > 0;
 
-    useEffect(() => { 
-        fetchData(); 
-    }, []);
+    useEffect(() => {
+        if (familyId) fetchData();
+    }, [familyId]);
 
     // LÓGICA DE COMBINAÇÃO E SEPARADOR
     useEffect(() => {
         const lowerSearch = searchText.toLowerCase();
-        
-        // 1. Meus Modelos
-        const filteredTemplates = templates.filter(t => 
+
+        // 1. Meus Modelos (Filtrados do Banco)
+        const filteredTemplates = templates.filter(t =>
             t.title.toLowerCase().includes(lowerSearch)
         );
-        
-        // 2. Sugestões do Sistema
-        const filteredIdeas = MISSIONS_CATALOG.filter(t => 
+
+        // 2. Sugestões do Sistema (Filtrados do Catálogo Estático)
+        const filteredIdeas = MISSIONS_CATALOG.filter(t =>
             t.title.toLowerCase().includes(lowerSearch)
         );
 
         let finalList = [...filteredTemplates];
 
         if (filteredIdeas.length > 0) {
-            finalList.push({ id: 'SEPARATOR_HEADER', is_separator: true, title: 'Sugestões do Chonko Task' });
+            finalList.push({ id: 'SEPARATOR_HEADER', is_separator: true, title: 'Sugestões do Chonko' });
             finalList = [...finalList, ...filteredIdeas];
         }
 
@@ -78,29 +81,37 @@ export default function QuickMissionsScreen() {
 
     const fetchData = async () => {
         setLoading(true);
-        const { data } = await supabase.from('missions')
-            .select('*')
-            .eq('family_id', familyId)
-            .eq('is_template', true)
-            .order('created_at', { ascending: false });
-        setTemplates(data || []);
-        setLoading(false);
+        try {
+            const { data, error } = await supabase.from('missions')
+                .select('*')
+                .eq('family_id', familyId)
+                .eq('is_template', true)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setTemplates(data || []);
+        } catch (error) {
+            console.log("Erro ao carregar modelos:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSelectMission = (item) => {
         if (item.is_separator) return;
 
         if (isSelectionMode) {
-            if (item.is_system) return; 
+            if (item.is_system) return;
             toggleSelection(item.id);
         } else {
+            // Se for do sistema, removemos o ID para que ao salvar na próxima tela seja criado um NOVO registro
             const templateData = item.is_system ? { ...item, id: null } : item;
             navigation.navigate('CreateMission', { familyId, templateData });
         }
     };
 
     const handleLongPress = (item) => {
-        if (item.is_system || item.is_separator) return; 
+        if (item.is_system || item.is_separator) return;
         toggleSelection(item.id);
     };
 
@@ -113,13 +124,18 @@ export default function QuickMissionsScreen() {
     };
 
     const handleBatchDelete = () => {
-        Alert.alert("Excluir Modelos", `Apagar ${selectedIds.length} modelos selecionados?`, [
-            { text: "Cancelar" },
+        Alert.alert("Excluir Modelos", `Apagar ${selectedIds.length} modelo(s) selecionado(s)?`, [
+            { text: "Cancelar", style: "cancel" },
             { text: "Apagar", style: 'destructive', onPress: async () => {
                 setLoading(true);
-                await supabase.from('missions').delete().in('id', selectedIds);
-                setSelectedIds([]);
-                fetchData();
+                try {
+                    await supabase.from('missions').delete().in('id', selectedIds);
+                    setSelectedIds([]);
+                    fetchData();
+                } catch (error) {
+                    Alert.alert("Erro", "Não foi possível apagar os modelos.");
+                    setLoading(false);
+                }
             }}
         ]);
     };
@@ -153,24 +169,24 @@ export default function QuickMissionsScreen() {
         const isCustom = item.reward_type === 'custom';
         const isSystem = item.is_system;
         const isSelected = selectedIds.includes(item.id);
-        
+
         const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
         const borderColor = diffData.color;
         const cardBg = diffData.bg;
 
         return (
-            <TouchableOpacity 
-                style={[styles.cardWrapper, isSelected && styles.cardSelectedScale]} 
-                activeOpacity={0.8} 
+            <TouchableOpacity
+                style={[styles.cardWrapper, isSelected && styles.cardSelectedScale]}
+                activeOpacity={0.8}
                 onPress={() => handleSelectMission(item)}
                 onLongPress={() => handleLongPress(item)}
             >
                 {isSelectionMode && !isSystem && (
                     <View style={styles.selectionOverlay}>
-                        <MaterialCommunityIcons 
-                            name={isSelected ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"} 
-                            size={24} 
-                            color={isSelected ? COLORS.primary : "#CBD5E1"} 
+                        <MaterialCommunityIcons
+                            name={isSelected ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"}
+                            size={24}
+                            color={isSelected ? '#10B981' : "#CBD5E1"}
                         />
                     </View>
                 )}
@@ -178,16 +194,16 @@ export default function QuickMissionsScreen() {
                 <View style={styles.cardShadow} />
 
                 <View style={[
-                    styles.cardFront, 
-                    { borderColor: borderColor, backgroundColor: cardBg }, 
-                    isSelected && { backgroundColor: '#F0FDF4', borderColor: COLORS.primary } 
+                    styles.cardFront,
+                    { borderColor: borderColor, backgroundColor: cardBg },
+                    isSelected && { backgroundColor: '#F0FDF4', borderColor: '#10B981' }
                 ]}>
-                    
+
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
                         <View style={[styles.iconBox, {backgroundColor: '#FFF', borderWidth: 1, borderColor: borderColor+'40'}]}>
                             <MaterialCommunityIcons name={item.icon || 'star'} size={28} color={borderColor} />
                         </View>
-                        
+
                         <View style={{flex:1}}>
                             <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
                                 <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
@@ -197,7 +213,7 @@ export default function QuickMissionsScreen() {
                                     </View>
                                 )}
                             </View>
-                            
+
                             <View style={{flexDirection: 'row', marginTop: 4, flexWrap:'wrap', gap: 5}}>
                                 <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: isCustom ? '#DB2777' : '#F59E0B' }]}>
                                     <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={10} color={isCustom ? '#DB2777' : '#B45309'} />
@@ -205,7 +221,7 @@ export default function QuickMissionsScreen() {
                                         {isCustom ? (item.custom_reward || "Prêmio") : `+${item.reward}`}
                                     </Text>
                                 </View>
-                                
+
                                 {item.difficulty && (
                                     <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: diffData.color }]}>
                                         <Text style={[styles.tagText, { color: diffData.color }]}>{diffData.label}</Text>
@@ -217,16 +233,16 @@ export default function QuickMissionsScreen() {
 
                     {item.use_critical && (
                         <View style={[
-                            styles.treasureBadge, 
+                            styles.treasureBadge,
                             item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple
                         ]}>
-                            <MaterialCommunityIcons 
-                                name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift-open"} 
-                                size={12} color="#FFF" style={{marginRight:4}} 
+                            <MaterialCommunityIcons
+                                name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift-open"}
+                                size={12} color="#FFF" style={{marginRight:4}}
                             />
                             <Text style={styles.treasureText}>
-                                {item.critical_type === 'bonus_coins' 
-                                    ? `💰 BÔNUS EXTRA (${item.critical_chance}%)` 
+                                {item.critical_type === 'bonus_coins'
+                                    ? `💰 BÔNUS EXTRA (${item.critical_chance}%)`
                                     : `🎁 ITEM SURPRESA (${item.critical_chance}%)`
                                 }
                             </Text>
@@ -252,43 +268,37 @@ export default function QuickMissionsScreen() {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.container}>
                 <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-                
-                {/* --- HEADER COM GRADIENTE --- */}
-                <LinearGradient
-                    // Se estiver selecionando itens, muda para vermelho (exclusão)
-                    colors={isSelectionMode ? ['#991B1B', '#EF4444'] : ['#064E3B', '#10B981']} 
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.topGreenArea}
-                >
+
+                {/* --- HEADER SÓLIDO --- */}
+                <View style={[styles.topArea, isSelectionMode ? styles.topAreaRed : styles.topAreaGreen]}>
                     <View style={styles.header}>
                         {isSelectionMode ? (
                             <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
-                                <TouchableOpacity onPress={cancelSelection} style={styles.backBtn}>
+                                <TouchableOpacity onPress={cancelSelection} style={styles.backBtn} activeOpacity={0.8}>
                                     <MaterialCommunityIcons name="close" size={24} color="#FFF" />
                                 </TouchableOpacity>
                                 <Text style={styles.headerTitle}>{selectedIds.length} Selecionados</Text>
-                                <TouchableOpacity onPress={handleBatchDelete} style={styles.deleteHeaderBtn}>
+                                <TouchableOpacity onPress={handleBatchDelete} style={styles.deleteHeaderBtn} activeOpacity={0.8}>
                                     <MaterialCommunityIcons name="trash-can" size={24} color="#FFF" />
                                 </TouchableOpacity>
                             </View>
                         ) : (
                             <>
-                                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                                    <MaterialCommunityIcons name="arrow-left" size={24} color={'#FFFF'} />
+                                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.8}>
+                                    <MaterialCommunityIcons name="arrow-left" size={24} color={'#FFF'} />
                                 </TouchableOpacity>
                                 <Text style={styles.headerTitle}>IDEIAS E MODELOS</Text>
-                                <View style={{width: 40}} /> 
+                                <View style={{width: 40}} />
                             </>
                         )}
                     </View>
 
                     {!isSelectionMode && (
                         <View style={styles.searchContainer}>
-                            <MaterialCommunityIcons name="magnify" size={20} color={COLORS.primary} style={{marginLeft: 10}} />
-                            <TextInput 
-                                style={styles.searchInput} 
-                                placeholder="Buscar missão..." 
+                            <MaterialCommunityIcons name="magnify" size={20} color="#10B981" style={{marginLeft: 10}} />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder="Buscar missão..."
                                 placeholderTextColor="#94A3B8"
                                 value={searchText}
                                 onChangeText={setSearchText}
@@ -300,13 +310,13 @@ export default function QuickMissionsScreen() {
                             )}
                         </View>
                     )}
-                </LinearGradient>
-                {/* --------------------------- */}
+                </View>
 
                 <FlatList
                     data={combinedList}
                     keyExtractor={item => item.id}
                     contentContainerStyle={{padding: 20, paddingBottom: 50}}
+                    showsVerticalScrollIndicator={false}
                     ListHeaderComponent={() => (
                         <Text style={styles.listHeader}>
                             {searchText ? `Resultados para "${searchText}"` : "Modelos Salvos & Sugestões"}
@@ -314,7 +324,7 @@ export default function QuickMissionsScreen() {
                     )}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            {loading ? <ActivityIndicator color={COLORS.primary} /> : (
+                            {loading ? <ActivityIndicator color="#10B981" /> : (
                                 <Text style={styles.emptyText}>Nenhuma missão encontrada.</Text>
                             )}
                         </View>
@@ -327,60 +337,62 @@ export default function QuickMissionsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F0F9FF' },
-    
-    // --- ESTILO DO HEADER AJUSTADO ---
-    topGreenArea: {
-        paddingTop: 50,
+    container: { flex: 1, backgroundColor: '#FDFCF8' }, // Creme sólido padrão
+
+    // --- ESTILO DO HEADER AJUSTADO (SÓLIDO) ---
+    topArea: {
+        paddingTop: 60,
         paddingBottom: 25,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
+        borderBottomLeftRadius: 35,
+        borderBottomRightRadius: 35,
         zIndex: 10,
         shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
     },
+    topAreaGreen: { backgroundColor: '#10B981' }, // Verde missão
+    topAreaRed: { backgroundColor: '#EF4444' }, // Vermelho seleção
     // ---------------------------------
-    
+
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1, flex: 1, textAlign: 'center' },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
     deleteHeaderBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 14 },
 
-    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', marginHorizontal: 20, borderRadius: 15, height: 45, paddingHorizontal: 5 },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', marginHorizontal: 20, borderRadius: 16, height: 50, paddingHorizontal: 5 },
     searchInput: { flex: 1, fontFamily: FONTS.regular, fontSize: 14, color: '#1E293B', marginLeft: 10 },
     listHeader: { fontFamily: FONTS.bold, fontSize: 14, color: '#64748B', marginBottom: 15, marginLeft: 5 },
 
     // SEPARADOR
     separatorContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
     separatorLine: { flex: 1, height: 1, backgroundColor: '#CBD5E1' },
-    separatorBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.secondary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginHorizontal: 10 },
+    separatorBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3B82F6', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginHorizontal: 10 },
     separatorText: { fontFamily: FONTS.bold, fontSize: 12, color: '#FFF', textTransform: 'uppercase', letterSpacing: 0.5 },
 
     // CARD
     cardWrapper: { marginBottom: 15, borderRadius: 24, position: 'relative' },
-    cardShadow: { position: 'absolute', top: 6, left: 0, width: '100%', height: '100%', backgroundColor: COLORS.shadow, borderRadius: 24, opacity: 0.05 },
-    
-    cardFront: { 
-        borderRadius: 24, 
-        borderWidth: 2, 
-        padding: 16, overflow: 'hidden' 
+    cardShadow: { position: 'absolute', top: 6, left: 0, width: '100%', height: '100%', backgroundColor: '#000', borderRadius: 24, opacity: 0.05 },
+
+    cardFront: {
+        borderRadius: 24,
+        borderWidth: 2,
+        padding: 16, overflow: 'hidden'
     },
     cardSelectedScale: { transform: [{scale: 0.98}], opacity: 0.9 },
     selectionOverlay: { position: 'absolute', top: 15, right: 15, zIndex: 10 },
 
     iconBox: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B', flexShrink: 1, flex: 1 },
-    
+
     // BADGES
-    systemBadge: { backgroundColor: '#E2E8F0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginLeft: 10, alignSelf: 'flex-start' },
+    systemBadge: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#E2E8F0' },
     systemBadgeText: { fontSize: 9, fontWeight: 'bold', color: '#475569' },
 
     tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
     tagText: { fontFamily: FONTS.bold, fontSize: 10, marginLeft: 4 },
 
-    treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginLeft: 56, marginBottom: 8 },
+    treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginLeft: 56, marginBottom: 8 },
     treasureGold: { backgroundColor: '#F59E0B' },
     treasurePurple: { backgroundColor: '#8B5CF6' },
-    treasureText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
+    treasureText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
     divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 10 },
     metaInfoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
