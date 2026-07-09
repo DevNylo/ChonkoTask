@@ -129,7 +129,6 @@ export default function CreateFamilyScreen() {
         return "FINALIZAR CADASTRO";
     };
 
-    // --- CÓDIGO RAIO-X PARA DEBUG DO SUPABASE ---
     const handleCreateHQ = async () => {
         if (!birthDate || !selectedArchetype || !familyName || !captainName || !pin || !userMathAnswer) {
             return Alert.alert("Faltam dados!", "Preencha todo o formulário.");
@@ -171,7 +170,6 @@ export default function CreateFamilyScreen() {
                 avatar: 'crown-placeholder'
             }]);
 
-            // SE DER ERRO NO PERFIL, ELE VAI GRITAR NO TERMINAL AQUI:
             if (profileError) {
                 console.error("❌ ERRO FATAL AO CRIAR PERFIL:", profileError);
                 throw profileError;
@@ -229,7 +227,7 @@ export default function CreateFamilyScreen() {
                         <Text style={styles.stepText}>Etapa {currentStep} de {totalSteps}</Text>
                     </View>
 
-                    {/* CARD COM SOMBRA SALTADA */}
+                    {/* CARD COM SOMBRA E BORDA SÓLIDA LARANJA */}
                     <View style={styles.cardWrapper}>
                         <View style={styles.cardShadow} />
 
@@ -288,7 +286,6 @@ export default function CreateFamilyScreen() {
                                         </View>
                                         <Text style={styles.securityDesc}>Isso evita que os aventureiros acessem suas configurações.</Text>
 
-                                        {/* Adicionado alignItems: 'flex-end' para garantir que os inputs fiquem perfeitamente alinhados na base */}
                                         <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, alignItems: 'flex-end' }}>
                                             <View style={{ flex: 1 }}>
                                                 <PremiumInput
@@ -418,7 +415,7 @@ const styles = StyleSheet.create({
     progressBarFill: { height: '100%', backgroundColor: '#F59E0B', borderRadius: 6 },
     stepText: { fontFamily: FONTS.bold, color: '#D97706', fontSize: 16 },
 
-    // --- CARD COM SOMBRA SALTADA ---
+    // --- CARD COM SOMBRA E BORDA LARANJA ---
     cardWrapper: {
         position: 'relative',
         marginBottom: 20
@@ -429,15 +426,15 @@ const styles = StyleSheet.create({
         left: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: 'rgba(217, 119, 6, 0.15)',
+        backgroundColor: '#FEF3C7', // Sombra suave amarelinha
         borderRadius: 24,
     },
     cardFront: {
         backgroundColor: '#FFF',
         borderRadius: 24,
         padding: 25,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.08)'
+        borderWidth: 2,           // Borda destacada
+        borderColor: '#F59E0B',   // Borda Laranja Sólida
     },
 
     // Inputs

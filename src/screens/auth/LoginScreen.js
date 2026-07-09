@@ -13,7 +13,7 @@ import { FONTS } from '../../styles/theme';
 
 const { width } = Dimensions.get('window');
 
-// Componente de Input Padronizado (Soft Premium)
+// Componente de Input Padronizado (Solid Premium Azul)
 const LoginInput = ({ label, icon, ...props }) => (
     <View style={{ marginBottom: 20 }}>
         <Text style={styles.inputLabel}>{label}</Text>
@@ -94,7 +94,7 @@ export default function LoginScreen({ navigation }) {
 
     return (
         <ImageBackground
-            source={require('../../../assets/Onboarding/LoginScreen.png')} // Novo background exclusivo do Login
+            source={require('../../../assets/Onboarding/LoginScreen.png')}
             style={styles.container}
             resizeMode="cover"
         >
@@ -121,7 +121,7 @@ export default function LoginScreen({ navigation }) {
                         <Text style={styles.subtitle}>Entre para acessar suas missões</Text>
                     </View>
 
-                    {/* CARD COM SOMBRA SALTADA (Soft Premium - Tema Azul) */}
+                    {/* CARD COM SOMBRA E BORDA AZUL SÓLIDA */}
                     <View style={styles.cardWrapper}>
                         <View style={styles.cardShadow} />
 
@@ -150,7 +150,7 @@ export default function LoginScreen({ navigation }) {
                             </TouchableOpacity>
 
                             <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
-                                {/* SOMBRA SOLIDIA (3D Dinâmico Azul Escuro) */}
+                                {/* SOMBRA SÓLIDA (3D Dinâmico Azul Escuro) */}
                                 <View style={styles.btnShadow} />
                                 {/* FRENTE SÓLIDA (3D Dinâmico Azul) */}
                                 <View style={styles.btnFront}>
@@ -169,7 +169,7 @@ export default function LoginScreen({ navigation }) {
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>Ainda não tem conta?</Text>
                         <TouchableOpacity onPress={() => navigation.navigate('Welcome')} activeOpacity={0.7}>
-                            <Text style={styles.footerLink}>Criar ou Entrar em uma Família</Text>
+                            <Text style={styles.footerLink}>Criar ou Entrar em uma Equipe</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -180,7 +180,7 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDFCF8' },
+    container: { flex: 1 },
 
     content: {
         padding: 25,
@@ -192,16 +192,17 @@ const styles = StyleSheet.create({
     backBtn: {
         position: 'absolute', top: Platform.OS === 'ios' ? 60 : 50, left: 20,
         width: 44, height: 44, borderRadius: 14,
-        backgroundColor: '#F0F9FF', justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: '#BAE6FD', zIndex: 10
+        backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center',
+        borderWidth: 1, borderColor: '#E2E8F0', zIndex: 10,
+        elevation: 2
     },
 
     header: { alignItems: 'center', marginBottom: 30 },
 
-    title: { fontSize: 32, fontFamily: FONTS.bold, color: '#0ea5e9', textAlign: 'center', marginBottom: 5, letterSpacing: 1},
-    subtitle: { fontSize: 16, fontFamily: FONTS.regular, color: '#64748B', textAlign: 'center' },
+    title: { fontSize: 32, fontFamily: FONTS.bold, color: '#0EA5E9', textAlign: 'center', marginBottom: 5, letterSpacing: 1},
+    subtitle: { fontSize: 16, fontFamily: FONTS.regular, color: '#1E293B', textAlign: 'center' },
 
-    // --- CARD COM SOMBRA SALTADA (Soft Premium Azul) ---
+    // --- CARD COM SOMBRA E BORDA AZUL SÓLIDA ---
     cardWrapper: {
         position: 'relative',
         marginBottom: 20
@@ -212,28 +213,28 @@ const styles = StyleSheet.create({
         left: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: 'rgba(14, 165, 233, 0.15)',
+        backgroundColor: '#BAE6FD', // Sombra Azul Clara Sólida
         borderRadius: 24,
     },
     cardFront: {
         backgroundColor: '#FFF',
         borderRadius: 24,
         padding: 25,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.08)'
+        borderWidth: 2,           // Borda destacada
+        borderColor: '#0EA5E9',   // Borda Azul Sólida
     },
 
-    // Inputs (Soft Premium)
-    inputLabel: { fontFamily: FONTS.bold, fontSize: 13, color: '#0F172A', marginBottom: 8, paddingLeft: 4, letterSpacing: 0.5 },
+    // Inputs
+    inputLabel: { fontFamily: FONTS.bold, fontSize: 13, color: '#1E293B', marginBottom: 8, paddingLeft: 4, letterSpacing: 0.5 },
     inputWrapper: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#FFF',
+        backgroundColor: '#F8FAFC',
         borderRadius: 18,
         height: 60,
         borderWidth: 1,
         borderColor: '#E2E8F0'
     },
-    textInput: { flex: 1, paddingHorizontal: 15, fontSize: 16, fontFamily: FONTS.bold, color: '#0F172A' },
+    textInput: { flex: 1, paddingHorizontal: 15, fontSize: 16, fontFamily: FONTS.bold, color: '#1E293B' },
 
     forgotBtn: { alignSelf: 'flex-end', marginBottom: 25 },
     forgotText: { color: '#0EA5E9', fontSize: 14, fontFamily: FONTS.bold, textDecorationLine: 'underline', letterSpacing: .5 },
@@ -244,7 +245,7 @@ const styles = StyleSheet.create({
     btnFront: {
         width: '100%', height: '100%', backgroundColor: '#0EA5E9',
         borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)'
+        borderWidth: 1, borderColor: '#0284C7'
     },
     loginText: { color: '#FFF', fontSize: 18, fontFamily: FONTS.bold, letterSpacing: 1 },
 

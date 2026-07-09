@@ -20,7 +20,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { useAuth } from '../../context/AuthContext'; // <-- Segurança
+import { useAuth } from '../../context/AuthContext';
 import { ICONS_CATALOG } from '../../constants/IconsCatalog';
 import { supabase } from '../../lib/supabase';
 import { FONTS } from '../../styles/theme';
@@ -30,17 +30,17 @@ import ChonkoCoinIcon from '../../components/icons/ChonkoCoinIcon.js';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
-const SHOP_THEME = {
-    primary: '#4C1D95',
-    secondary: '#7C3AED',
-    light: '#F3E8FF',
-    accent: '#F59E0B',
-};
+const SHOP_THEME = { primary: '#4C1D95', secondary: '#7C3AED', light: '#F3E8FF', accent: '#F59E0B' };
 
-// COMPONENTE MOEDA
+const RARITY_OPTIONS = [
+    { id: 'common', label: 'COMUM', color: '#10B981' },
+    { id: 'rare', label: 'RARO', color: '#3B82F6' },
+    { id: 'epic', label: 'ÉPICO', color: '#8B5CF6' },
+    { id: 'legendary', label: 'LENDÁRIO', color: '#F59E0B' },
+];
+
 const AnimatedCoin = ({ size = 24, style = {} }) => {
     const glowOpacity = useRef(new Animated.Value(0.1)).current;
-
     useEffect(() => {
         Animated.loop(
             Animated.sequence([
@@ -49,68 +49,30 @@ const AnimatedCoin = ({ size = 24, style = {} }) => {
             ])
         ).start();
     }, []);
-
     return (
         <View style={[styles.coinContainer, { width: size, height: size }, style]}>
-            <Animated.View
-                style={[
-                    styles.coinGlow,
-                    { width: size * 1.1, height: size * 1.1, opacity: glowOpacity }
-                ]}
-            />
-            <View style={styles.coinImageFront}>
-                <ChonkoCoinIcon width={size} height={size} />
-            </View>
+            <Animated.View style={[styles.coinGlow, { width: size * 1.1, height: size * 1.1, opacity: glowOpacity }]} />
+            <View style={styles.coinImageFront}><ChonkoCoinIcon width={size} height={size} /></View>
         </View>
     );
 };
 
-// CORES SÓLIDAS PARA RARIDADE
-const GET_PRICE_TIER = (cost) => {
-    if (cost < 100) return {
-        label: 'COMUM',
-        bg: '#ECFDF5',
-        border: '#047857',
-        iconColor: '#064E3B',
-        text: '#022C22',
-        glow: 'transparent'
-    };
-    if (cost < 500) return {
-        label: 'RARO',
-        bg: '#DBEAFE',
-        border: '#60A5FA',
-        iconColor: '#1E40AF',
-        text: '#1E3A8A',
-        glow: '#3B82F6'
-    };
-    if (cost < 1000) return {
-        label: 'ÉPICO',
-        bg: '#F3E8FF',
-        border: '#A855F7',
-        iconColor: '#581C87',
-        text: '#4C1D95',
-        glow: '#9333EA'
-    };
-    return {
-        label: 'LENDÁRIO',
-        bg: '#FEF08A',
-        border: '#FBBF24',
-        iconColor: '#78350F',
-        text: '#451A03',
-        glow: '#F59E0B'
-    };
+// Usa a RARIDADE escolhida pelo Admin em vez do preço
+const GET_RARITY_THEME = (rarity) => {
+    if (rarity === 'common') return { label: 'COMUM', bg: '#ECFDF5', border: '#047857', iconColor: '#064E3B', text: '#022C22', glow: 'transparent' };
+    if (rarity === 'rare') return { label: 'RARO', bg: '#DBEAFE', border: '#60A5FA', iconColor: '#1E40AF', text: '#1E3A8A', glow: '#3B82F6' };
+    if (rarity === 'epic') return { label: 'ÉPICO', bg: '#F3E8FF', border: '#A855F7', iconColor: '#581C87', text: '#4C1D95', glow: '#9333EA' };
+    if (rarity === 'legendary') return { label: 'LENDÁRIO', bg: '#FEF08A', border: '#FBBF24', iconColor: '#78350F', text: '#451A03', glow: '#F59E0B' };
+    return { label: 'COMUM', bg: '#ECFDF5', border: '#047857', iconColor: '#064E3B', text: '#022C22', glow: 'transparent' };
 };
 
-// EFEITO DE BRILHO ADAPTADO PARA FUNDO SÓLIDO
 const ShimmerEffect = () => {
     const translateX = useRef(new Animated.Value(-CARD_WIDTH)).current;
     useEffect(() => {
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(translateX, { toValue: CARD_WIDTH, duration: 2000, useNativeDriver: true, easing: Easing.linear }),
-                Animated.delay(3000)
-            ])
-        ).start();
+        Animated.loop(Animated.sequence([
+            Animated.timing(translateX, { toValue: CARD_WIDTH, duration: 2000, useNativeDriver: true, easing: Easing.linear }),
+            Animated.delay(3000)
+        ])).start();
     }, []);
     return (
         <Animated.View style={[styles.shimmerOverlay, { transform: [{ translateX }] }]}>
@@ -142,24 +104,16 @@ export default function RewardShopScreen() {
     const [showRenameModal, setShowRenameModal] = useState(false);
     const [editingReward, setEditingReward] = useState(null);
 
-    // Form
     const [title, setTitle] = useState('');
     const [cost, setCost] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('gift-outline');
-    const initialCategory = ICONS_CATALOG ? Object.keys(ICONS_CATALOG)[0] : 'rpg';
-    const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+    const [selectedCategory, setSelectedCategory] = useState(ICONS_CATALOG ? Object.keys(ICONS_CATALOG)[0] : 'rpg');
+    const [selectedRarity, setSelectedRarity] = useState('common'); // <-- NOVO: Raridade
     const [stock, setStock] = useState('1');
     const [isInfinite, setIsInfinite] = useState(true);
     const [newShopName, setNewShopName] = useState('');
 
     useFocusEffect(useCallback(() => { loadInitialData(); }, [activeTab]));
-
-    useEffect(() => {
-        const rewardsSub = supabase.channel('public:rewards')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards', filter: `family_id=eq.${familyId}` }, () => fetchShopData())
-            .subscribe();
-        return () => { supabase.removeAllChannels(); };
-    }, []);
 
     const loadInitialData = async () => {
         await fetchShopData();
@@ -205,14 +159,8 @@ export default function RewardShopScreen() {
                 setBalance(data.new_balance);
                 Alert.alert("✨ Sucesso!", `"${item.title}" foi enviado para sua Bolsa!`);
                 fetchShopData();
-            } else {
-                Alert.alert("Erro", data.error || "Erro na compra.");
-            }
-        } catch (error) {
-            Alert.alert("Erro", "Falha de conexão.");
-        } finally {
-            setLoading(false);
-        }
+            } else { Alert.alert("Erro", data.error || "Erro na compra."); }
+        } catch (error) { Alert.alert("Erro", "Falha de conexão."); } finally { setLoading(false); }
     };
 
     const handleRenameShop = async () => {
@@ -237,14 +185,18 @@ export default function RewardShopScreen() {
             title: title.trim(),
             cost: parseInt(cost)||0,
             icon: selectedIcon,
+            rarity: selectedRarity, // Salva a valiosidade no banco
             is_infinite: isInfinite,
             stock: isInfinite ? 999 : (parseInt(stock)||0)
         };
         try {
             if (editingReward) await supabase.from('rewards').update(payload).eq('id', editingReward.id);
-            else await supabase.from('rewards').insert([payload]);
+            else {
+                const { error } = await supabase.from('rewards').insert([payload]);
+                if (error) throw error;
+            }
             setShowItemModal(false); resetForm(); fetchShopData();
-        } catch (e) { } finally { setSaving(false); }
+        } catch (e) { Alert.alert("Erro ao salvar", e.message); } finally { setSaving(false); }
     };
 
     const handleDeleteReward = (id) => {
@@ -260,12 +212,13 @@ export default function RewardShopScreen() {
     const openEditModal = (item) => {
         setEditingReward(item); setTitle(item.title); setCost(String(item.cost));
         setSelectedIcon(item.icon); setIsInfinite(item.is_infinite); setStock(String(item.stock));
+        setSelectedRarity(item.rarity || 'common');
         setShowItemModal(true);
     };
 
     const resetForm = () => {
         setEditingReward(null); setTitle(''); setCost(''); setSelectedIcon('gift-outline');
-        setIsInfinite(true); setStock('1');
+        setIsInfinite(true); setStock('1'); setSelectedRarity('common');
     };
 
     const renderSalesItem = ({ item }) => (
@@ -284,27 +237,22 @@ export default function RewardShopScreen() {
     );
 
     const renderCard = ({ item }) => {
-        const tier = GET_PRICE_TIER(item.cost);
+        const rarityTheme = GET_RARITY_THEME(item.rarity || 'common');
         const hasStock = item.is_infinite || item.stock > 0;
         const canBuy = isShopOpen && hasStock && balance >= item.cost;
         const isDisabled = !isShopOpen || !hasStock || (!canBuy && !isCaptain);
-        const isLegendary = item.cost >= 500;
+        const isEpicOrLeg = item.rarity === 'legendary' || item.rarity === 'epic';
 
         return (
-            <TouchableOpacity
-                style={styles.cardWrapper}
-                activeOpacity={0.8}
-                disabled={isDisabled && !isCaptain}
-                onPress={() => isCaptain ? openEditModal(item) : handleBuy(item)}
-            >
-                {!isDisabled && isLegendary && (<View style={[styles.glowShadow, { backgroundColor: tier.glow }]} />)}
+            <TouchableOpacity style={styles.cardWrapper} activeOpacity={0.8} disabled={isDisabled && !isCaptain} onPress={() => isCaptain ? openEditModal(item) : handleBuy(item)}>
+                {!isDisabled && isEpicOrLeg && (<View style={[styles.glowShadow, { backgroundColor: rarityTheme.glow }]} />)}
 
-                <View style={[styles.cardFront, { borderColor: isDisabled ? '#E2E8F0' : tier.border, backgroundColor: isDisabled ? '#F8FAFC' : tier.bg }]}>
-                    {!isDisabled && isLegendary && <ShimmerEffect />}
+                <View style={[styles.cardFront, { borderColor: isDisabled ? '#E2E8F0' : rarityTheme.border, backgroundColor: isDisabled ? '#F8FAFC' : rarityTheme.bg }]}>
+                    {!isDisabled && isEpicOrLeg && <ShimmerEffect />}
                     <View style={styles.cardContent}>
                         <View style={styles.topBadges}>
-                            <View style={[styles.rarityBadge, { backgroundColor: isDisabled ? '#94A3B8' : tier.border }]}>
-                                <Text style={styles.rarityText}>{tier.label}</Text>
+                            <View style={[styles.rarityBadge, { backgroundColor: isDisabled ? '#94A3B8' : rarityTheme.border }]}>
+                                <Text style={styles.rarityText}>{rarityTheme.label}</Text>
                             </View>
                             {!item.is_infinite && (
                                 <View style={[styles.stockBadge, { backgroundColor: item.stock < 3 ? '#EF4444' : 'rgba(0,0,0,0.5)' }]}>
@@ -313,12 +261,12 @@ export default function RewardShopScreen() {
                             )}
                         </View>
                         <View style={styles.iconArea}>
-                            <View style={[styles.iconCircle, { borderColor: tier.iconColor, backgroundColor: 'rgba(255,255,255,0.4)' }]}>
-                                <MaterialCommunityIcons name={item.icon} size={40} color={isDisabled ? '#94A3B8' : tier.iconColor} />
+                            <View style={[styles.iconCircle, { borderColor: rarityTheme.iconColor, backgroundColor: 'rgba(255,255,255,0.4)' }]}>
+                                <MaterialCommunityIcons name={item.icon} size={40} color={isDisabled ? '#94A3B8' : rarityTheme.iconColor} />
                             </View>
                         </View>
-                        <Text style={[styles.cardTitle, { color: isDisabled ? '#94A3B8' : tier.text }]} numberOfLines={2}>{item.title}</Text>
-                        <View style={[styles.priceButton, { backgroundColor: isDisabled ? '#CBD5E1' : tier.border }]}>
+                        <Text style={[styles.cardTitle, { color: isDisabled ? '#94A3B8' : rarityTheme.text }]} numberOfLines={2}>{item.title}</Text>
+                        <View style={[styles.priceButton, { backgroundColor: isDisabled ? '#CBD5E1' : rarityTheme.border }]}>
                             {isCaptain ? (
                                 <Text style={styles.priceButtonText}>EDITAR</Text>
                             ) : (
@@ -338,19 +286,11 @@ export default function RewardShopScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* HEADER SÓLIDO */}
             <View style={styles.headerContainer}>
                 <View style={styles.topBar}>
-                    {isCaptain ? (
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.circleBtn} activeOpacity={0.8}>
-                            <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.circleBtn} activeOpacity={0.8}>
-                            <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
-                        </TouchableOpacity>
-                    )}
-
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.circleBtn} activeOpacity={0.8}>
+                        <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
+                    </TouchableOpacity>
                     {isCaptain && (
                         <TouchableOpacity style={styles.circleBtn} onPress={() => setShowSettingsMenu(true)} activeOpacity={0.8}>
                             <MaterialCommunityIcons name="cog" size={22} color="#FFF" />
@@ -391,7 +331,6 @@ export default function RewardShopScreen() {
 
                 {activeTab === 'shop' ? (
                     <FlatList
-                        key="shop-grid"
                         data={rewards}
                         keyExtractor={item => item.id}
                         numColumns={2}
@@ -403,7 +342,6 @@ export default function RewardShopScreen() {
                     />
                 ) : (
                     <FlatList
-                        key="list-view"
                         data={salesList}
                         keyExtractor={item => item.id}
                         contentContainerStyle={styles.gridContent}
@@ -421,7 +359,7 @@ export default function RewardShopScreen() {
                 </TouchableOpacity>
             )}
 
-            {/* --- MODAL EDITAR/CRIAR --- */}
+            {/* MODAL EDITAR/CRIAR */}
             <Modal visible={showItemModal} transparent animationType="slide" onRequestClose={() => setShowItemModal(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -436,9 +374,7 @@ export default function RewardShopScreen() {
                             <View style={{flex: 1, marginRight: 10}}>
                                 <Text style={styles.label}>PREÇO</Text>
                                 <View style={styles.inputWithIcon}>
-                                    <View style={styles.iconInputContainer}>
-                                        <AnimatedCoin size={20} />
-                                    </View>
+                                    <View style={styles.iconInputContainer}><AnimatedCoin size={20} /></View>
                                     <TextInput style={styles.inputClean} keyboardType="number-pad" value={cost} onChangeText={setCost} placeholder="0" maxLength={5} />
                                 </View>
                             </View>
@@ -446,42 +382,45 @@ export default function RewardShopScreen() {
                             <View style={{flex: 1}}>
                                 <Text style={styles.label}>ESTOQUE</Text>
                                 <View style={[styles.inputWithIcon, { justifyContent: 'space-between' }]}>
-                                    {isInfinite ? (
-                                        <MaterialCommunityIcons name="infinity" size={24} color="#64748B" />
-                                    ) : (
-                                        <TextInput style={styles.inputClean} keyboardType="number-pad" value={stock} onChangeText={setStock} placeholder="Qtd" />
-                                    )}
+                                    {isInfinite ? <MaterialCommunityIcons name="infinity" size={24} color="#64748B" /> : <TextInput style={styles.inputClean} keyboardType="number-pad" value={stock} onChangeText={setStock} placeholder="Qtd" />}
                                     <Switch trackColor={{ false: "#E2E8F0", true: SHOP_THEME.light }} thumbColor={isInfinite ? SHOP_THEME.secondary : "#f4f3f4"} value={isInfinite} onValueChange={setIsInfinite} />
                                 </View>
                             </View>
                         </View>
 
+                        {/* SELETOR DE VALIOSIDADE (RARIDADE) */}
                         <View style={styles.inputContainer}>
-                            <Text style={styles.label}>CATEGORIA</Text>
+                            <Text style={styles.label}>VALIOSIDADE DO PRÊMIO</Text>
+                            <View style={styles.rarityRow}>
+                                {RARITY_OPTIONS.map(opt => (
+                                    <TouchableOpacity
+                                        key={opt.id}
+                                        style={[styles.rarityBtn, selectedRarity === opt.id && { backgroundColor: opt.color, borderColor: opt.color }]}
+                                        onPress={() => setSelectedRarity(opt.id)}
+                                    >
+                                        <Text style={[styles.rarityBtnText, selectedRarity === opt.id && { color: '#FFF' }]}>{opt.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>CATEGORIA & ÍCONE</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 10 }}>
                                 {ICONS_CATALOG && Object.keys(ICONS_CATALOG).map(cat => (
-                                    <TouchableOpacity
-                                        key={cat}
-                                        style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipSelected]}
-                                        onPress={() => setSelectedCategory(cat)}
-                                    >
+                                    <TouchableOpacity key={cat} style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipSelected]} onPress={() => setSelectedCategory(cat)}>
                                         <Text style={[styles.categoryText, selectedCategory === cat && styles.categoryTextSelected]}>{cat.toUpperCase()}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </ScrollView>
 
-                            <Text style={styles.label}>ÍCONE</Text>
                             <View style={styles.iconGridContainer}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingVertical: 5}}>
                                     {ICONS_CATALOG && ICONS_CATALOG[selectedCategory] ? ICONS_CATALOG[selectedCategory].map(icon => (
-                                        <TouchableOpacity
-                                            key={icon}
-                                            style={[styles.iconOption, selectedIcon === icon && styles.iconOptionSelected]}
-                                            onPress={() => setSelectedIcon(icon)}
-                                        >
+                                        <TouchableOpacity key={icon} style={[styles.iconOption, selectedIcon === icon && styles.iconOptionSelected]} onPress={() => setSelectedIcon(icon)}>
                                             <MaterialCommunityIcons name={icon} size={28} color={selectedIcon === icon ? '#FFF' : SHOP_THEME.primary} />
                                         </TouchableOpacity>
-                                    )) : <Text style={{color: '#999'}}>Carregando ícones...</Text>}
+                                    )) : <Text style={{color: '#999'}}>Carregando...</Text>}
                                 </ScrollView>
                             </View>
                         </View>
@@ -502,41 +441,6 @@ export default function RewardShopScreen() {
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
-
-            {/* MODAL RENOMEAR LOJA */}
-            <Modal visible={showRenameModal} transparent animationType="fade" statusBarTranslucent>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>RENOMEAR LOJA</Text>
-                        <TextInput style={styles.input} value={newShopName} onChangeText={setNewShopName} maxLength={25} autoFocus />
-                        <View style={styles.modalActions}>
-                            <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#F1F5F9', flex:1}]} onPress={() => setShowRenameModal(false)}>
-                                <Text style={styles.modalCancelText}>CANCELAR</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.modalBtn, {backgroundColor: SHOP_THEME.secondary, flex:1}]} onPress={handleRenameShop}>
-                                <Text style={styles.modalConfirmText}>SALVAR</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* MENU DE CONFIGURAÇÕES */}
-            <Modal visible={showSettingsMenu} transparent animationType="fade" statusBarTranslucent>
-                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSettingsMenu(false)}>
-                    <View style={styles.settingsMenu}>
-                        <Text style={styles.menuHeader}>CONFIGURAÇÕES</Text>
-                        <TouchableOpacity style={styles.menuItem} onPress={() => { setShowSettingsMenu(false); setShowRenameModal(true); }}>
-                            <MaterialCommunityIcons name="pencil" size={20} color="#64748B" />
-                            <Text style={styles.menuText}>Renomear Loja</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.menuItem} onPress={toggleShopStatus}>
-                            <MaterialCommunityIcons name={isShopOpen ? "door-closed" : "door-open"} size={20} color={isShopOpen ? "#EF4444" : "#10B981"} />
-                            <Text style={[styles.menuText, {color: isShopOpen ? '#EF4444' : '#10B981'}]}>{isShopOpen ? "Fechar Loja" : "Reabrir Loja"}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
         </View>
     );
 }
@@ -546,12 +450,11 @@ const styles = StyleSheet.create({
     coinImageFront: { zIndex: 2 },
     coinGlow: { position: 'absolute', backgroundColor: '#FFD700', borderRadius: 50, zIndex: 1, shadowColor: "#FFD700", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10, elevation: 10 },
 
-    container: { flex: 1, backgroundColor: '#FDFCF8' }, // Creme padrão sólido
+    container: { flex: 1, backgroundColor: '#FDFCF8' },
     headerContainer: { backgroundColor: SHOP_THEME.primary, paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 10, zIndex: 10 },
     topBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50 },
     circleBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
 
-    // Placa Sólida Nova
     signWrapper: { alignItems: 'center', marginTop: 10, marginBottom: 15 },
     solidSign: { backgroundColor: '#F59E0B', paddingHorizontal: 30, paddingVertical: 15, borderRadius: 20, borderWidth: 3, borderColor: '#B45309', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 5 },
     signText: { fontFamily: FONTS.bold, fontSize: 22, color: '#451A03', textAlign: 'center', letterSpacing: 1 },
@@ -609,6 +512,12 @@ const styles = StyleSheet.create({
     iconInputContainer: { width: 24, height: 24, justifyContent: 'center', alignItems: 'center', marginRight: 8, backgroundColor: 'transparent' },
     inputClean: { flex: 1, color: '#334155', fontFamily: FONTS.bold, height: '100%' },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+
+    // Raridade Buttons
+    rarityRow: { flexDirection: 'row', gap: 5 },
+    rarityBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', backgroundColor: '#F8FAFC' },
+    rarityBtnText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B' },
+
     categoryChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', marginRight: 0 },
     categoryChipSelected: { backgroundColor: SHOP_THEME.light, borderColor: SHOP_THEME.secondary },
     categoryText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B' },
@@ -620,9 +529,4 @@ const styles = StyleSheet.create({
     modalBtn: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     modalCancelText: { fontFamily: FONTS.bold, color: '#64748B' },
     modalConfirmText: { fontFamily: FONTS.bold, color: '#FFF' },
-
-    settingsMenu: { backgroundColor: '#FFF', width: '80%', borderRadius: 20, padding: 20, elevation: 10, alignSelf: 'center' },
-    menuHeader: { fontFamily: FONTS.bold, marginBottom: 15, textAlign: 'center', color: '#334155' },
-    menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-    menuText: { marginLeft: 10, fontFamily: FONTS.medium, color: '#334155' }
 });

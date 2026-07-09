@@ -7,7 +7,7 @@ import {
     Animated,
     Dimensions,
     FlatList,
-    ImageBackground,
+    Platform,
     RefreshControl,
     StatusBar,
     StyleSheet,
@@ -16,45 +16,32 @@ import {
     View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
-import { COLORS, FONTS } from '../../styles/theme';
+import { FONTS } from '../../styles/theme';
 
 import Chonko3D from '../../components/Chonko3D.js';
 import ChonkoCoinIcon from '../../components/icons/ChonkoCoinIcon.js';
 
 const { width } = Dimensions.get('window');
 
-// COMPONENTE MOEDA COM CORREÇÃO DE ESTILO E BRILHO REDUZIDO
-const AnimatedCoin = ({ size = 24, style = {} }) => { // style default como objeto vazio
+const AnimatedCoin = ({ size = 24, style = {} }) => {
     const glowOpacity = useRef(new Animated.Value(0.1)).current;
 
     useEffect(() => {
         Animated.loop(
             Animated.sequence([
-                Animated.timing(glowOpacity, {
-                    toValue: .5,
-                    duration: 1000,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(glowOpacity, {
-                    toValue: 0.2,
-                    duration: 1000,
-                    useNativeDriver: true,
-                })
+                Animated.timing(glowOpacity, { toValue: 0.6, duration: 800, useNativeDriver: true }),
+                Animated.timing(glowOpacity, { toValue: 0.2, duration: 800, useNativeDriver: true })
             ])
         ).start();
     }, []);
 
     return (
         <View style={[styles.coinContainer, { width: size, height: size }, style]}>
-            <Animated.View 
+            <Animated.View
                 style={[
-                    styles.coinGlow, 
-                    { 
-                        width: size * 1.1, // Brilho reduzido conforme pedido
-                        height: size * 1.1,
-                        opacity: glowOpacity 
-                    }
-                ]} 
+                    styles.coinGlow,
+                    { width: size * 1.2, height: size * 1.2, opacity: glowOpacity }
+                ]}
             />
             <View style={styles.coinImageFront}>
                 <ChonkoCoinIcon width={size} height={size} />
@@ -64,345 +51,406 @@ const AnimatedCoin = ({ size = 24, style = {} }) => { // style default como obje
 };
 
 const DIFFICULTY_CONFIG = {
-    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' }, 
-    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' }, 
-    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' }, 
-    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' }, 
-    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }  
+    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#ECFDF5' },
+    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFFBEB' },
+    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' },
+    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' },
+    'custom': { label: 'MANUAL',  color: '#0EA5E9', bg: '#F0F9FF' }
 };
 
 export default function RecruitHomeScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  
-  const { profile: initialProfile } = route.params || {};
-  const profileId = initialProfile?.id;
+    const navigation = useNavigation();
+    const route = useRoute();
 
-  const [profileName, setProfileName] = useState(initialProfile?.name || "Recruta");
-  const [currentBalance, setCurrentBalance] = useState(0); 
-  const [currentExperience, setCurrentExperience] = useState(0); 
-  const [familyId, setFamilyId] = useState(initialProfile?.family_id);
-  
-  const [todoMissions, setTodoMissions] = useState([]);
-  const [missedMissions, setMissedMissions] = useState([]);
-  const [completedMissions, setCompletedMissions] = useState([]); 
-  
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('todo'); 
+    const { profile: initialProfile } = route.params || {};
+    const profileId = initialProfile?.id;
 
-  useFocusEffect(
-    useCallback(() => {
-      if (profileId) fetchFreshData();
-    }, [profileId])
-  );
+    const [profileName, setProfileName] = useState(initialProfile?.name || "Recruta");
+    const [currentBalance, setCurrentBalance] = useState(0);
+    const [currentExperience, setCurrentExperience] = useState(0);
+    const [familyId, setFamilyId] = useState(initialProfile?.family_id);
 
-  useEffect(() => {
-      if (!profileId) return;
-      const channel = supabase.channel('recruit_dashboard')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profileId}` }, 
-            (payload) => {
-                setCurrentBalance(payload.new.balance);
-                setCurrentExperience(payload.new.experience || 0); 
-            })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, 
-            () => fetchFreshData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'mission_attempts', filter: `profile_id=eq.${profileId}` }, 
-            () => fetchFreshData())
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
-  }, [profileId]);
+    const [todoMissions, setTodoMissions] = useState([]);
+    const [missedMissions, setMissedMissions] = useState([]);
+    const [completedMissions, setCompletedMissions] = useState([]);
 
-  const fetchFreshData = async () => {
-    try {
-        const { data: freshProfile } = await supabase
-            .from('profiles').select('*').eq('id', profileId).single();
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [activeTab, setActiveTab] = useState('todo');
 
-        if (freshProfile) {
-            setProfileName(freshProfile.name);
-            setCurrentBalance(freshProfile.balance);
-            setCurrentExperience(freshProfile.experience || 0); 
-            setFamilyId(freshProfile.family_id);
+    useFocusEffect(
+        useCallback(() => {
+            if (profileId) fetchFreshData();
+        }, [profileId])
+    );
+
+    useEffect(() => {
+        if (!profileId) return;
+        const channel = supabase.channel('recruit_dashboard')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profileId}` },
+                (payload) => {
+                    setCurrentBalance(payload.new.balance);
+                    setCurrentExperience(payload.new.experience || 0);
+                })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' },
+                () => fetchFreshData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'mission_attempts', filter: `profile_id=eq.${profileId}` },
+                () => fetchFreshData())
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [profileId]);
+
+    const fetchFreshData = async () => {
+        try {
+            const { data: freshProfile } = await supabase
+                .from('profiles').select('*').eq('id', profileId).single();
+
+            if (freshProfile) {
+                setProfileName(freshProfile.name);
+                setCurrentBalance(freshProfile.balance);
+                setCurrentExperience(freshProfile.experience || 0);
+                setFamilyId(freshProfile.family_id);
+            }
+
+            const { data: activeMissions, error: mError } = await supabase
+                .from('missions').select('*')
+                .eq('family_id', freshProfile?.family_id || familyId)
+                .eq('status', 'active');
+
+            if (mError) throw mError;
+
+            const d = new Date();
+            const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+            const bufferDate = new Date();
+            bufferDate.setDate(bufferDate.getDate() - 2);
+            const fetchBuffer = bufferDate.toISOString();
+
+            const { data: attempts } = await supabase
+                .from('mission_attempts')
+                .select('mission_id, status, created_at')
+                .eq('profile_id', profileId)
+                .gte('created_at', fetchBuffer);
+
+            const attemptsMap = new Map();
+
+            if (attempts) {
+                attempts.forEach(a => {
+                    const attemptDate = new Date(a.created_at);
+                    const localStr = `${attemptDate.getFullYear()}-${String(attemptDate.getMonth() + 1).padStart(2, '0')}-${String(attemptDate.getDate()).padStart(2, '0')}`;
+
+                    if (localStr === todayStr) {
+                        attemptsMap.set(a.mission_id, a.status);
+                    }
+                });
+            }
+
+            processMissions(activeMissions || [], attemptsMap, profileId, todayStr);
+
+        } catch (error) {
+            console.log("Erro no refresh:", error.message);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    const processMissions = (missions, attemptsMap, myId, todayStr) => {
+        const d = new Date();
+        const currentDayIndex = d.getDay();
+        const nowMinutes = d.getHours() * 60 + d.getMinutes();
+
+        const listTodo = [];
+        const listMissed = [];
+        const listCompleted = [];
+
+        missions.forEach(mission => {
+            if (mission.assigned_to && mission.assigned_to !== myId) return;
+
+            const attemptStatus = attemptsMap.get(mission.id);
+            if (attemptStatus === 'pending' || attemptStatus === 'approved') {
+                listCompleted.push(mission);
+                return;
+            }
+
+            let isToday = false;
+            let isPast = false;
+
+            if (mission.is_recurring) {
+                if (mission.recurrence_days && Array.isArray(mission.recurrence_days)) {
+                    const days = mission.recurrence_days.map(Number);
+                    if (days.includes(currentDayIndex)) {
+                        isToday = true;
+                    }
+                }
+            } else {
+                if (mission.scheduled_date) {
+                    if (mission.scheduled_date === todayStr) {
+                        isToday = true;
+                    } else if (mission.scheduled_date < todayStr) {
+                        isPast = true;
+                    }
+                } else {
+                    isToday = true;
+                }
+            }
+
+            if (isPast) {
+                listMissed.push(mission);
+                return;
+            }
+
+            if (!isToday) return;
+
+            let isExpired = false;
+            if (mission.deadline) {
+                const [h, m] = mission.deadline.split(':').map(Number);
+                if (nowMinutes >= (h * 60 + m)) {
+                    isExpired = true;
+                }
+            }
+
+            if (isExpired) listMissed.push(mission);
+            else listTodo.push(mission);
+        });
+
+        setTodoMissions(listTodo);
+        setMissedMissions(listMissed);
+        setCompletedMissions(listCompleted);
+    };
+
+    const calculateLevelInfo = (totalXp) => {
+        const XP_PER_LEVEL = 100;
+        const level = Math.floor(totalXp / XP_PER_LEVEL) + 1;
+        const currentLevelXp = totalXp % XP_PER_LEVEL;
+        const xpProgressPercentage = (currentLevelXp / XP_PER_LEVEL) * 100;
+
+        return { level, currentLevelXp, XP_PER_LEVEL, xpProgressPercentage };
+    };
+
+    const { level, currentLevelXp, XP_PER_LEVEL, xpProgressPercentage } = calculateLevelInfo(currentExperience);
+
+    // Navegação direta para seleção de perfis (Debug/Troca rápida)
+    const handleSwitchProfile = () => {
+        navigation.navigate('RoleSelection');
+    };
+
+    const renderMissionCard = ({ item, tabType }) => {
+        const isCustom = item.reward_type === 'custom';
+        const isMissed = tabType === 'missed';
+        const isCompleted = tabType === 'completed';
+        const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
+
+        let cardBorderColor, cardBg, iconColor, iconBg, iconName, timeText;
+
+        if (isCompleted) {
+            cardBorderColor = '#10B981'; cardBg = '#ECFDF5'; iconColor = '#10B981'; iconBg = '#FFF'; iconName = "check-decagram"; timeText = "Finalizada hoje!";
+        } else if (isMissed) {
+            cardBorderColor = '#CBD5E1'; cardBg = '#F8FAFC'; iconColor = '#94A3B8'; iconBg = '#FFF'; iconName = "clock-alert-outline"; timeText = `Perdida às ${item.deadline?.slice(0,5) || 'ontem'}`;
+        } else {
+            cardBorderColor = diffData.color; cardBg = '#FFF'; iconColor = diffData.color; iconBg = diffData.bg; iconName = item.icon || "star-circle"; timeText = item.deadline ? `Até as ${item.deadline.slice(0,5)}` : "O dia todo";
         }
 
-        const { data: activeMissions, error: mError } = await supabase
-            .from('missions').select('*')
-            .eq('family_id', freshProfile?.family_id || familyId)
-            .eq('status', 'active');
+        return (
+            <TouchableOpacity
+                style={[
+                    styles.card,
+                    { borderColor: cardBorderColor, backgroundColor: cardBg },
+                    tabType === 'todo' && { shadowColor: diffData.color, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }
+                ]}
+                activeOpacity={tabType === 'todo' ? 0.7 : 1}
+                onPress={() => {
+                    if (isCompleted) Alert.alert("Muito bem!", "Você já finalizou esta missão hoje.");
+                    else if (isMissed) Alert.alert("Poxa...", "O tempo acabou. Fica para a próxima!");
+                    else navigation.navigate('MissionDetail', { mission: item, profile: { id: profileId, family_id: familyId } });
+                }}
+            >
+                <View style={[styles.iconContainer, { backgroundColor: iconBg, borderWidth: 2, borderColor: isCompleted || isMissed ? 'transparent' : iconColor + '40' }]}>
+                    <MaterialCommunityIcons name={iconName} size={30} color={iconColor} />
+                </View>
+                <View style={styles.cardInfo}>
+                    <Text style={[styles.cardTitle, { color: isMissed ? '#94A3B8' : '#1E293B' }, isMissed && styles.textMissed]} numberOfLines={1}>{item.title}</Text>
 
-        if (mError) throw mError;
+                    {item.use_critical && !isCompleted && !isMissed && (
+                        <View style={[styles.treasureBadge, item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple]}>
+                            <MaterialCommunityIcons name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} size={10} color="#FFF" style={{marginRight:4}} />
+                            <Text style={styles.treasureText}>{item.critical_type === 'bonus_coins' ? `+BÔNUS (${item.critical_chance}%)` : `SURPRESA (${item.critical_chance}%)`}</Text>
+                        </View>
+                    )}
 
-        const todayStr = new Date().toISOString().split('T')[0]; 
-        const { data: attempts } = await supabase
-            .from('mission_attempts')
-            .select('mission_id, status, missions(*)')
-            .eq('profile_id', profileId).gte('created_at', todayStr);
+                    <View style={styles.timeBadge}>
+                        <MaterialCommunityIcons name={isCompleted ? "check-all" : "clock-outline"} size={14} color={isCompleted ? '#10B981' : (isMissed ? '#94A3B8' : '#64748B')} />
+                        <Text style={[styles.cardSub, isCompleted && {color: '#10B981'}]}>{timeText}</Text>
+                    </View>
+                </View>
 
-        const attemptsMap = new Map();
-        const attemptedMissions = [];
+                <View style={styles.rightColumn}>
+                    <View style={[styles.rewardPill, isCustom ? { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' } : { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }, (isCompleted || isMissed) && { opacity: 0.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9' }]}>
+                        {!isCustom && !(isCompleted || isMissed) && (<AnimatedCoin size={16} />)}
+                        <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : (isCompleted || isMissed ? '#94A3B8' : '#B45309') }]}>{isCustom ? "🎁" : `+${item.reward}`}</Text>
+                    </View>
+                    {tabType === 'todo' && (
+                        <View style={[styles.goBtn, { backgroundColor: cardBorderColor }]}>
+                            <MaterialCommunityIcons name="play" size={16} color="#FFF" />
+                        </View>
+                    )}
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
-        if (attempts) {
-            attempts.forEach(a => {
-                attemptsMap.set(a.mission_id, a.status);
-                if (a.missions) attemptedMissions.push(a.missions);
-            });
-        }
+    let currentListData = [];
+    let emptyIcon = "shield-star-outline";
+    let emptyTextTitle = "Tudo limpo!";
+    let emptyTextSub = "Nenhuma missão por enquanto.";
 
-        const allMissionsMap = new Map();
-        activeMissions?.forEach(m => allMissionsMap.set(m.id, m));
-        attemptedMissions.forEach(m => allMissionsMap.set(m.id, m));
-
-        processMissions(Array.from(allMissionsMap.values()), attemptsMap, profileId);
-
-    } catch (error) {
-        console.log("Erro no refresh:", error.message);
-    } finally {
-        setLoading(false);
-        setRefreshing(false);
-    }
-  };
-
-  const processMissions = (missions, attemptsMap, myId) => {
-      const today = new Date();
-      const currentDayIndex = today.getDay(); 
-      const nowTime = today.getHours() * 60 + today.getMinutes();
-
-      const listTodo = [];
-      const listMissed = [];
-      const listCompleted = [];
-
-      missions.forEach(mission => {
-          if (mission.assigned_to && mission.assigned_to !== myId) return;
-
-          const attemptStatus = attemptsMap.get(mission.id);
-
-          if (attemptStatus === 'pending' || attemptStatus === 'approved') {
-              listCompleted.push(mission);
-              return; 
-          }
-
-          if (mission.status !== 'active') return;
-
-          if (mission.is_recurring) {
-              if (mission.recurrence_days) {
-                  const days = mission.recurrence_days.map(Number);
-                  if (!days.includes(currentDayIndex)) return;
-              }
-          } else {
-              if (mission.scheduled_date) {
-                  const schedDate = new Date(mission.scheduled_date + 'T00:00:00');
-                  schedDate.setHours(0,0,0,0);
-                  const todayZero = new Date(); todayZero.setHours(0,0,0,0);
-                  if (schedDate.getTime() !== todayZero.getTime()) return; 
-              }
-          }
-
-          let isExpired = false;
-          if (mission.deadline) {
-              const [h, m] = mission.deadline.split(':').map(Number);
-              if (nowTime > (h * 60 + m)) isExpired = true;
-          }
-
-          if (isExpired) listMissed.push(mission);
-          else listTodo.push(mission);
-      });
-
-      setTodoMissions(listTodo);
-      setMissedMissions(listMissed);
-      setCompletedMissions(listCompleted); 
-  };
-
-  const calculateLevelInfo = (totalXp) => {
-      const XP_PER_LEVEL = 100; 
-      const level = Math.floor(totalXp / XP_PER_LEVEL) + 1;
-      const currentLevelXp = totalXp % XP_PER_LEVEL;
-      const xpProgressPercentage = (currentLevelXp / XP_PER_LEVEL) * 100;
-
-      return { level, currentLevelXp, XP_PER_LEVEL, xpProgressPercentage };
-  };
-
-  const { level, currentLevelXp, XP_PER_LEVEL, xpProgressPercentage } = calculateLevelInfo(currentExperience);
-
-  const handleSwitchProfile = () => {
-      Alert.alert(
-          "Menu de Acesso", "O que deseja fazer?",
-          [
-              { text: "Cancelar", style: "cancel" },
-              { text: "Sair da Conta", style: 'destructive', onPress: async () => { await supabase.auth.signOut(); } },
-              { text: "Trocar Perfil", onPress: () => { try { navigation.navigate('RoleSelection'); } catch (e) { Alert.alert("Aviso", "Você só possui este perfil. Para trocar, é necessário sair da conta.", [{ text: "Ok" }, { text: "Sair Agora", onPress: () => supabase.auth.signOut(), style: 'destructive' }]); } } }
-          ]
-      );
-  };
-
-  const renderMissionCard = ({ item, tabType }) => {
-    const isCustom = item.reward_type === 'custom';
-    const isMissed = tabType === 'missed';
-    const isCompleted = tabType === 'completed';
-    const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
-    let cardBorderColor, cardBg, iconColor, iconBg, iconName, timeText;
-
-    if (isCompleted) { cardBorderColor = '#10B981'; cardBg = '#F0FDF4'; iconColor = '#10B981'; iconBg = '#FFF'; iconName = "check-decagram"; timeText = "Finalizada hoje!"; } 
-    else if (isMissed) { cardBorderColor = '#CBD5E1'; cardBg = '#F8FAFC'; iconColor = '#94A3B8'; iconBg = '#FFF'; iconName = "clock-alert-outline"; timeText = `Perdida às ${item.deadline?.slice(0,5)}`; } 
-    else { cardBorderColor = diffData.color; cardBg = diffData.bg; iconColor = diffData.color; iconBg = '#FFFFFF'; iconName = item.icon || "star-circle"; timeText = item.deadline ? `Até as ${item.deadline.slice(0,5)}` : "O dia todo"; }
+    if (activeTab === 'todo') { currentListData = todoMissions; emptyIcon = "gamepad-variant-outline"; emptyTextTitle = "Tudo feito!"; emptyTextSub = "Você arrasou hoje, Campeão!"; }
+    else if (activeTab === 'missed') { currentListData = missedMissions; emptyIcon = "emoticon-happy-outline"; emptyTextTitle = "Uau, nenhuma perdida!"; emptyTextSub = "Ótimo trabalho mantendo o foco!"; }
+    else if (activeTab === 'completed') { currentListData = completedMissions; emptyIcon = "sword-cross"; emptyTextTitle = "Lista vazia."; emptyTextSub = "Pegue sua espada e vá fazer as tarefas!"; }
 
     return (
-        <TouchableOpacity 
-            style={[styles.card, { borderColor: cardBorderColor, backgroundColor: cardBg }, tabType === 'todo' && styles.cardActive]}
-            activeOpacity={tabType === 'todo' ? 0.7 : 1}
-            onPress={() => {
-                if (isCompleted) Alert.alert("Muito bem!", "Você já finalizou esta missão hoje.");
-                else if (isMissed) Alert.alert("Ops!", "O tempo acabou. Tente amanhã!");
-                else navigation.navigate('MissionDetail', { mission: item, profile: { id: profileId, family_id: familyId } });
-            }}
-        >
-            <View style={[styles.iconContainer, { backgroundColor: iconBg, borderWidth: 1, borderColor: isCompleted || isMissed ? 'transparent' : iconColor + '40' }]}>
-                <MaterialCommunityIcons name={iconName} size={28} color={iconColor} />
-            </View>
-            <View style={styles.cardInfo}>
-                <Text style={[styles.cardTitle, { color: isMissed ? '#94A3B8' : '#1E293B' }, isMissed && styles.textMissed]} numberOfLines={1}>{item.title}</Text>
-                {item.use_critical && !isCompleted && !isMissed && (
-                    <View style={[styles.treasureBadge, item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple]}>
-                        <MaterialCommunityIcons name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} size={10} color="#FFF" style={{marginRight:4}} />
-                        <Text style={styles.treasureText}>{item.critical_type === 'bonus_coins' ? `+50% (${item.critical_chance}%)` : `Surpresa (${item.critical_chance}%)`}</Text>
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+            {/* BOTÃO DE DEBUG DIRETO PARA ROLE SELECTION */}
+            <TouchableOpacity
+                style={styles.devButton}
+                onPress={handleSwitchProfile}
+                activeOpacity={0.8}
+                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+            >
+                <MaterialCommunityIcons name="account-switch" size={24} color="#FFF" />
+            </TouchableOpacity>
+
+            <View style={styles.chonkoStage}>
+                {/* FUNDO SÓLIDO AZUL CÉU - SEM IMAGENS DE FUNDO */}
+                <View style={styles.skyBackground}>
+                    <View style={styles.modelPlaceholder}>
+                        <Chonko3D />
                     </View>
-                )}
-                <View style={styles.timeBadge}><MaterialCommunityIcons name={isCompleted ? "check-all" : "clock-outline"} size={12} color={isCompleted ? '#10B981' : (isMissed ? '#94A3B8' : '#64748B')} /><Text style={[styles.cardSub, isCompleted && {color: '#10B981'}]}>{timeText}</Text></View>
-            </View>
-            <View style={styles.rightColumn}>
-                <View style={[styles.rewardPill, isCustom ? { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' } : { backgroundColor: '#FFF', borderColor: '#F59E0B' }, (isCompleted || isMissed) && { opacity: 0.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9' }]}>
-                      {!isCustom && !(isCompleted || isMissed) && (<AnimatedCoin size={16} />)}
-                      <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : (isCompleted || isMissed ? '#94A3B8' : '#B45309') }]}>{isCustom ? "🎁" : `+${item.reward}`}</Text>
                 </View>
-                {tabType === 'todo' && (<MaterialCommunityIcons name="chevron-right" size={20} color={cardBorderColor} style={{marginTop: 4, opacity: 0.5}} />)}
+
+                <View style={styles.hudContainer}>
+                    <View style={styles.profileBadge}>
+                        <View style={styles.levelCircle}><Text style={styles.levelNumber}>{level}</Text></View>
+                        <View style={styles.profileInfoArea}>
+                            <Text style={styles.playerName}>{profileName}</Text>
+                            <View style={styles.xpBarContainer}>
+                                <View style={[styles.xpBarFill, { width: `${Math.min(100, Math.max(0, xpProgressPercentage))}%` }]} />
+                                <Text style={styles.xpText}>{currentLevelXp}/{XP_PER_LEVEL} XP</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <TouchableOpacity style={styles.coinBadge} onPress={fetchFreshData} activeOpacity={0.8}>
+                        <AnimatedCoin size={26} style={{ marginRight: 6 }} />
+                        <Text style={styles.coinText}>{currentBalance}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
-        </TouchableOpacity>
+
+            <View style={styles.taskSheet}>
+                <View style={styles.dragHandle} />
+
+                <View style={styles.tabsContainer}>
+                    {/* BORDAS ARREDONDADAS FORÇADAS (borderRadius: 16) */}
+                    <TouchableOpacity style={[styles.tab, activeTab === 'todo' && styles.tabActiveTodo]} onPress={() => setActiveTab('todo')}>
+                        <MaterialCommunityIcons name="target" size={18} color={activeTab === 'todo' ? '#FFF' : '#94A3B8'} />
+                        <Text style={[styles.tabText, activeTab === 'todo' && {color: '#FFF'}]} numberOfLines={1}>FAZER ({todoMissions.length})</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.tab, activeTab === 'missed' && styles.tabActiveMissed]} onPress={() => setActiveTab('missed')}>
+                        <MaterialCommunityIcons name="ghost-outline" size={18} color={activeTab === 'missed' ? '#FFF' : '#94A3B8'} />
+                        <Text style={[styles.tabText, activeTab === 'missed' && {color: '#FFF'}]} numberOfLines={1}>PERDIDAS ({missedMissions.length})</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.tab, activeTab === 'completed' && styles.tabActiveCompleted]} onPress={() => setActiveTab('completed')}>
+                        <MaterialCommunityIcons name="check-decagram" size={18} color={activeTab === 'completed' ? '#FFF' : '#94A3B8'} />
+                        <Text style={[styles.tabText, activeTab === 'completed' && {color: '#FFF'}]} numberOfLines={1}>FEITAS ({completedMissions.length})</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {loading ? (<ActivityIndicator color="#0EA5E9" style={{marginTop: 40}} size="large" />) : (
+                    <FlatList
+                        data={currentListData}
+                        keyExtractor={item => item.id}
+                        renderItem={({item}) => renderMissionCard({ item, tabType: activeTab })}
+                        contentContainerStyle={{ paddingBottom: 160, paddingHorizontal: 5, paddingTop: 10 }}
+                        showsVerticalScrollIndicator={false}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchFreshData();}} colors={['#0EA5E9']} />}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}>
+                                <MaterialCommunityIcons name={emptyIcon} size={60} color="#CBD5E1" />
+                                <Text style={styles.emptyText}>{emptyTextTitle}</Text>
+                                <Text style={styles.emptySubText}>{emptyTextSub}</Text>
+                            </View>
+                        }
+                    />
+                )}
+            </View>
+        </View>
     );
-  };
-
-  let currentListData = [];
-  let emptyIcon = "shield-star-outline";
-  let emptyTextTitle = "Tudo limpo!";
-  let emptyTextSub = "Nenhuma missão por enquanto.";
-
-  if (activeTab === 'todo') { currentListData = todoMissions; emptyIcon = "shield-star-outline"; emptyTextTitle = "Tudo feito!"; emptyTextSub = "Você completou suas missões, Recruta!"; } 
-  else if (activeTab === 'missed') { currentListData = missedMissions; emptyIcon = "emoticon-happy-outline"; emptyTextTitle = "Nenhuma missão perdida."; emptyTextSub = "Ótimo trabalho mantendo o foco!"; } 
-  else if (activeTab === 'completed') { currentListData = completedMissions; emptyIcon = "sword-cross"; emptyTextTitle = "Nenhuma missão feita hoje."; emptyTextSub = "Pegue sua espada e vá completar tarefas!"; }
-
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      <TouchableOpacity 
-        style={styles.devButton} 
-        onPress={handleSwitchProfile} 
-        activeOpacity={0.8}
-        hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
-      >
-          <MaterialCommunityIcons name="account-switch" size={20} color="#FFF" />
-      </TouchableOpacity>
-      
-      <View style={styles.chonkoStage}>
-          <ImageBackground source={require('../../../assets/GenericBKG2.png')} style={styles.skyBackground} resizeMode="cover">
-              <View style={styles.modelPlaceholder}>
-                  <Chonko3D />
-              </View>
-          </ImageBackground>
-          <View style={styles.hudContainer}>
-              <View style={styles.profileBadge}>
-                  <View style={styles.levelCircle}><Text style={styles.levelNumber}>{level}</Text></View>
-                  <View style={styles.profileInfoArea}>
-                      <Text style={styles.playerName}>{profileName}</Text>
-                      <View style={styles.xpBarContainer}>
-                          <View style={[styles.xpBarFill, { width: `${xpProgressPercentage}%` }]} />
-                          <Text style={styles.xpText}>{currentLevelXp}/{XP_PER_LEVEL} XP</Text>
-                      </View>
-                  </View>
-              </View>
-              <TouchableOpacity style={styles.coinBadge} onPress={fetchFreshData}>
-                  <AnimatedCoin size={24} style={{ marginRight: 8 }} />
-                  <Text style={styles.coinText}>{currentBalance}</Text>
-                  <View style={styles.plusBtn}>
-                      <MaterialCommunityIcons name="plus" size={14} color="#fff" />
-                  </View>
-              </TouchableOpacity>
-          </View>
-      </View>
-
-      <View style={styles.taskSheet}>
-          <View style={styles.dragHandle} />
-          <View style={styles.tabsContainer}>
-              <TouchableOpacity style={[styles.tab, activeTab === 'todo' && styles.tabActive]} onPress={() => setActiveTab('todo')}><View style={styles.tabInner}><MaterialCommunityIcons name="target" size={16} color={activeTab === 'todo' ? COLORS.primary : '#94A3B8'} /><Text style={[styles.tabText, activeTab === 'todo' && styles.tabTextActive]} numberOfLines={1}>FAZER ({todoMissions.length})</Text></View></TouchableOpacity>
-              <TouchableOpacity style={[styles.tab, activeTab === 'missed' && styles.tabActive]} onPress={() => setActiveTab('missed')}><View style={styles.tabInner}><MaterialCommunityIcons name="ghost-outline" size={16} color={activeTab === 'missed' ? COLORS.primary : '#94A3B8'} /><Text style={[styles.tabText, activeTab === 'missed' && styles.tabTextActive]} numberOfLines={1}>PERDIDAS ({missedMissions.length})</Text></View></TouchableOpacity>
-              <TouchableOpacity style={[styles.tab, activeTab === 'completed' && styles.tabActive]} onPress={() => setActiveTab('completed')}><View style={styles.tabInner}><MaterialCommunityIcons name="check-decagram" size={16} color={activeTab === 'completed' ? COLORS.primary : '#94A3B8'} /><Text style={[styles.tabText, activeTab === 'completed' && styles.tabTextActive]} numberOfLines={1}>FEITAS ({completedMissions.length})</Text></View></TouchableOpacity>
-          </View>
-
-          {loading ? (<ActivityIndicator color={COLORS.primary} style={{marginTop: 40}} />) : (
-              <FlatList
-                  data={currentListData}
-                  keyExtractor={item => item.id}
-                  renderItem={({item}) => renderMissionCard({ item, tabType: activeTab })}
-                  contentContainerStyle={{ paddingBottom: 160, paddingHorizontal: 5, paddingTop: 5 }}
-                  showsVerticalScrollIndicator={false}
-                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchFreshData();}} />}
-                  ListEmptyComponent={
-                      <View style={styles.emptyContainer}>
-                          <MaterialCommunityIcons name={emptyIcon} size={50} color="#CBD5E1" />
-                          <Text style={styles.emptyText}>{emptyTextTitle}</Text>
-                          <Text style={styles.emptySubText}>{emptyTextSub}</Text>
-                      </View>
-                  }
-              />
-          )}
-      </View>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
-  coinContainer: { justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  coinImageFront: { zIndex: 2 },
-  coinGlow: { position: 'absolute', backgroundColor: '#FFD700', borderRadius: 50, zIndex: 1, shadowColor: "#FFD700", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10, elevation: 10 },
-  container: { flex: 1, backgroundColor: '#F0F9FF' }, 
-  devButton: { position: 'absolute', top: 120, right: 20, backgroundColor: '#EF4444', padding: 10, borderRadius: 25, zIndex: 999, borderWidth: 2, borderColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 6 },
-  chonkoStage: { height: '45%', position: 'relative' },
-  skyBackground: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  modelPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 20 },
-  hudContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, position: 'absolute', width: '100%', zIndex: 10 },
-  profileBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingRight: 15, borderRadius: 30, paddingLeft: 4, paddingVertical: 4, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)' },
-  levelCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#8B5CF6', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff', zIndex: 2 },
-  levelNumber: { color: '#fff', fontWeight: '900', fontSize: 18 }, 
-  profileInfoArea: { marginLeft: 8, justifyContent: 'center' },
-  playerName: { color: '#fff', fontFamily: FONTS.bold, fontSize: 15, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 2 }, 
-  xpBarContainer: { width: 100, height: 14, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 7, marginTop: 4, overflow: 'hidden', position: 'relative', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  xpBarFill: { height: '100%', backgroundColor: '#10B981', borderRadius: 7 },
-  xpText: { position: 'absolute', width: '100%', textAlign: 'center', fontSize: 9, color: '#fff', fontWeight: 'bold', lineHeight: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 1 },
-  coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 30, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)', height: 44 },
-  coinText: { color: '#FFD700', fontSize: 18, fontFamily: FONTS.bold, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 2, marginLeft: 4 }, 
-  plusBtn: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fff', marginLeft: 8 },
-  taskSheet: { flex: 1, backgroundColor: '#F0F9FF', borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 16, paddingTop: 10, shadowColor: "#092F47", shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 20 },
-  dragHandle: { width: 60, height: 6, backgroundColor: '#CBD5E1', borderRadius: 10, alignSelf: 'center', marginBottom: 20, marginTop: 8 },
-  tabsContainer: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 16, padding: 4, marginBottom: 20 },
-  tab: { flex: 1, paddingVertical: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  tabActive: { backgroundColor: '#fff', shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
-  tabInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tabText: { fontSize: 10, fontWeight: 'bold', color: '#94A3B8' }, 
-  tabTextActive: { color: COLORS.primary },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 24, marginBottom: 14, borderWidth: 1, minHeight: 80 }, 
-  cardActive: { shadowColor: "#1E293B", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  iconContainer: { width: 50, height: 50, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 14 }, 
-  cardInfo: { flex: 1 },
-  cardTitle: { fontSize: 16, fontFamily: FONTS.bold, marginBottom: 4, color: '#334155' }, 
-  textMissed: { textDecorationLine: 'line-through', color: '#94A3B8' },
-  timeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardSub: { fontSize: 12, color: '#64748B', fontWeight: '600' }, 
-  rightColumn: { alignItems: 'flex-end', justifyContent: 'center' },
-  rewardPill: { flexDirection: 'row', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, borderWidth: 1.5, marginBottom: 4, minWidth: 50, alignItems: 'center', justifyContent: 'center' },
-  rewardText: { fontSize: 14, fontWeight: 'bold' }, 
-  treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 6 },
-  treasureGold: { backgroundColor: '#F59E0B' },
-  treasurePurple: { backgroundColor: '#8B5CF6' },
-  treasureText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-  emptyContainer: { alignItems: 'center', marginTop: 40, opacity: 0.6 },
-  emptyText: { marginTop: 15, fontSize: 16, fontWeight: 'bold', color: '#64748B', textAlign: 'center' },
-  emptySubText: { marginTop: 5, fontSize: 13, fontWeight: '500', color: '#94A3B8', textAlign: 'center' },
+    coinContainer: { justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    coinImageFront: { zIndex: 2 },
+    coinGlow: { position: 'absolute', backgroundColor: '#FFD700', borderRadius: 50, zIndex: 1, shadowColor: "#FFD700", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 10, elevation: 10 },
+
+    // Fundo Azul Céu Sólido
+    container: { flex: 1, backgroundColor: '#38BDF8' },
+
+    devButton: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 50, right: 20, backgroundColor: '#EF4444', width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 14, zIndex: 999, borderWidth: 2, borderColor: '#FFF', elevation: 5 },
+
+    chonkoStage: { height: '42%', position: 'relative', backgroundColor: '#38BDF8' },
+    // View sólida substituindo o antigo ImageBackground
+    skyBackground: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#38BDF8' },
+    modelPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 10 },
+
+    hudContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 50, position: 'absolute', width: '100%', zIndex: 10 },
+    profileBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingRight: 15, borderRadius: 30, paddingLeft: 4, paddingVertical: 4, borderWidth: 2, borderColor: '#E2E8F0', elevation: 5 },
+    levelCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#8B5CF6', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff', zIndex: 2 },
+    levelNumber: { color: '#fff', fontWeight: '900', fontSize: 20 },
+    profileInfoArea: { marginLeft: 10, justifyContent: 'center' },
+    playerName: { color: '#1E293B', fontFamily: FONTS.bold, fontSize: 16 },
+    xpBarContainer: { width: 100, height: 16, backgroundColor: '#F1F5F9', borderRadius: 8, marginTop: 2, overflow: 'hidden', position: 'relative', borderWidth: 1, borderColor: '#E2E8F0' },
+    xpBarFill: { height: '100%', backgroundColor: '#10B981', borderRadius: 8 },
+    xpText: { position: 'absolute', width: '100%', textAlign: 'center', fontSize: 10, color: '#334155', fontFamily: FONTS.bold, lineHeight: 16 },
+
+    coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 30, borderWidth: 2, borderColor: '#FCD34D', height: 48, elevation: 5, marginRight: 55 },
+    coinText: { color: '#B45309', fontSize: 20, fontFamily: FONTS.bold, marginLeft: 4 },
+
+    taskSheet: { flex: 1, backgroundColor: '#FDFCF8', borderTopLeftRadius: 35, borderTopRightRadius: 35, paddingHorizontal: 20, paddingTop: 10, elevation: 20, shadowColor: '#000', shadowOffset: {width: 0, height: -10}, shadowOpacity: 0.1, shadowRadius: 10 },
+    dragHandle: { width: 60, height: 6, backgroundColor: '#CBD5E1', borderRadius: 10, alignSelf: 'center', marginBottom: 20, marginTop: 8 },
+
+    tabsContainer: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 20, padding: 6, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0' },
+    tab: { flex: 1, paddingVertical: 10, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+
+    // BORDAS ARREDONDADAS FORÇADAS NO ESTILO ATIVO
+    tabActiveTodo: { backgroundColor: '#10B981', elevation: 2, borderRadius: 16 },
+    tabActiveMissed: { backgroundColor: '#F59E0B', elevation: 2, borderRadius: 16 },
+    tabActiveCompleted: { backgroundColor: '#3B82F6', elevation: 2, borderRadius: 16 },
+    tabText: { fontSize: 11, fontFamily: FONTS.bold, color: '#94A3B8' },
+
+    card: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 24, marginBottom: 16, borderWidth: 3, minHeight: 90 },
+    iconContainer: { width: 56, height: 56, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+    cardInfo: { flex: 1 },
+    cardTitle: { fontSize: 18, fontFamily: FONTS.bold, marginBottom: 6, color: '#1E293B' },
+    textMissed: { textDecorationLine: 'line-through', color: '#94A3B8' },
+    timeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    cardSub: { fontSize: 13, color: '#64748B', fontFamily: FONTS.bold },
+
+    rightColumn: { alignItems: 'flex-end', justifyContent: 'center' },
+    rewardPill: { flexDirection: 'row', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 2, marginBottom: 6, minWidth: 60, alignItems: 'center', justifyContent: 'center' },
+    rewardText: { fontSize: 16, fontFamily: FONTS.bold },
+    goBtn: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+
+    treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 6 },
+    treasureGold: { backgroundColor: '#F59E0B' },
+    treasurePurple: { backgroundColor: '#8B5CF6' },
+    treasureText: { color: '#FFF', fontSize: 10, fontFamily: FONTS.bold },
+
+    emptyContainer: { alignItems: 'center', marginTop: 50, opacity: 0.8 },
+    emptyText: { marginTop: 15, fontSize: 20, fontFamily: FONTS.bold, color: '#1E293B', textAlign: 'center' },
+    emptySubText: { marginTop: 5, fontSize: 14, fontFamily: FONTS.regular, color: '#64748B', textAlign: 'center' },
 });
