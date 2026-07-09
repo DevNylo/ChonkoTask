@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -167,8 +168,11 @@ export default function RecruitHomeScreen() {
         missions.forEach(mission => {
             if (mission.assigned_to && mission.assigned_to !== myId) return;
 
+            // --- LÓGICA REVISADA: PENDE APROVAÇÃO vs APROVADO ---
             const attemptStatus = attemptsMap.get(mission.id);
             if (attemptStatus === 'pending' || attemptStatus === 'approved') {
+                // Injetamos o status exato na missão para podermos estilizá-la diferente na aba "Feitas"
+                mission.customAttemptStatus = attemptStatus;
                 listCompleted.push(mission);
                 return;
             }
@@ -230,7 +234,6 @@ export default function RecruitHomeScreen() {
 
     const { level, currentLevelXp, XP_PER_LEVEL, xpProgressPercentage } = calculateLevelInfo(currentExperience);
 
-    // Navegação direta para seleção de perfis (Debug/Troca rápida)
     const handleSwitchProfile = () => {
         navigation.navigate('RoleSelection');
     };
@@ -238,16 +241,25 @@ export default function RecruitHomeScreen() {
     const renderMissionCard = ({ item, tabType }) => {
         const isCustom = item.reward_type === 'custom';
         const isMissed = tabType === 'missed';
-        const isCompleted = tabType === 'completed';
-        const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
+
+        // Separa as finalizadas entre as que estão aguardando o capitão e as aprovadas
+        const isPending = item.customAttemptStatus === 'pending';
+        const isApproved = item.customAttemptStatus === 'approved';
 
         let cardBorderColor, cardBg, iconColor, iconBg, iconName, timeText;
 
-        if (isCompleted) {
-            cardBorderColor = '#10B981'; cardBg = '#ECFDF5'; iconColor = '#10B981'; iconBg = '#FFF'; iconName = "check-decagram"; timeText = "Finalizada hoje!";
+        if (isPending) {
+            // Estilo Laranja: Aguardando Admin
+            cardBorderColor = '#F59E0B'; cardBg = '#FFFBEB'; iconColor = '#F59E0B'; iconBg = '#FFF'; iconName = "timer-sand"; timeText = "Em Análise...";
+        } else if (isApproved) {
+            // Estilo Verde: Aprovado e finalizado
+            cardBorderColor = '#10B981'; cardBg = '#ECFDF5'; iconColor = '#10B981'; iconBg = '#FFF'; iconName = "check-decagram"; timeText = "Aprovada!";
         } else if (isMissed) {
+            // Estilo Cinza: Missão não feita no tempo
             cardBorderColor = '#CBD5E1'; cardBg = '#F8FAFC'; iconColor = '#94A3B8'; iconBg = '#FFF'; iconName = "clock-alert-outline"; timeText = `Perdida às ${item.deadline?.slice(0,5) || 'ontem'}`;
         } else {
+            // Estilo Normal: Para Fazer
+            const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
             cardBorderColor = diffData.color; cardBg = '#FFF'; iconColor = diffData.color; iconBg = diffData.bg; iconName = item.icon || "star-circle"; timeText = item.deadline ? `Até as ${item.deadline.slice(0,5)}` : "O dia todo";
         }
 
@@ -256,22 +268,24 @@ export default function RecruitHomeScreen() {
                 style={[
                     styles.card,
                     { borderColor: cardBorderColor, backgroundColor: cardBg },
-                    tabType === 'todo' && { shadowColor: diffData.color, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }
+                    tabType === 'todo' && { shadowColor: cardBorderColor, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }
                 ]}
                 activeOpacity={tabType === 'todo' ? 0.7 : 1}
                 onPress={() => {
-                    if (isCompleted) Alert.alert("Muito bem!", "Você já finalizou esta missão hoje.");
+                    // Impede de abrir a câmera/enviar a tarefa novamente baseado no status
+                    if (isPending) Alert.alert("Aguarde!", "O Capitão está verificando sua missão.");
+                    else if (isApproved) Alert.alert("Muito bem!", "Você já finalizou esta missão hoje e ganhou sua recompensa.");
                     else if (isMissed) Alert.alert("Poxa...", "O tempo acabou. Fica para a próxima!");
                     else navigation.navigate('MissionDetail', { mission: item, profile: { id: profileId, family_id: familyId } });
                 }}
             >
-                <View style={[styles.iconContainer, { backgroundColor: iconBg, borderWidth: 2, borderColor: isCompleted || isMissed ? 'transparent' : iconColor + '40' }]}>
+                <View style={[styles.iconContainer, { backgroundColor: iconBg, borderWidth: 2, borderColor: isPending || isApproved || isMissed ? 'transparent' : iconColor + '40' }]}>
                     <MaterialCommunityIcons name={iconName} size={30} color={iconColor} />
                 </View>
                 <View style={styles.cardInfo}>
                     <Text style={[styles.cardTitle, { color: isMissed ? '#94A3B8' : '#1E293B' }, isMissed && styles.textMissed]} numberOfLines={1}>{item.title}</Text>
 
-                    {item.use_critical && !isCompleted && !isMissed && (
+                    {item.use_critical && !isPending && !isApproved && !isMissed && (
                         <View style={[styles.treasureBadge, item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple]}>
                             <MaterialCommunityIcons name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} size={10} color="#FFF" style={{marginRight:4}} />
                             <Text style={styles.treasureText}>{item.critical_type === 'bonus_coins' ? `+BÔNUS (${item.critical_chance}%)` : `SURPRESA (${item.critical_chance}%)`}</Text>
@@ -279,15 +293,15 @@ export default function RecruitHomeScreen() {
                     )}
 
                     <View style={styles.timeBadge}>
-                        <MaterialCommunityIcons name={isCompleted ? "check-all" : "clock-outline"} size={14} color={isCompleted ? '#10B981' : (isMissed ? '#94A3B8' : '#64748B')} />
-                        <Text style={[styles.cardSub, isCompleted && {color: '#10B981'}]}>{timeText}</Text>
+                        <MaterialCommunityIcons name={isPending ? "clock-outline" : (isApproved ? "check-all" : "clock-outline")} size={14} color={isPending ? '#F59E0B' : (isApproved ? '#10B981' : (isMissed ? '#94A3B8' : '#64748B'))} />
+                        <Text style={[styles.cardSub, isPending && {color: '#F59E0B'}, isApproved && {color: '#10B981'}]}>{timeText}</Text>
                     </View>
                 </View>
 
                 <View style={styles.rightColumn}>
-                    <View style={[styles.rewardPill, isCustom ? { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' } : { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }, (isCompleted || isMissed) && { opacity: 0.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9' }]}>
-                        {!isCustom && !(isCompleted || isMissed) && (<AnimatedCoin size={16} />)}
-                        <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : (isCompleted || isMissed ? '#94A3B8' : '#B45309') }]}>{isCustom ? "🎁" : `+${item.reward}`}</Text>
+                    <View style={[styles.rewardPill, isCustom ? { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' } : { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }, (isPending || isApproved || isMissed) && { opacity: 0.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9' }]}>
+                        {!isCustom && !(isPending || isApproved || isMissed) && (<AnimatedCoin size={16} />)}
+                        <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : ((isPending || isApproved || isMissed) ? '#94A3B8' : '#B45309') }]}>{isCustom ? "🎁" : `+${item.reward}`}</Text>
                     </View>
                     {tabType === 'todo' && (
                         <View style={[styles.goBtn, { backgroundColor: cardBorderColor }]}>
@@ -312,7 +326,6 @@ export default function RecruitHomeScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* BOTÃO DE DEBUG DIRETO PARA ROLE SELECTION */}
             <TouchableOpacity
                 style={styles.devButton}
                 onPress={handleSwitchProfile}
@@ -323,7 +336,6 @@ export default function RecruitHomeScreen() {
             </TouchableOpacity>
 
             <View style={styles.chonkoStage}>
-                {/* FUNDO SÓLIDO AZUL CÉU - SEM IMAGENS DE FUNDO */}
                 <View style={styles.skyBackground}>
                     <View style={styles.modelPlaceholder}>
                         <Chonko3D />
@@ -353,7 +365,6 @@ export default function RecruitHomeScreen() {
                 <View style={styles.dragHandle} />
 
                 <View style={styles.tabsContainer}>
-                    {/* BORDAS ARREDONDADAS FORÇADAS (borderRadius: 16) */}
                     <TouchableOpacity style={[styles.tab, activeTab === 'todo' && styles.tabActiveTodo]} onPress={() => setActiveTab('todo')}>
                         <MaterialCommunityIcons name="target" size={18} color={activeTab === 'todo' ? '#FFF' : '#94A3B8'} />
                         <Text style={[styles.tabText, activeTab === 'todo' && {color: '#FFF'}]} numberOfLines={1}>FAZER ({todoMissions.length})</Text>
@@ -397,13 +408,11 @@ const styles = StyleSheet.create({
     coinImageFront: { zIndex: 2 },
     coinGlow: { position: 'absolute', backgroundColor: '#FFD700', borderRadius: 50, zIndex: 1, shadowColor: "#FFD700", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 10, elevation: 10 },
 
-    // Fundo Azul Céu Sólido
     container: { flex: 1, backgroundColor: '#38BDF8' },
 
     devButton: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 50, right: 20, backgroundColor: '#EF4444', width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 14, zIndex: 999, borderWidth: 2, borderColor: '#FFF', elevation: 5 },
 
     chonkoStage: { height: '42%', position: 'relative', backgroundColor: '#38BDF8' },
-    // View sólida substituindo o antigo ImageBackground
     skyBackground: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#38BDF8' },
     modelPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 10 },
 
@@ -426,7 +435,6 @@ const styles = StyleSheet.create({
     tabsContainer: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 20, padding: 6, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0' },
     tab: { flex: 1, paddingVertical: 10, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
 
-    // BORDAS ARREDONDADAS FORÇADAS NO ESTILO ATIVO
     tabActiveTodo: { backgroundColor: '#10B981', elevation: 2, borderRadius: 16 },
     tabActiveMissed: { backgroundColor: '#F59E0B', elevation: 2, borderRadius: 16 },
     tabActiveCompleted: { backgroundColor: '#3B82F6', elevation: 2, borderRadius: 16 },

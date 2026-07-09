@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -35,7 +35,6 @@ export default function AdminHomeScreen() {
     const route = useRoute();
     const { profile } = route.params || {};
 
-    // --- ESTADOS ---
     const [family, setFamily] = useState(null);
     const [pendingAttempts, setPendingAttempts] = useState(0);
     const [activeMissionsCount, setActiveMissionsCount] = useState(0);
@@ -49,11 +48,24 @@ export default function AdminHomeScreen() {
         }, [profile])
     );
 
-    // --- LÓGICA DE DADOS ORIGINAL ---
+    // --- MAGIA DO TEMPO REAL AQUI ---
+    useEffect(() => {
+        if (!profile?.family_id) return;
+
+        // Escuta qualquer mudança na tabela de tentativas (envios, aprovações, recusas)
+        const channel = supabase.channel('admin_dashboard_attempts')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'mission_attempts' },
+                () => {
+                    // Atualiza a tela instantaneamente quando a criança envia uma missão
+                    fetchDashboardData();
+                })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [profile?.family_id]);
+
     const fetchDashboardData = async () => {
         try {
-            setLoading(true);
-
             // 1. Carregar Família (para o nome)
             const { data: familyData } = await supabase
                 .from('families')
@@ -94,7 +106,6 @@ export default function AdminHomeScreen() {
         }
     };
 
-    // --- FUNÇÕES DE NAVEGAÇÃO ---
     const handleCardPress = (routeItem, title) => {
         if (routeItem === 'MissionManager') {
             navigation.navigate('MissionManager', { familyId: profile.family_id });
@@ -126,7 +137,6 @@ export default function AdminHomeScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-            {/* HEADER TEMA LARANJA 100% SÓLIDO */}
             <View style={styles.topOrangeArea}>
                 <View style={styles.headerRow}>
                     <View style={styles.headerLeft}>
@@ -137,12 +147,10 @@ export default function AdminHomeScreen() {
                     </View>
 
                     <View style={styles.headerRight}>
-                        {/* Botão de Trocar Perfil */}
                         <TouchableOpacity onPress={handleDevSwitchProfile} style={styles.iconBtn}>
                             <MaterialCommunityIcons name="face-man-profile" size={24} color="#FFF" />
                         </TouchableOpacity>
 
-                        {/* Botão de Configurações */}
                         <TouchableOpacity
                             style={styles.iconBtn}
                             onPress={() => navigation.navigate('FamilySettings', { familyId: profile.family_id, currentProfileId: profile.id })}
@@ -150,7 +158,6 @@ export default function AdminHomeScreen() {
                             <MaterialCommunityIcons name="cog-outline" size={24} color="#FFF" />
                         </TouchableOpacity>
 
-                        {/* Botão de Alertas (Pendências) -> CORRIGIDO PARA NAVEGAR PARA A TELA DE APROVAÇÃO */}
                         <TouchableOpacity
                             style={styles.iconBtn}
                             onPress={() => {
@@ -179,7 +186,6 @@ export default function AdminHomeScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDashboardData(); }} tintColor="#F59E0B"/>
                 }
             >
-                {/* ESTATÍSTICAS */}
                 <View style={styles.statsRow}>
                     <View style={styles.statBox}>
                         <MaterialCommunityIcons name="diamond-stone" size={24} color="#EC4899" />
@@ -191,7 +197,6 @@ export default function AdminHomeScreen() {
                         <Text style={styles.statNumber}>{activeMissionsCount}</Text>
                         <Text style={styles.statLabel}>ATIVAS</Text>
                     </View>
-                    {/* Botão de Pendências -> CORRIGIDO PARA NAVEGAR PARA A TELA DE APROVAÇÃO */}
                     <TouchableOpacity
                         style={styles.statBox}
                         activeOpacity={0.8}
@@ -211,7 +216,6 @@ export default function AdminHomeScreen() {
 
                 <Text style={styles.sectionTitle}>CENTRAL DE COMANDO</Text>
 
-                {/* BOTÕES ORIGINAIS MAPEADOS COM VISUAL 3D */}
                 <View style={styles.menuGrid}>
                     <MenuButton
                         title="MISSÕES" subtitle="Gerenciar Tarefas"
@@ -246,7 +250,6 @@ export default function AdminHomeScreen() {
                 </View>
             </ScrollView>
 
-            {/* DOCK BAR INFERIOR */}
             <View style={styles.dockContainer}>
                 <View style={styles.dockBar}>
                     <TouchableOpacity style={styles.dockBtn}>
@@ -272,7 +275,6 @@ export default function AdminHomeScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* BOTÃO CENTRAL (QuickMissions) COM TEMA LARANJA */}
                 <TouchableOpacity
                     style={styles.centerDockBtn}
                     activeOpacity={0.9}

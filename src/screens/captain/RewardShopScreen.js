@@ -57,7 +57,6 @@ const AnimatedCoin = ({ size = 24, style = {} }) => {
     );
 };
 
-// Usa a RARIDADE escolhida pelo Admin em vez do preço
 const GET_RARITY_THEME = (rarity) => {
     if (rarity === 'common') return { label: 'COMUM', bg: '#ECFDF5', border: '#047857', iconColor: '#064E3B', text: '#022C22', glow: 'transparent' };
     if (rarity === 'rare') return { label: 'RARO', bg: '#DBEAFE', border: '#60A5FA', iconColor: '#1E40AF', text: '#1E3A8A', glow: '#3B82F6' };
@@ -108,7 +107,7 @@ export default function RewardShopScreen() {
     const [cost, setCost] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('gift-outline');
     const [selectedCategory, setSelectedCategory] = useState(ICONS_CATALOG ? Object.keys(ICONS_CATALOG)[0] : 'rpg');
-    const [selectedRarity, setSelectedRarity] = useState('common'); // <-- NOVO: Raridade
+    const [selectedRarity, setSelectedRarity] = useState('common');
     const [stock, setStock] = useState('1');
     const [isInfinite, setIsInfinite] = useState(true);
     const [newShopName, setNewShopName] = useState('');
@@ -132,7 +131,12 @@ export default function RewardShopScreen() {
     };
 
     const fetchSales = async () => {
-        const { data } = await supabase.from('reward_requests').select('*, rewards(title, icon), profiles(name)').eq('family_id', familyId).order('created_at', { ascending: false });
+        // Traz o custo (cost) nas rewards para mostrar no extrato
+        const { data } = await supabase
+            .from('reward_requests')
+            .select('*, rewards(title, icon, cost), profiles(name)')
+            .eq('family_id', familyId)
+            .order('created_at', { ascending: false });
         if (data) setSalesList(data);
     };
 
@@ -185,7 +189,7 @@ export default function RewardShopScreen() {
             title: title.trim(),
             cost: parseInt(cost)||0,
             icon: selectedIcon,
-            rarity: selectedRarity, // Salva a valiosidade no banco
+            rarity: selectedRarity,
             is_infinite: isInfinite,
             stock: isInfinite ? 999 : (parseInt(stock)||0)
         };
@@ -202,7 +206,7 @@ export default function RewardShopScreen() {
     const handleDeleteReward = (id) => {
         setShowItemModal(false);
         Alert.alert("Excluir", "Remover este item?", [
-            { text: "Não" },
+            { text: "Não", style: 'cancel' },
             { text: "Sim, Excluir", style: 'destructive', onPress: async () => {
                     await supabase.from('rewards').delete().eq('id', id); fetchShopData();
                 }}
@@ -221,20 +225,36 @@ export default function RewardShopScreen() {
         setIsInfinite(true); setStock('1'); setSelectedRarity('common');
     };
 
-    const renderSalesItem = ({ item }) => (
-        <View style={styles.historyCard}>
-            <View style={styles.historyIconBox}>
-                <MaterialCommunityIcons name={item.rewards?.icon} size={24} color="#4C1D95" />
+    // --- NOVO DESIGN DO HISTÓRICO (ESTILO EXTRATO) ---
+    const renderSalesItem = ({ item }) => {
+        const itemCost = item.rewards?.cost || item.cost || 0;
+        const purchaseDate = new Date(item.created_at);
+        const formattedDate = `${purchaseDate.getDate().toString().padStart(2, '0')}/${(purchaseDate.getMonth()+1).toString().padStart(2, '0')} às ${purchaseDate.getHours().toString().padStart(2, '0')}:${purchaseDate.getMinutes().toString().padStart(2, '0')}`;
+
+        return (
+            <View style={styles.historyCard}>
+                <View style={styles.historyIconBox}>
+                    <MaterialCommunityIcons name={item.rewards?.icon || 'gift'} size={28} color={SHOP_THEME.primary} />
+                </View>
+
+                <View style={styles.historyInfo}>
+                    <Text style={styles.historyTitle} numberOfLines={1}>{item.rewards?.title || "Item Removido"}</Text>
+                    <View style={styles.historyBuyerRow}>
+                        <MaterialCommunityIcons name="account" size={12} color="#64748B" />
+                        <Text style={styles.historyBuyerText}>{item.profiles?.name || "Recruta"}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.historyCostBox}>
+                    <View style={styles.historyCostRow}>
+                        <Text style={styles.historyCostText}>-{itemCost}</Text>
+                        <AnimatedCoin size={14} style={{marginLeft: 2}} />
+                    </View>
+                    <Text style={styles.historyDate}>{formattedDate}</Text>
+                </View>
             </View>
-            <View style={{flex: 1, marginLeft: 10}}>
-                <Text style={styles.historyTitle}>{item.rewards?.title}</Text>
-                <Text style={{fontSize:10, color:'#666'}}>{new Date(item.created_at).toLocaleDateString()}</Text>
-            </View>
-            <View style={styles.historyBuyerBox}>
-                <Text style={styles.historyBuyerText}>{item.profiles?.name}</Text>
-            </View>
-        </View>
-    );
+        );
+    };
 
     const renderCard = ({ item }) => {
         const rarityTheme = GET_RARITY_THEME(item.rarity || 'common');
@@ -319,18 +339,20 @@ export default function RewardShopScreen() {
 
             <View style={styles.bodyContainer}>
                 <View style={styles.tabBar}>
-                    <TouchableOpacity style={[styles.tabItem, activeTab === 'shop' && styles.tabActive]} onPress={() => setActiveTab('shop')}>
+                    <TouchableOpacity style={[styles.tabItem, activeTab === 'shop' && styles.tabActive]} onPress={() => setActiveTab('shop')} activeOpacity={0.8}>
                         <Text style={[styles.tabText, activeTab === 'shop' && styles.tabTextActive]}>VITRINE</Text>
                     </TouchableOpacity>
                     {isCaptain && (
-                        <TouchableOpacity style={[styles.tabItem, activeTab === 'sales' && styles.tabActive]} onPress={() => setActiveTab('sales')}>
+                        <TouchableOpacity style={[styles.tabItem, activeTab === 'sales' && styles.tabActive]} onPress={() => setActiveTab('sales')} activeOpacity={0.8}>
                             <Text style={[styles.tabText, activeTab === 'sales' && styles.tabTextActive]}>HISTÓRICO</Text>
                         </TouchableOpacity>
                     )}
                 </View>
 
-                {activeTab === 'shop' ? (
+                {/* RESOLUÇÃO DO BUG DO FLATLIST: Separando os blocos com renderização condicional rígida */}
+                {activeTab === 'shop' && (
                     <FlatList
+                        key="shop-grid-view" // Chave única para forçar render do grid
                         data={rewards}
                         keyExtractor={item => item.id}
                         numColumns={2}
@@ -340,13 +362,17 @@ export default function RewardShopScreen() {
                         renderItem={renderCard}
                         ListEmptyComponent={<View style={styles.emptyState}><MaterialCommunityIcons name="store-off" size={40} color="#64748B"/><Text style={styles.emptyText}>Nada na vitrine hoje.</Text></View>}
                     />
-                ) : (
+                )}
+
+                {activeTab === 'sales' && (
                     <FlatList
+                        key="sales-list-view" // Chave única para forçar render de 1 coluna
                         data={salesList}
                         keyExtractor={item => item.id}
-                        contentContainerStyle={styles.gridContent}
+                        contentContainerStyle={styles.listContent}
                         showsVerticalScrollIndicator={false}
                         renderItem={renderSalesItem}
+                        ListEmptyComponent={<View style={styles.emptyState}><MaterialCommunityIcons name="history" size={40} color="#64748B"/><Text style={styles.emptyText}>Nenhuma venda ainda.</Text></View>}
                     />
                 )}
             </View>
@@ -388,7 +414,7 @@ export default function RewardShopScreen() {
                             </View>
                         </View>
 
-                        {/* SELETOR DE VALIOSIDADE (RARIDADE) */}
+                        {/* SELETOR DE VALIOSIDADE */}
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>VALIOSIDADE DO PRÊMIO</Text>
                             <View style={styles.rarityRow}>
@@ -397,6 +423,7 @@ export default function RewardShopScreen() {
                                         key={opt.id}
                                         style={[styles.rarityBtn, selectedRarity === opt.id && { backgroundColor: opt.color, borderColor: opt.color }]}
                                         onPress={() => setSelectedRarity(opt.id)}
+                                        activeOpacity={0.8}
                                     >
                                         <Text style={[styles.rarityBtnText, selectedRarity === opt.id && { color: '#FFF' }]}>{opt.label}</Text>
                                     </TouchableOpacity>
@@ -441,6 +468,41 @@ export default function RewardShopScreen() {
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
+
+            {/* MODAL RENOMEAR LOJA */}
+            <Modal visible={showRenameModal} transparent animationType="fade" statusBarTranslucent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>RENOMEAR LOJA</Text>
+                        <TextInput style={styles.input} value={newShopName} onChangeText={setNewShopName} maxLength={25} autoFocus />
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#F1F5F9', flex:1}]} onPress={() => setShowRenameModal(false)}>
+                                <Text style={styles.modalCancelText}>CANCELAR</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.modalBtn, {backgroundColor: SHOP_THEME.secondary, flex:1}]} onPress={handleRenameShop}>
+                                <Text style={styles.modalConfirmText}>SALVAR</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* MENU DE CONFIGURAÇÕES */}
+            <Modal visible={showSettingsMenu} transparent animationType="fade" statusBarTranslucent>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSettingsMenu(false)}>
+                    <View style={styles.settingsMenu}>
+                        <Text style={styles.menuHeader}>CONFIGURAÇÕES</Text>
+                        <TouchableOpacity style={styles.menuItem} onPress={() => { setShowSettingsMenu(false); setShowRenameModal(true); }}>
+                            <MaterialCommunityIcons name="pencil" size={24} color="#64748B" />
+                            <Text style={styles.menuText}>Renomear Loja</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.menuItem} onPress={toggleShopStatus}>
+                            <MaterialCommunityIcons name={isShopOpen ? "door-closed" : "door-open"} size={24} color={isShopOpen ? "#EF4444" : "#10B981"} />
+                            <Text style={[styles.menuText, {color: isShopOpen ? '#EF4444' : '#10B981'}]}>{isShopOpen ? "Fechar Loja" : "Reabrir Loja"}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 }
@@ -474,6 +536,7 @@ const styles = StyleSheet.create({
     tabTextActive: { color: '#FFF' },
 
     gridContent: { paddingHorizontal: 16, paddingBottom: 100 },
+    listContent: { paddingHorizontal: 20, paddingBottom: 100 }, // Nova classe de espaçamento p/ lista
     cardWrapper: { width: CARD_WIDTH, marginBottom: 20, borderRadius: 20 },
     cardFront: { borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, minHeight: 200, elevation: 2 },
     glowShadow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, opacity: 0.6, transform: [{scale: 1.05}] },
@@ -493,11 +556,17 @@ const styles = StyleSheet.create({
     fab: { position: 'absolute', bottom: 30, right: 20, borderRadius: 30, elevation: 8 },
     fabSolid: { width: 60, height: 60, borderRadius: 30, backgroundColor: SHOP_THEME.secondary, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
 
-    historyCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 12, borderRadius: 12, marginBottom: 10, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
-    historyIconBox: { width: 40, height: 40, backgroundColor: '#F3E8FF', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-    historyTitle: { fontWeight: 'bold', color: '#333' },
-    historyBuyerBox: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    historyBuyerText: { fontSize: 10, fontWeight: 'bold', color: '#64748B' },
+    // ESTILOS EXTRATO / HISTÓRICO
+    historyCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
+    historyIconBox: { width: 48, height: 48, backgroundColor: '#F8FAFC', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+    historyInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },
+    historyTitle: { fontFamily: FONTS.bold, fontSize: 15, color: '#1E293B', marginBottom: 4 },
+    historyBuyerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    historyBuyerText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B', marginLeft: 4 },
+    historyCostBox: { alignItems: 'flex-end', justifyContent: 'center' },
+    historyCostRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+    historyCostText: { fontFamily: FONTS.bold, fontSize: 16, color: '#EF4444' },
+    historyDate: { fontSize: 10, fontFamily: FONTS.regular, color: '#94A3B8' },
 
     emptyState: { alignItems: 'center', marginTop: 50 },
     emptyText: { color: '#94A3B8', marginTop: 10, fontFamily: FONTS.bold },
@@ -513,7 +582,6 @@ const styles = StyleSheet.create({
     inputClean: { flex: 1, color: '#334155', fontFamily: FONTS.bold, height: '100%' },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
 
-    // Raridade Buttons
     rarityRow: { flexDirection: 'row', gap: 5 },
     rarityBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', backgroundColor: '#F8FAFC' },
     rarityBtnText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B' },
@@ -529,4 +597,9 @@ const styles = StyleSheet.create({
     modalBtn: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     modalCancelText: { fontFamily: FONTS.bold, color: '#64748B' },
     modalConfirmText: { fontFamily: FONTS.bold, color: '#FFF' },
+
+    settingsMenu: { backgroundColor: '#FFF', width: '80%', borderRadius: 24, padding: 20, elevation: 10, alignSelf: 'center' },
+    menuHeader: { fontFamily: FONTS.bold, marginBottom: 15, textAlign: 'center', color: '#334155', fontSize: 16 },
+    menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+    menuText: { marginLeft: 10, fontFamily: FONTS.bold, color: '#334155', fontSize: 14 }
 });
