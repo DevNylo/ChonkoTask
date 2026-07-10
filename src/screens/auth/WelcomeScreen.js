@@ -69,8 +69,8 @@ export default function WelcomeScreen() {
                             </View>
 
                             <View style={styles.cardTextContainer}>
-                                <Text style={styles.cardTitle} numberOfLines={1}>Criar Família</Text>
-                                <Text style={styles.cardDesc} numberOfLines={2}>Vou criar e gerenciar missões</Text>
+                                <Text style={styles.cardTitle} numberOfLines={1}>Criar um Grupo</Text>
+                                <Text style={styles.cardDesc} numberOfLines={2}>Vou criar e gerenciar missões.</Text>
                             </View>
 
                             {/* Círculo da Seta */}
@@ -98,8 +98,8 @@ export default function WelcomeScreen() {
                             </View>
 
                             <View style={styles.cardTextContainer}>
-                                <Text style={styles.cardTitle} numberOfLines={1}>Entrar na Equipe</Text>
-                                <Text style={styles.cardDesc} numberOfLines={2}>Vou cumprir missões e ganhar pontos</Text>
+                                <Text style={styles.cardTitle} numberOfLines={1}>Entrar no Grupo</Text>
+                                <Text style={styles.cardDesc} numberOfLines={2}>Vou cumprir missões e ganhar pontos.</Text>
                             </View>
 
                             {/* Círculo da Seta */}
