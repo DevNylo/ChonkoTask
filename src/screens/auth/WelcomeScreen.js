@@ -270,8 +270,8 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#E2E8F0',
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: .10,
         shadowRadius: 6,
         elevation: 2,
 

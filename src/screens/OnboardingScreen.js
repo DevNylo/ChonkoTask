@@ -26,7 +26,7 @@ const SLIDES = [
     description: 'Chega de repetir a mesma coisa 10 vezes. Crie missões diárias e motive-os a cumprirem a rotina brincando.',
     image: require('../../assets/Onboarding/Char-1.png'),
     color: '#0ea5e9', // Azul
-    shadowColor: '#bae6fd',
+    shadowColor: '#007bbf',
   },
   {
     id: '2',
@@ -34,7 +34,7 @@ const SLIDES = [
     description: 'Defina recompensas reais — como sorvete ou videogame. Ensine que para ganhar, é preciso conquistar. Sem mesada automática.',
     image: require('../../assets/Onboarding/Char-2.png'),
     color: '#f59e0b', // Laranja/Dourado
-    shadowColor: '#fde68a',
+    shadowColor: '#b16f02',
   },
   {
     id: '3',
@@ -42,7 +42,7 @@ const SLIDES = [
     description: 'Você aprova as missões por fotos e os prêmios vão para a Mochila deles. Eles pedem, você aprova a entrega. Organização para você, magia para eles.',
     image: require('../../assets/Onboarding/Char-3.png'),
     color: '#10b981', // Verde
-    shadowColor: '#a7f3d0',
+    shadowColor: '#08704d',
   }
 ];
 
