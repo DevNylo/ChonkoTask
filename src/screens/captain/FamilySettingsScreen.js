@@ -356,7 +356,7 @@ export default function FamilySettingsScreen() {
                                         {(!inviteCode || isExpired) ? (
                                             <View style={{alignItems: 'center', marginVertical: 10, width: '100%'}}>
                                                 <MaterialCommunityIcons name="account-plus-outline" size={40} color="#CBD5E1" />
-                                                <Text style={styles.expiredText}>Use para adicionar novos filhos à família.</Text>
+                                                <Text style={styles.expiredText}>Use para adicionar novos membros à equipe.</Text>
 
                                                 <TouchableOpacity style={styles.shareBtn} activeOpacity={0.9} onPress={handleShareAction}>
                                                     <MaterialCommunityIcons name="share-variant" size={20} color="#FFF" />
