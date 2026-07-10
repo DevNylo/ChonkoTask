@@ -48,15 +48,12 @@ export default function AdminHomeScreen() {
         }, [profile])
     );
 
-    // --- MAGIA DO TEMPO REAL AQUI ---
     useEffect(() => {
         if (!profile?.family_id) return;
 
-        // Escuta qualquer mudança na tabela de tentativas (envios, aprovações, recusas)
         const channel = supabase.channel('admin_dashboard_attempts')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'mission_attempts' },
                 () => {
-                    // Atualiza a tela instantaneamente quando a criança envia uma missão
                     fetchDashboardData();
                 })
             .subscribe();
@@ -66,7 +63,6 @@ export default function AdminHomeScreen() {
 
     const fetchDashboardData = async () => {
         try {
-            // 1. Carregar Família (para o nome)
             const { data: familyData } = await supabase
                 .from('families')
                 .select('*')
@@ -74,7 +70,6 @@ export default function AdminHomeScreen() {
                 .single();
             if (familyData) setFamily(familyData);
 
-            // 2. Carregar Tentativas Pendentes
             const { count: pendingCount } = await supabase
                 .from('mission_attempts')
                 .select('id, profiles!inner(family_id)', { count: 'exact', head: true })
@@ -82,7 +77,6 @@ export default function AdminHomeScreen() {
                 .eq('profiles.family_id', profile.family_id);
             setPendingAttempts(pendingCount || 0);
 
-            // 3. Carregar Missões Ativas
             const { count: activeCount } = await supabase
                 .from('missions')
                 .select('id', { count: 'exact', head: true })
@@ -90,7 +84,6 @@ export default function AdminHomeScreen() {
                 .eq('status', 'active');
             setActiveMissionsCount(activeCount || 0);
 
-            // 4. Carregar Gems do Capitão
             const { data: captainData } = await supabase
                 .from('profiles')
                 .select('*')
@@ -116,10 +109,11 @@ export default function AdminHomeScreen() {
         }
     };
 
+    // SOLUÇÃO DO BUG DO BOTÃO VOLTAR
     const handleDevSwitchProfile = async () => {
         try {
-            if (navigation.canGoBack()) navigation.goBack();
-            else navigation.navigate('RoleSelection');
+            // Em vez de goBack (que as vezes empilha as telas), o replace destroi o QG e abre a Role
+            navigation.replace('RoleSelection');
         } catch (e) {
             await supabase.auth.signOut();
         }

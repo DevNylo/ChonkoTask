@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { COLORS, FONTS } from '../../styles/theme';
+import { FONTS } from '../../styles/theme';
 
 export default function FamilySettingsScreen() {
     const navigation = useNavigation();
@@ -26,7 +26,7 @@ export default function FamilySettingsScreen() {
     const [family, setFamily] = useState(null);
     const [members, setMembers] = useState([]);
 
-    // Estados do Código
+    // Estados do Código de Família
     const [inviteCode, setInviteCode] = useState(null);
     const [expiresAt, setExpiresAt] = useState(null);
     const [timeLeft, setTimeLeft] = useState('');
@@ -78,7 +78,6 @@ export default function FamilySettingsScreen() {
                 const expireDate = new Date(familyData.invite_expires_at);
                 const now = new Date();
 
-                // Limpeza: Se estiver válido, NÃO tiver 'CHONKO-' e tiver 6 dígitos, ele aceita.
                 if (expireDate > now && !familyData.invite_code.includes('CHONKO-') && familyData.invite_code.length === 6) {
                     setInviteCode(familyData.invite_code);
                     setExpiresAt(familyData.invite_expires_at);
@@ -100,10 +99,12 @@ export default function FamilySettingsScreen() {
         finally { setLoading(false); }
     };
 
-    const generateNewCode = async () => {
+    // =========================================================================
+    // LÓGICA 1: CÓDIGO DA FAMÍLIA (NOVO MEMBRO)
+    // =========================================================================
+    const generateNewFamilyCode = async () => {
         setGeneratingCode(true);
         try {
-            // Gera exatos 6 caracteres (Letras Maiúsculas e Números puros)
             const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
             let newCode = '';
             for (let i = 0; i < 6; i++) {
@@ -111,7 +112,7 @@ export default function FamilySettingsScreen() {
             }
 
             const expiryDate = new Date();
-            expiryDate.setMinutes(expiryDate.getMinutes() + 15); // Válido por exatos 15 minutos
+            expiryDate.setMinutes(expiryDate.getMinutes() + 15); // 15 minutos
 
             const { error } = await supabase
                 .from('families')
@@ -137,20 +138,17 @@ export default function FamilySettingsScreen() {
         }
     };
 
-    const copyToClipboard = async () => {
-        if (inviteCode && !isExpired) {
-            await Clipboard.setStringAsync(inviteCode);
-            Alert.alert("Copiado!", "Código salvo na área de transferência.");
-        }
+    const copyToClipboard = async (codeToCopy) => {
+        await Clipboard.setStringAsync(codeToCopy);
+        Alert.alert("Copiado!", "Código salvo na área de transferência.");
     };
 
     const handleShareAction = async () => {
         let codeToShare = inviteCode;
         let expiresToShare = expiresAt;
 
-        // Se não existir ou se expirou, geramos um novo imediatamente antes de abrir o compartilhamento
         if (!codeToShare || isExpired || codeToShare.includes('CHONKO-')) {
-            codeToShare = await generateNewCode();
+            codeToShare = await generateNewFamilyCode();
             if (!codeToShare) return;
 
             const tempDate = new Date();
@@ -168,11 +166,66 @@ export default function FamilySettingsScreen() {
         }
     };
 
+    // =========================================================================
+    // LÓGICA 2: CÓDIGO DE RECONEXÃO (APARELHO PERDIDO DA CRIANÇA)
+    // =========================================================================
+    const handleGenerateReconnectCode = async (member) => {
+        setGeneratingCode(true);
+        try {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let newCode = '';
+            for (let i = 0; i < 6; i++) {
+                newCode += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+
+            const expiryDate = new Date();
+            expiryDate.setMinutes(expiryDate.getMinutes() + 5); // Apenas 5 minutos de validade por segurança
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    reconnect_code: newCode,
+                    reconnect_expires_at: expiryDate.toISOString()
+                })
+                .eq('id', member.id);
+
+            if (error) throw error;
+
+            Alert.alert(
+                "Aparelho Liberado!",
+                `O código para reconectar o perfil de ${member.name} é:\n\n${newCode}\n\n(Expira em 5 minutos. Insira este código na tela de entrada do novo celular)`,
+                [
+                    { text: "Copiar", onPress: () => copyToClipboard(newCode) },
+                    { text: "Ok", style: "default" }
+                ]
+            );
+
+        } catch (error) {
+            Alert.alert("Erro", "Não foi possível gerar o código de reconexão.");
+        } finally {
+            setGeneratingCode(false);
+        }
+    };
+
+    const confirmReconnect = (member) => {
+        Alert.alert(
+            "Reconectar Aparelho?",
+            `Deseja gerar um código temporário para logar o perfil de ${member.name} em um novo celular ou tablet sem perder o progresso?`,
+            [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Gerar Código", onPress: () => handleGenerateReconnectCode(member) }
+            ]
+        );
+    };
+
+    // =========================================================================
+    // GERENCIAMENTO DA EQUIPE
+    // =========================================================================
     const handleManageMember = async (member, action) => {
         try {
             let updateData = {};
 
-            if (action === 'promote') updateData = { role: 'captain' };
+            if (action === 'promote') updateData = { role: 'admin' };
             if (action === 'demote') updateData = { role: 'recruit' };
             if (action === 'remove') updateData = { family_id: null };
 
@@ -215,7 +268,7 @@ export default function FamilySettingsScreen() {
 
     const renderMember = ({ item }) => {
         const isMe = item.id === currentProfileId;
-        const isAdmin = item.role === 'captain';
+        const isAdmin = item.role === 'admin';
 
         const roleLabel = item.title_archetype
             ? item.title_archetype.toUpperCase()
@@ -227,8 +280,8 @@ export default function FamilySettingsScreen() {
                     <View style={[styles.avatarBox, isAdmin ? {backgroundColor: '#FEF3C7', borderColor: '#F59E0B'} : {backgroundColor: '#F8FAFC', borderColor: '#CBD5E1'}]}>
                         <MaterialCommunityIcons name={isAdmin ? "crown" : "account"} size={24} color={isAdmin ? '#F59E0B' : '#64748B'} />
                     </View>
-                    <View>
-                        <Text style={styles.memberName}>{item.name} {isMe && "(Você)"}</Text>
+                    <View style={{ flex: 1, paddingRight: 10 }}>
+                        <Text style={styles.memberName} numberOfLines={1}>{item.name} {isMe && "(Você)"}</Text>
                         <Text style={[styles.memberRole, {color: isAdmin ? '#B45309' : '#64748B'}]}>
                             {roleLabel}
                         </Text>
@@ -239,26 +292,28 @@ export default function FamilySettingsScreen() {
                     <View style={styles.actionsContainer}>
                         {!isAdmin && (
                             <>
+                                {/* NOVO BOTÃO AZUL: GERAR CÓDIGO DE RECONEXÃO */}
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, {backgroundColor: '#EFF6FF', borderColor: '#BFDBFE'}]}
+                                    onPress={() => confirmReconnect(item)}
+                                >
+                                    <MaterialCommunityIcons name="cellphone-link" size={22} color="#3B82F6" />
+                                </TouchableOpacity>
+
+                                {/* BOTÃO DE PROMOVER A ADMIN */}
                                 <TouchableOpacity
                                     style={styles.actionBtn}
                                     onPress={() => confirmAction(item, 'promote')}
                                 >
-                                    <MaterialCommunityIcons
-                                        name="arrow-up-bold-box-outline"
-                                        size={24}
-                                        color="#D97706"
-                                    />
+                                    <MaterialCommunityIcons name="arrow-up-bold-box-outline" size={22} color="#D97706" />
                                 </TouchableOpacity>
 
+                                {/* BOTÃO DE REMOVER DA EQUIPE */}
                                 <TouchableOpacity
                                     style={[styles.actionBtn, {backgroundColor: '#FEF2F2', borderColor: '#FECACA'}]}
                                     onPress={() => confirmAction(item, 'remove')}
                                 >
-                                    <MaterialCommunityIcons
-                                        name="trash-can-outline"
-                                        size={24}
-                                        color="#EF4444"
-                                    />
+                                    <MaterialCommunityIcons name="trash-can-outline" size={22} color="#EF4444" />
                                 </TouchableOpacity>
                             </>
                         )}
@@ -272,7 +327,6 @@ export default function FamilySettingsScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* --- HEADER TEMA LARANJA 100% SÓLIDO --- */}
             <View style={styles.topOrangeArea}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.8}>
@@ -283,7 +337,7 @@ export default function FamilySettingsScreen() {
                 </View>
             </View>
 
-            {loading ? <ActivityIndicator size="large" color="#F59E0B" style={{marginTop:50}} /> : (
+            {loading && members.length === 0 ? <ActivityIndicator size="large" color="#F59E0B" style={{marginTop:50}} /> : (
                 <FlatList
                     data={members}
                     keyExtractor={item => item.id}
@@ -293,16 +347,16 @@ export default function FamilySettingsScreen() {
                     ListHeaderComponent={
                         <>
                             <View style={styles.codeCard}>
-                                <Text style={styles.codeLabel}>CÓDIGO DE ACESSO</Text>
+                                <Text style={styles.codeLabel}>CÓDIGO DE NOVA CONTA</Text>
 
-                                {generatingCode ? (
+                                {generatingCode && !inviteCode ? (
                                     <ActivityIndicator color="#F59E0B" style={{marginVertical: 10}} />
                                 ) : (
                                     <>
                                         {(!inviteCode || isExpired) ? (
                                             <View style={{alignItems: 'center', marginVertical: 10, width: '100%'}}>
-                                                <MaterialCommunityIcons name="lock-clock" size={40} color="#CBD5E1" />
-                                                <Text style={styles.expiredText}>Nenhum código ativo no momento.</Text>
+                                                <MaterialCommunityIcons name="account-plus-outline" size={40} color="#CBD5E1" />
+                                                <Text style={styles.expiredText}>Use para adicionar novos filhos à família.</Text>
 
                                                 <TouchableOpacity style={styles.shareBtn} activeOpacity={0.9} onPress={handleShareAction}>
                                                     <MaterialCommunityIcons name="share-variant" size={20} color="#FFF" />
@@ -311,7 +365,7 @@ export default function FamilySettingsScreen() {
                                             </View>
                                         ) : (
                                             <>
-                                                <TouchableOpacity style={styles.codeBox} activeOpacity={0.7} onPress={copyToClipboard}>
+                                                <TouchableOpacity style={styles.codeBox} activeOpacity={0.7} onPress={() => copyToClipboard(inviteCode)}>
                                                     <Text style={styles.codeText}>{inviteCode}</Text>
                                                     <MaterialCommunityIcons name="content-copy" size={20} color="#94A3B8" style={{position:'absolute', right: 15}}/>
                                                 </TouchableOpacity>
@@ -321,7 +375,7 @@ export default function FamilySettingsScreen() {
                                                     <Text style={styles.timerText}>VÁLIDO POR {timeLeft}</Text>
                                                 </View>
 
-                                                <Text style={styles.codeDesc}>Compartilhe este código para convidar novos membros.</Text>
+                                                <Text style={styles.codeDesc}>Compartilhe este código para convidar novos membros para a equipe.</Text>
 
                                                 <TouchableOpacity style={styles.shareBtn} activeOpacity={0.9} onPress={handleShareAction}>
                                                     <MaterialCommunityIcons name="share-variant" size={20} color="#FFF" />
@@ -345,7 +399,6 @@ export default function FamilySettingsScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FDFCF8' },
 
-    // Modificado para usar a cor sólida em vez do gradiente
     topOrangeArea: {
         paddingTop: 60,
         paddingBottom: 25,
@@ -362,7 +415,6 @@ const styles = StyleSheet.create({
 
     content: { padding: 20, paddingBottom: 50 },
 
-    // --- CARD DO CÓDIGO ---
     codeCard: {
         backgroundColor: '#FFF', borderRadius: 24, padding: 20, marginBottom: 30,
         borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
@@ -380,13 +432,11 @@ const styles = StyleSheet.create({
 
     codeDesc: { fontFamily: FONTS.regular, fontSize: 12, color: '#64748B', textAlign: 'center', marginBottom: 20, paddingHorizontal: 10 },
 
-    shareBtn: { width: '100%', flexDirection: 'row', backgroundColor: '#F59E0B', paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: "#F59E0B", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 4, borderBottomWidth: 5,
-        borderColor:'#cd7c00' },
+    shareBtn: { width: '100%', flexDirection: 'row', backgroundColor: '#F59E0B', paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: "#F59E0B", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 4, borderBottomWidth: 5, borderColor:'#cd7c00' },
     shareText: { fontFamily: FONTS.bold, color: '#FFF', fontSize: 14 },
 
-    expiredText: { fontFamily: FONTS.bold, color: '#94A3B8', marginVertical: 10, textAlign: 'center' },
+    expiredText: { fontFamily: FONTS.regular, color: '#94A3B8', marginVertical: 10, textAlign: 'center', fontSize: 13, paddingHorizontal: 20 },
 
-    // --- MEMBROS ---
     sectionTitle: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B', marginBottom: 15, opacity: 0.8, textTransform: 'uppercase', letterSpacing: 0.5 },
 
     memberCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF', padding: 15, borderRadius: 20, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
@@ -396,7 +446,6 @@ const styles = StyleSheet.create({
     memberName: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B' },
     memberRole: { fontFamily: FONTS.bold, fontSize: 11, marginTop: 2 },
 
-    // --- AÇÕES ---
-    actionsContainer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    actionsContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     actionBtn: { padding: 8, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' },
 });

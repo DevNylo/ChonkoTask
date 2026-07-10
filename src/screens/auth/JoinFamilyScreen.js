@@ -1,5 +1,4 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
 import {
@@ -13,44 +12,53 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { FONTS } from '../../styles/theme';
 
 export default function JoinFamilyScreen() {
     const navigation = useNavigation();
-    const { setSession, setProfile } = useAuth();
 
     // ESTADOS
     const [step, setStep] = useState(1);
     const [code, setCode] = useState('');
     const [name, setName] = useState('');
     const [loading, setLoading] = useState(false);
-    const [familyName, setFamilyName] = useState('');
 
-    // --- PASSO 1: VERIFICAR CÓDIGO ---
+    // Dados retornados pela Fechadura Inteligente
+    const [codeType, setCodeType] = useState(null); // 'new_member' ou 'reconnect'
+    const [familyData, setFamilyData] = useState(null);
+    const [profileData, setProfileData] = useState(null);
+
+    // --- PASSO 1: A FECHADURA INTELIGENTE ---
     const handleVerifyCode = async () => {
         const cleanCode = code.trim().toUpperCase();
 
-        if (cleanCode.length < 6) {
-            return Alert.alert("Ops", "O código deve ter 6 caracteres.");
-        }
+        if (cleanCode.length < 6) return Alert.alert("Ops", "O código deve ter pelo menos 6 caracteres.");
+
         setLoading(true);
 
         try {
-            // Busca o nome da família usando a RPC segura que criamos no SQL
-            const { data: familyNameResult, error } = await supabase
-                .rpc('get_family_name_by_invite', { p_code: cleanCode });
+            // Chama a RPC que acabamos de criar no SQL
+            const { data, error } = await supabase.rpc('check_smart_code', { p_code: cleanCode });
 
             if (error) throw error;
 
-            if (!familyNameResult) {
+            if (data.type === 'invalid') {
                 Alert.alert("Inválido", "Código não encontrado ou já expirou.");
                 return;
             }
 
-            setFamilyName(familyNameResult);
-            setStep(2);
+            if (data.type === 'new_member') {
+                setCodeType('new_member');
+                setFamilyData({ id: data.family_id, name: data.family_name });
+                setStep(2); // Vai para a tela de digitar o nome
+            } else if (data.type === 'reconnect') {
+                setCodeType('reconnect');
+                setProfileData({ id: data.profile_id, name: data.profile_name, family_id: data.family_id });
+
+                // Reconexão não precisa de nome, já executa o login anônimo e o vínculo
+                await executeAnonymousLink(data.profile_id, data.profile_name);
+            }
 
         } catch (error) {
             Alert.alert("Erro", "Falha ao verificar código.");
@@ -60,45 +68,67 @@ export default function JoinFamilyScreen() {
         }
     };
 
-    // --- PASSO 2: CRIAR PERFIL E ENTRAR ---
-    const handleJoin = async () => {
+    // --- PASSO 2 (NOVO MEMBRO): CRIAR PERFIL E ENTRAR NA FILA ---
+    const handleJoinNewMember = async () => {
         if (!name.trim()) return Alert.alert("Atenção", "Qual o seu nome?");
         setLoading(true);
 
         try {
-            const cleanCode = code.trim().toUpperCase();
+            // Faz o login "Fantasma" do Supabase
+            const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+            if (authError) throw authError;
 
-            // 1. Cria o perfil no Banco (usando a segunda RPC segura)
-            const { data: newProfile, error } = await supabase
-                .rpc('join_family_as_recruit', {
-                    p_invite_code: cleanCode,
-                    p_name: name.trim()
-                });
+            const userId = authData.user.id;
 
-            if (error) throw error;
+            // Insere o perfil na família como recruta (Aguardando Aprovação futura)
+            // NOTA: Para funcionar 100%, você precisará da tabela 'join_requests' configurada,
+            // mas aqui já estamos criando o perfil base
+            const { error: profileError } = await supabase.from('profiles').insert([{
+                user_id: userId,
+                family_id: familyData.id,
+                name: name.trim(),
+                role: 'recruit',
+                avatar: 'star-face'
+            }]);
 
-            // 2. Monta a sessão "Modo Criança"
-            const sessionData = {
-                user: { id: 'child_mode' },
-                access_token: 'child_mode_token',
-            };
+            if (profileError) throw profileError;
 
-            // 3. Salva no Storage do celular
-            await AsyncStorage.setItem('chonko_child_session', JSON.stringify({
-                session: sessionData,
-                profile: newProfile,
-                role: 'recruit'
-            }));
-
-            Alert.alert("BEM-VINDO! 🎉", `Você entrou na equipe ${familyName}.`);
-
-            // 4. ATUALIZA O ESTADO GLOBAL
-            if (setProfile) setProfile(newProfile);
-            setSession(sessionData);
+            // O AuthContext (no seu App.js) vai detectar a mudança na sessão do Supabase
+            // e vai jogar o usuário para a tela correta automaticamente!
+            Alert.alert("BEM-VINDO! 🎉", `Você solicitou entrada na equipe ${familyData.name}. Aguarde o Admin aprovar!`);
 
         } catch (e) {
             Alert.alert("Erro ao entrar", "Detalhe: " + e.message);
             console.log(e);
+            await supabase.auth.signOut(); // Limpa a sujeira
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- EXECUÇÃO (RECONEXÃO): VINCULA O APARELHO NOVO AO PERFIL ANTIGO ---
+    const executeAnonymousLink = async (profileId, profileName) => {
+        setLoading(true);
+        try {
+            // 1. Faz Login Fantasma
+            const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+            if (authError) throw authError;
+
+            // 2. Registra o vínculo oficial na nova tabela do banco
+            const { error: linkError } = await supabase.from('device_links').insert([{
+                auth_id: authData.user.id,
+                profile_id: profileId
+            }]);
+
+            if (linkError) throw linkError;
+
+            Alert.alert("RECONECTADO! 🚀", `Celular vinculado ao aventureiro ${profileName}.`);
+            // AuthContext vai ouvir a mudança de sessão e carregar as missões.
+
+        } catch (error) {
+            Alert.alert("Erro de Vínculo", error.message);
+            console.log(error);
+            await supabase.auth.signOut();
         } finally {
             setLoading(false);
         }
@@ -117,23 +147,19 @@ export default function JoinFamilyScreen() {
                     <MaterialCommunityIcons name="arrow-left" size={28} color="#10B981" />
                 </TouchableOpacity>
 
-                {/* CARD COM SOMBRA SALTADA (Solid Premium Verde) */}
                 <View style={styles.cardWrapper}>
-                    {/* SOMBRA SÓLIDA */}
                     <View style={styles.cardShadow} />
 
-                    {/* CONTEÚDO DO CARD */}
                     <View style={styles.cardFront}>
                         {step === 1 && (
                             <>
                                 <Text style={styles.title}>CÓDIGO DE ACESSO</Text>
-                                <Text style={styles.subtitle}>Peça o código de 6 dígitos para o administrador.</Text>
+                                <Text style={styles.subtitle}>Peça o código da equipe ou o seu código de reconexão ao Admin.</Text>
 
                                 <TextInput
                                     style={styles.inputCode}
                                     placeholder="EX: A8X9P2"
                                     placeholderTextColor="#94A3B8"
-                                    maxLength={6}
                                     autoCapitalize="characters"
                                     autoCorrect={false}
                                     cursorColor="#10B981"
@@ -142,20 +168,18 @@ export default function JoinFamilyScreen() {
                                 />
 
                                 <TouchableOpacity style={styles.btnPrimary} onPress={handleVerifyCode} disabled={loading} activeOpacity={0.8}>
-                                    {/* SOMBRA SÓLIDA DO BOTÃO */}
                                     <View style={styles.btnShadow} />
-                                    {/* FRENTE SÓLIDA DO BOTÃO */}
                                     <View style={styles.btnFront}>
-                                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>VALIDAR CÓDIGO</Text>}
+                                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>VERIFICAR CÓDIGO</Text>}
                                     </View>
                                 </TouchableOpacity>
                             </>
                         )}
 
-                        {step === 2 && (
+                        {step === 2 && codeType === 'new_member' && (
                             <>
                                 <Text style={styles.title}>QUEM É VOCÊ?</Text>
-                                <Text style={styles.subtitle}>Entrando na equipe: <Text style={{fontWeight:'bold', color: '#10B981'}}>{familyName}</Text></Text>
+                                <Text style={styles.subtitle}>Sua equipe: <Text style={{fontWeight:'bold', color: '#10B981'}}>{familyData?.name}</Text></Text>
 
                                 <View style={styles.avatarPlaceholder}>
                                     <MaterialCommunityIcons name="face-man-shimmer" size={50} color="#10B981" />
@@ -171,12 +195,10 @@ export default function JoinFamilyScreen() {
                                     onChangeText={setName}
                                 />
 
-                                <TouchableOpacity style={styles.btnPrimary} onPress={handleJoin} disabled={loading} activeOpacity={0.8}>
-                                    {/* SOMBRA SÓLIDA DO BOTÃO */}
+                                <TouchableOpacity style={styles.btnPrimary} onPress={handleJoinNewMember} disabled={loading} activeOpacity={0.8}>
                                     <View style={styles.btnShadow} />
-                                    {/* FRENTE SÓLIDA DO BOTÃO */}
                                     <View style={styles.btnFront}>
-                                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>CRIAR E ENTRAR</Text>}
+                                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>ENTRAR NA EQUIPE</Text>}
                                     </View>
                                 </TouchableOpacity>
 
@@ -194,71 +216,25 @@ export default function JoinFamilyScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-
     content: { flex: 1, justifyContent: 'center', padding: 25 },
+    backBtn: { position: 'absolute', top: 50, left: 20, width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', zIndex: 10, elevation: 2 },
 
-    backBtn: {
-        position: 'absolute', top: 50, left: 20,
-        width: 44, height: 44, borderRadius: 14,
-        backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: '#E2E8F0', zIndex: 10,
-        elevation: 2
-    },
-
-    // --- CARD ---
     cardWrapper: { position: 'relative' },
-    cardShadow: {
-        position: 'absolute',
-        top: 6,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#D1FAE5', // Sombra sólida verde claro
-        borderRadius: 24,
-    },
-    cardFront: {
-        backgroundColor: '#FFF',
-        borderRadius: 24,
-        padding: 30,
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#10B981' // Borda verde forte
-    },
+    cardShadow: { position: 'absolute', top: 6, left: 0, width: '100%', height: '100%', backgroundColor: '#D1FAE5', borderRadius: 24 },
+    cardFront: { backgroundColor: '#FFF', borderRadius: 24, padding: 30, alignItems: 'center', borderWidth: 2, borderColor: '#10B981' },
 
     title: { fontFamily: FONTS.bold, fontSize: 22, color: '#1E293B', marginBottom: 5, textAlign: 'center' },
     subtitle: { fontFamily: FONTS.regular, fontSize: 14, color: '#64748B', marginBottom: 25, textAlign: 'center' },
 
-    // Inputs
-    inputCode: {
-        width: '100%', height: 60, backgroundColor: '#F8FAFC', borderRadius: 14,
-        borderWidth: 1, borderColor: '#E2E8F0',
-        textAlign: 'center', fontSize: 24, fontFamily: FONTS.bold, color: '#1E293B', letterSpacing: 4, marginBottom: 25
-    },
-
-    inputName: {
-        width: '100%', height: 56, backgroundColor: '#F8FAFC', borderRadius: 14,
-        borderWidth: 1, borderColor: '#E2E8F0',
-        paddingHorizontal: 15, fontSize: 16, fontFamily: FONTS.bold, color: '#1E293B', marginBottom: 25
-    },
-
+    inputCode: { width: '100%', height: 60, backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', textAlign: 'center', fontSize: 24, fontFamily: FONTS.bold, color: '#1E293B', letterSpacing: 4, marginBottom: 25 },
+    inputName: { width: '100%', height: 56, backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 15, fontSize: 16, fontFamily: FONTS.bold, color: '#1E293B', marginBottom: 25 },
     label: { alignSelf: 'flex-start', fontFamily: FONTS.bold, color: '#64748B', fontSize: 11, marginBottom: 8, paddingLeft: 4, textTransform: 'uppercase' },
+    avatarPlaceholder: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#ECFDF5', justifyContent: 'center', alignItems: 'center', marginBottom: 25, borderWidth: 1, borderColor: '#10B981' },
 
-    avatarPlaceholder: {
-        width: 80, height: 80, borderRadius: 40, backgroundColor: '#ECFDF5',
-        justifyContent: 'center', alignItems: 'center', marginBottom: 25,
-        borderWidth: 1, borderColor: '#10B981'
-    },
-
-    // Botão 3D Dinâmico
     btnPrimary: { width: '100%', height: 56, position: 'relative' },
     btnShadow: { position: 'absolute', top: 5, left: 0, width: '100%', height: '100%', backgroundColor: '#059669', borderRadius: 16 },
-    btnFront: {
-        width: '100%', height: '100%', backgroundColor: '#10B981',
-        borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: '#059669'
-    },
+    btnFront: { width: '100%', height: '100%', backgroundColor: '#10B981', borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#059669' },
     btnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: 16, letterSpacing: 1 },
-
     btnSecondary: { marginTop: 20, padding: 10 },
     btnTextSec: { fontFamily: FONTS.bold, color: '#64748B' },
 });
