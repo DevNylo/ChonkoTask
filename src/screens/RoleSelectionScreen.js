@@ -26,9 +26,6 @@ import { FONTS } from '../styles/theme';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 50) / 2;
 
-// ============================================================
-// DADOS PRÉ-DEFINIDOS (CORES E TÍTULOS)
-// ============================================================
 const ADMIN_TITLES = ['Admin', 'Rei', 'Rainha', 'Papai', 'Mamãe', 'Vovô', 'Vovó', 'Tio', 'Tia'];
 const RECRUIT_TITLES = ['Aventureiro', 'Aventureira', 'Filho', 'Filha', 'Sobrinho', 'Sobrinha', 'Neto', 'Neta', 'Recruta', 'Herói', 'Heroína', 'Aprendiz', 'Explorador', 'Exploradora', 'Guerreiro', 'Guerreira'];
 
@@ -52,7 +49,8 @@ const COLOR_PALETTES = [
 
 export default function RoleSelectionScreen() {
     const navigation = useNavigation();
-    const { session, signOut } = useAuth();
+
+    const { session, signOut, profile: globalProfile } = useAuth();
 
     const [profiles, setProfiles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -78,23 +76,32 @@ export default function RoleSelectionScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            // Força a buscar do zero sem pegar do cache do react navigation
             fetchProfiles(0, true);
-        }, [])
+        }, [globalProfile])
     );
 
-    // Adicionado parâmetro forceRefresh para garantir a cor mais recente
     const fetchProfiles = async (retryCount = 0, forceRefresh = false) => {
         try {
             if (!session?.user) return;
             if (retryCount === 0 && !forceRefresh) setLoading(true);
 
-            const { data: myProfile } = await supabase.from('profiles').select('family_id').eq('user_id', session.user.id).maybeSingle();
-            let familyId = myProfile?.family_id;
+            let familyId = null;
+
+            if (globalProfile && globalProfile.family_id) {
+                familyId = globalProfile.family_id;
+            }
 
             if (!familyId) {
-                const { data: createdFamily } = await supabase.from('families').select('id').eq('created_by', session.user.id).maybeSingle();
-                familyId = createdFamily?.id;
+                const { data: directProfile } = await supabase.from('profiles').select('family_id').eq('user_id', session.user.id).maybeSingle();
+                if (directProfile) familyId = directProfile.family_id;
+
+                if (!familyId) {
+                    const { data: linkData } = await supabase.from('device_links').select('profile_id').eq('auth_id', session.user.id).maybeSingle();
+                    if (linkData) {
+                        const { data: linkedProfile } = await supabase.from('profiles').select('family_id').eq('id', linkData.profile_id).maybeSingle();
+                        if (linkedProfile) familyId = linkedProfile.family_id;
+                    }
+                }
             }
 
             if (!familyId) {
@@ -107,7 +114,6 @@ export default function RoleSelectionScreen() {
                 return;
             }
 
-            // O .select('*') limpo puxa a última versão do banco
             const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('*').eq('family_id', familyId).order('role', { ascending: true });
             if (profilesError) throw profilesError;
 
@@ -121,26 +127,15 @@ export default function RoleSelectionScreen() {
         }
     };
 
-    const isAdult = (dateString) => {
-        if (!dateString) return false;
-        const birth = new Date(dateString);
-        const today = new Date();
-        let age = today.getFullYear() - birth.getFullYear();
-        const m = today.getMonth() - birth.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) { age--; }
-        return age >= 18;
-    };
-
     const handleProfileSelect = (profile) => {
         const isAdmin = profile.role === 'admin';
-        const isAdultProfile = isAdult(profile.birth_date);
 
         if (isAdmin && !profile.pin) {
             Alert.alert("Segurança Necessária", "Este perfil de Admin ainda não tem uma senha. Peça para alguém da equipe clicar na engrenagem e criar um PIN para ele.");
             return;
         }
 
-        const needsPin = (isAdmin || isAdultProfile) && profile.pin;
+        const needsPin = !!profile.pin;
 
         if (needsPin) {
             setSelectedProfile(profile);
@@ -152,10 +147,22 @@ export default function RoleSelectionScreen() {
     };
 
     const verifyPin = () => {
-        if (inputPin === selectedProfile.pin) {
-            setShowPinModal(false); proceedToHome(selectedProfile);
+        let isMasterKey = false;
+
+        if (inputPin !== selectedProfile.pin) {
+            const admins = profiles.filter(p => p.role === 'admin');
+            isMasterKey = admins.some(admin => admin.pin === inputPin);
+        }
+
+        if (inputPin === selectedProfile.pin || isMasterKey) {
+            if (isMasterKey && inputPin !== selectedProfile.pin) {
+                Alert.alert("Acesso Mestre 🗝️", "Você entrou usando o PIN de Administrador.");
+            }
+            setShowPinModal(false);
+            proceedToHome(selectedProfile);
         } else {
-            Alert.alert("Ops!", "PIN incorreto. Tente novamente."); setInputPin('');
+            Alert.alert("Ops!", "PIN incorreto. Tente novamente.");
+            setInputPin('');
         }
     };
 
@@ -194,13 +201,22 @@ export default function RoleSelectionScreen() {
     };
 
     const handleSaveNewPin = async () => {
-        if (newPin.length !== 8) return Alert.alert("Ops", "O novo PIN deve ter exatamente 8 dígitos.");
+        const requiredLength = selectedProfile?.role === 'admin' ? 8 : 4;
+
+        if (newPin.length !== requiredLength) {
+            return Alert.alert("Ops", `O novo PIN deve ter exatamente ${requiredLength} dígitos.`);
+        }
+
         setVerifyingReset(true);
-        const { error } = await supabase.from('profiles').update({ pin: newPin }).eq('id', selectedProfile.id);
+
+        const { data, error } = await supabase.from('profiles').update({ pin: newPin }).eq('id', selectedProfile.id).select();
         setVerifyingReset(false);
 
-        if (error) Alert.alert("Erro", "Falha ao atualizar o PIN.");
-        else {
+        if (error) {
+            Alert.alert("Erro", "Falha ao atualizar o PIN.");
+        } else if (!data || data.length === 0) {
+            Alert.alert("Bloqueio de Segurança", "O Supabase impediu a gravação silenciosamente. Rode o código SQL para liberar.");
+        } else {
             Alert.alert("Sucesso!", "Seu PIN de acesso foi redefinido.");
             selectedProfile.pin = newPin;
             closePinModal();
@@ -208,6 +224,9 @@ export default function RoleSelectionScreen() {
         }
     };
 
+    // =========================================================================
+    // LÓGICA DE CONFIGURAÇÕES E QUEBRA DE SENHA (PAINEL DO ADMIN)
+    // =========================================================================
     const handleOpenSettingsClick = (profile) => {
         const hasSecureAdmin = profiles.some(p => p.role === 'admin' && p.pin);
         if (!hasSecureAdmin) {
@@ -243,9 +262,37 @@ export default function RoleSelectionScreen() {
         setShowSettingsModal(true);
     };
 
+    const handleRemovePin = async () => {
+        Alert.alert(
+            "Quebrar Cadeado",
+            `Tem certeza que deseja remover a senha de ${editingProfile.name}? Qualquer pessoa poderá acessar este perfil.`,
+            [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Remover", style: "destructive", onPress: async () => {
+                        setSavingSettings(true);
+                        try {
+                            const { data, error } = await supabase.from('profiles').update({ pin: null }).eq('id', editingProfile.id).select();
+                            if (error) throw error;
+                            if (!data || data.length === 0) throw new Error("Permissão negada pelo Banco de Dados.");
+
+                            setProfiles(prev => prev.map(p => p.id === editingProfile.id ? { ...p, pin: null } : p));
+                            Alert.alert("Cadeado Aberto", "A senha foi removida com sucesso.");
+                            setShowSettingsModal(false);
+                        } catch (error) {
+                            Alert.alert("Erro", error.message);
+                        } finally {
+                            setSavingSettings(false);
+                        }
+                    }}
+            ]
+        );
+    };
+
     const handleSaveSettings = async () => {
-        if (editNewPin.length > 0 && editNewPin.length < 8) {
-            return Alert.alert("Ops!", "Se for alterar o PIN, ele precisa ter exatamente 8 dígitos.");
+        const requiredLength = editingProfile?.role === 'admin' ? 8 : 4;
+
+        if (editNewPin.length > 0 && editNewPin.length !== requiredLength) {
+            return Alert.alert("Ops!", `O PIN precisa ter exatamente ${requiredLength} dígitos.`);
         }
 
         setSavingSettings(true);
@@ -255,12 +302,14 @@ export default function RoleSelectionScreen() {
                 theme_color: editColorObj.main
             };
 
-            if (editNewPin.length === 8) {
+            if (editNewPin.length === requiredLength) {
                 updates.pin = editNewPin;
             }
 
-            const { error } = await supabase.from('profiles').update(updates).eq('id', editingProfile.id);
+            const { data, error } = await supabase.from('profiles').update(updates).eq('id', editingProfile.id).select();
+
             if (error) throw error;
+            if (!data || data.length === 0) throw new Error("Permissão negada pelo Banco de Dados. Lembre-se de rodar o comando SQL de permissões no Supabase!");
 
             setProfiles(prev => prev.map(p => p.id === editingProfile.id ? { ...p, ...updates } : p));
 
@@ -276,7 +325,8 @@ export default function RoleSelectionScreen() {
 
     const renderProfileCard = ({ item }) => {
         const isAdmin = item.role === 'admin';
-        const needsLock = (isAdmin || isAdult(item.birth_date)) && item.pin;
+
+        const needsLock = !!item.pin;
 
         const palette = COLOR_PALETTES.find(c => c.main === item.theme_color)
             || (isAdmin ? COLOR_PALETTES[1] : COLOR_PALETTES[0]);
@@ -377,6 +427,7 @@ export default function RoleSelectionScreen() {
                 />
             </View>
 
+            {/* MODAL 1: PIN E RECUPERAÇÃO PARA ENTRAR NO PERFIL */}
             <Modal visible={showPinModal} transparent={true} animationType="fade" onRequestClose={closePinModal}>
                 <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -389,12 +440,30 @@ export default function RoleSelectionScreen() {
                             <>
                                 <Text style={styles.modalTitle}>ÁREA RESTRITA</Text>
                                 <Text style={styles.modalSubtitle}>Digite a senha de {selectedProfile?.name}</Text>
+
+                                {selectedProfile?.role !== 'admin' && (
+                                    <Text style={styles.masterKeyHint}>(O Admin também pode usar sua senha)</Text>
+                                )}
+
                                 <View style={styles.pinInputWrapper}>
-                                    <TextInput style={styles.pinInput} value={inputPin} onChangeText={setInputPin} keyboardType="numeric" maxLength={8} secureTextEntry placeholder="••••••••" placeholderTextColor="#CBD5E1" autoFocus />
+                                    {/* Sempre aceita até 8 dígitos aqui para permitir a Chave Mestra! */}
+                                    <TextInput
+                                        style={styles.pinInput}
+                                        value={inputPin}
+                                        onChangeText={setInputPin}
+                                        keyboardType="numeric"
+                                        maxLength={8}
+                                        secureTextEntry
+                                        placeholder={selectedProfile?.role === 'admin' ? "••••••••" : "••••"}
+                                        placeholderTextColor="#CBD5E1"
+                                        autoFocus
+                                    />
                                 </View>
+
                                 <TouchableOpacity onPress={handleForgotPinClick} style={styles.forgotBtnWrapper}>
                                     <Text style={styles.forgotBtnText}>Esqueci meu PIN</Text>
                                 </TouchableOpacity>
+
                                 <View style={styles.modalButtons}>
                                     <TouchableOpacity style={styles.modalBtnCancel} onPress={closePinModal}><Text style={styles.modalBtnTextCancel}>CANCELAR</Text></TouchableOpacity>
                                     <TouchableOpacity style={styles.modalBtnConfirm} onPress={verifyPin}><Text style={styles.modalBtnTextConfirm}>ENTRAR</Text></TouchableOpacity>
@@ -421,9 +490,21 @@ export default function RoleSelectionScreen() {
                         {forgotMode === 'new_pin' && (
                             <>
                                 <Text style={styles.modalTitle}>NOVO PIN</Text>
-                                <Text style={styles.modalSubtitle}>Crie seu novo PIN de acesso (exatamente 8 dígitos).</Text>
+                                <Text style={styles.modalSubtitle}>
+                                    Crie seu novo PIN (exatamente {selectedProfile?.role === 'admin' ? '8' : '4'} dígitos).
+                                </Text>
                                 <View style={styles.pinInputWrapper}>
-                                    <TextInput style={styles.pinInput} value={newPin} onChangeText={setNewPin} keyboardType="numeric" maxLength={8} secureTextEntry placeholder="••••••••" placeholderTextColor="#CBD5E1" autoFocus />
+                                    <TextInput
+                                        style={styles.pinInput}
+                                        value={newPin}
+                                        onChangeText={setNewPin}
+                                        keyboardType="numeric"
+                                        maxLength={selectedProfile?.role === 'admin' ? 8 : 4}
+                                        secureTextEntry
+                                        placeholder={selectedProfile?.role === 'admin' ? "••••••••" : "••••"}
+                                        placeholderTextColor="#CBD5E1"
+                                        autoFocus
+                                    />
                                 </View>
                                 <View style={styles.modalButtons}>
                                     <TouchableOpacity style={[styles.modalBtnConfirm, { flex: 1, backgroundColor: '#10B981' }]} onPress={handleSaveNewPin} disabled={verifyingReset}>
@@ -436,6 +517,7 @@ export default function RoleSelectionScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* MODAL 2: VERIFICAÇÃO DO ADMIN PARA ABRIR CONFIGURAÇÕES */}
             <Modal visible={showAdminAuthModal} transparent={true} animationType="fade" onRequestClose={() => setShowAdminAuthModal(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { borderColor: '#F59E0B' }]}>
@@ -443,7 +525,7 @@ export default function RoleSelectionScreen() {
                             <MaterialCommunityIcons name="shield-lock" size={45} color="#D97706" />
                         </View>
                         <Text style={[styles.modalTitle, { color: '#92400E' }]}>ÁREA DO ADMIN</Text>
-                        <Text style={styles.modalSubtitle}>Digite o PIN de administrador para editar cartões.</Text>
+                        <Text style={styles.modalSubtitle}>Digite o PIN de administrador (8 dígitos).</Text>
 
                         <View style={styles.pinInputWrapper}>
                             <TextInput style={[styles.pinInput, { color: '#D97706' }]} value={adminAuthPin} onChangeText={setAdminAuthPin} keyboardType="numeric" maxLength={8} secureTextEntry placeholder="••••••••" placeholderTextColor="#CBD5E1" autoFocus />
@@ -457,6 +539,7 @@ export default function RoleSelectionScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* MODAL 3: PAINEL DE CONFIGURAÇÕES DO CARTÃO (CORES, TÍTULO, SENHA) */}
             <Modal visible={showSettingsModal} transparent={true} animationType="slide" onRequestClose={() => setShowSettingsModal(false)}>
                 <View style={styles.settingsOverlay}>
                     <View style={styles.settingsContent}>
@@ -509,17 +592,27 @@ export default function RoleSelectionScreen() {
                             <View style={styles.divider} />
 
                             <Text style={styles.sectionLabel}>SEGURANÇA</Text>
-                            <Text style={styles.sectionDesc}>Digite um novo PIN de 8 dígitos para alterar a senha de {editingProfile?.name}. Ou deixe em branco para manter a atual.</Text>
+                            <Text style={styles.sectionDesc}>
+                                Digite um novo PIN de {editingProfile?.role === 'admin' ? '8' : '4'} dígitos para alterar a senha de {editingProfile?.name}. Ou deixe em branco para manter a atual.
+                            </Text>
+
                             <TextInput
                                 style={styles.settingsPinInput}
                                 value={editNewPin}
                                 onChangeText={setEditNewPin}
                                 keyboardType="numeric"
-                                maxLength={8}
+                                maxLength={editingProfile?.role === 'admin' ? 8 : 4}
                                 secureTextEntry
-                                placeholder="NOVO PIN..."
+                                placeholder={editingProfile?.role === 'admin' ? "••••••••" : "••••"}
                                 placeholderTextColor="#94A3B8"
                             />
+
+                            {editingProfile?.pin && (
+                                <TouchableOpacity style={styles.removePinBtn} onPress={handleRemovePin} activeOpacity={0.7}>
+                                    <MaterialCommunityIcons name="lock-open-variant-outline" size={18} color="#EF4444" />
+                                    <Text style={styles.removePinText}>Remover Senha Atual</Text>
+                                </TouchableOpacity>
+                            )}
 
                         </ScrollView>
 
@@ -590,7 +683,8 @@ const styles = StyleSheet.create({
     modalContent: { width: '95%', maxWidth: 360, backgroundColor: '#FFF', borderRadius: 32, padding: 30, alignItems: 'center', borderWidth: 4, borderColor: '#F59E0B' },
     modalIcon: { width: 80, height: 80, backgroundColor: '#D1FAE5', borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 3, borderColor: '#F59E0B', marginTop: -60 },
     modalTitle: { fontSize: 24, fontFamily: FONTS.bold, color: '#064E3B', marginBottom: 5 },
-    modalSubtitle: { fontSize: 14, color: '#64748B', marginBottom: 25, fontFamily: FONTS.regular, textAlign: 'center', lineHeight: 20 },
+    modalSubtitle: { fontSize: 14, color: '#64748B', marginBottom: 15, fontFamily: FONTS.regular, textAlign: 'center', lineHeight: 20 },
+    masterKeyHint: { fontSize: 11, color: '#F59E0B', fontFamily: FONTS.bold, marginBottom: 15, textAlign: 'center' },
 
     pinInputWrapper: { width: '100%', marginBottom: 15 },
     pinInput: { width: '100%', height: 70, borderWidth: 3, borderColor: '#E2E8F0', borderRadius: 20, backgroundColor: '#F8FAFC', textAlign: 'center', fontSize: 34, fontFamily: FONTS.bold, color: '#059669', letterSpacing: 10 },
@@ -624,6 +718,9 @@ const styles = StyleSheet.create({
     colorCircleSelected: { borderWidth: 4, borderColor: '#1E293B' },
 
     settingsPinInput: { width: '100%', height: 60, backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 20, fontSize: 18, fontFamily: FONTS.bold, color: '#1E293B', letterSpacing: 4, textAlign: 'center' },
+
+    removePinBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 15, paddingVertical: 14, backgroundColor: '#FEF2F2', borderRadius: 14, borderWidth: 1, borderColor: '#FECACA' },
+    removePinText: { fontFamily: FONTS.bold, color: '#EF4444', fontSize: 14, marginLeft: 8 },
 
     saveBtnWrapper: { width: '100%', height: 60, position: 'relative', marginTop: 10 },
     saveBtnShadow: { position: 'absolute', top: 5, left: 0, width: '100%', height: '100%', borderRadius: 16 },

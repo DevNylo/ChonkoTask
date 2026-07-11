@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
@@ -13,37 +12,33 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     loadSessionData();
 
-    // Escuta mudanças no Supabase (Login/Logout de Pai)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        // Se entrou via Supabase (Pai), carrega perfil do banco
-        setSession(session);
-        setUser(session.user);
-        await fetchProfile(session.user.id);
+    // Escuta mudanças no Supabase (Login Admin, Login Anônimo, Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user || null);
+
+      if (currentSession) {
+        await fetchProfile(currentSession.user.id);
       } else {
-        // Se saiu do Supabase, verifica se não é um login de criança antes de zerar tudo
-        // (Isso evita logout acidental ao recarregar o app)
-        checkLocalChildSession();
+        setProfile(null);
       }
+
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- 1. LÓGICA DE CARREGAMENTO (HÍBRIDA) ---
+  // --- 1. LÓGICA DE CARREGAMENTO OFICIAL ---
   const loadSessionData = async () => {
     try {
-      // A. Tenta sessão oficial (Supabase - Pai)
+      // Puxa a sessão do Supabase (seja de Admin com e-mail ou Anônima de criança)
       const { data: { session: supabaseSession } } = await supabase.auth.getSession();
 
       if (supabaseSession) {
         setSession(supabaseSession);
         setUser(supabaseSession.user);
         await fetchProfile(supabaseSession.user.id);
-      } else {
-        // B. Se não tem Pai, tenta sessão LOCAL (Criança/Recruta)
-        await checkLocalChildSession();
       }
     } catch (error) {
       console.log('Erro ao carregar sessão:', error);
@@ -52,44 +47,51 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Verifica se existe um login de criança salvo no celular
-  const checkLocalChildSession = async () => {
-    try {
-      const childData = await AsyncStorage.getItem('chonko_child_session');
-      
-      if (childData) {
-        const parsed = JSON.parse(childData);
-        // Restaura a sessão fake e o perfil real
-        if (parsed.session) setSession(parsed.session);
-        if (parsed.profile) setProfile(parsed.profile);
-        setUser({ id: 'child_mode' }); // Usuário fake
-      } else {
-        // Se não tem nada, aí sim zera tudo
-        setSession(null);
-        setProfile(null);
-        setUser(null);
-      }
-    } catch (e) {
-      console.log("Erro ao ler sessão local:", e);
-    }
-  };
-
-  // Busca perfil no banco (Apenas para Pai/Supabase)
+  // --- 2. O CÉREBRO DA BUSCA DUPLA ---
   const fetchProfile = async (userId) => {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-      
-      if (data) setProfile(data);
+      // TENTATIVA A: Procura o perfil direto (Geralmente o Admin criador da conta)
+      const { data: directProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (directProfile) {
+        setProfile(directProfile);
+        return;
+      }
+
+      // TENTATIVA B: Não tem perfil direto? Então verifica se é um Aparelho Pareado (Criança/Reconexão)
+      const { data: linkData } = await supabase
+          .from('device_links')
+          .select('profile_id')
+          .eq('auth_id', userId)
+          .maybeSingle();
+
+      if (linkData && linkData.profile_id) {
+        // Achou o vínculo! Agora puxa os dados do perfil verdadeiro da criança
+        const { data: linkedProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', linkData.profile_id)
+            .maybeSingle();
+
+        if (linkedProfile) {
+          setProfile(linkedProfile);
+          return;
+        }
+      }
+
+      // Se chegou até aqui, é um usuário que logou mas ainda não tem perfil (ex: acabou de digitar o código mas a internet caiu)
+      setProfile(null);
+
     } catch (error) {
-      console.log('Erro ao buscar perfil:', error);
+      console.log('Erro na busca dupla do perfil:', error);
     }
   };
 
-  // --- 2. FUNÇÕES EXPOSTAS ---
+  // --- 3. FUNÇÕES EXPOSTAS ---
 
   const signIn = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -104,12 +106,10 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     setLoading(true);
     try {
-      // 1. Logout do Supabase
+      // Desloga do Supabase (serve tanto para Admin quanto para Anônimo)
       await supabase.auth.signOut();
-      // 2. Limpeza Local (Criança)
-      await AsyncStorage.removeItem('chonko_child_session');
-      
-      // 3. Limpa Estados
+
+      // Limpa os estados da memória
       setSession(null);
       setUser(null);
       setProfile(null);
@@ -120,21 +120,28 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Função extra para permitir que telas forcem a recarga do perfil (útil na tela de Join)
+  const reloadProfile = async () => {
+    if (session?.user?.id) {
+      await fetchProfile(session.user.id);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ 
-        session, 
-        user, 
-        profile, 
-        loading, 
-        signIn, 
-        signUp, 
+      <AuthContext.Provider value={{
+        session,
+        user,
+        profile,
+        loading,
+        signIn,
+        signUp,
         signOut,
-        // Expondo setters para telas como JoinFamilyScreen usarem manualmente
-        setSession, 
-        setProfile 
-    }}>
-      {children}
-    </AuthContext.Provider>
+        setSession,
+        setProfile,
+        reloadProfile
+      }}>
+        {children}
+      </AuthContext.Provider>
   );
 }
 

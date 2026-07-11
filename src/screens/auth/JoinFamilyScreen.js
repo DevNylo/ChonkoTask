@@ -12,11 +12,15 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { FONTS } from '../../styles/theme';
 
 export default function JoinFamilyScreen() {
     const navigation = useNavigation();
+
+    // IMPORTAÇÃO CORRETA: Puxando o reloadProfile do Cérebro
+    const { reloadProfile } = useAuth();
 
     // ESTADOS
     const [step, setStep] = useState(1);
@@ -25,7 +29,7 @@ export default function JoinFamilyScreen() {
     const [loading, setLoading] = useState(false);
 
     // Dados retornados pela Fechadura Inteligente
-    const [codeType, setCodeType] = useState(null); // 'new_member' ou 'reconnect'
+    const [codeType, setCodeType] = useState(null);
     const [familyData, setFamilyData] = useState(null);
     const [profileData, setProfileData] = useState(null);
 
@@ -38,7 +42,6 @@ export default function JoinFamilyScreen() {
         setLoading(true);
 
         try {
-            // Chama a RPC que acabamos de criar no SQL
             const { data, error } = await supabase.rpc('check_smart_code', { p_code: cleanCode });
 
             if (error) throw error;
@@ -51,12 +54,12 @@ export default function JoinFamilyScreen() {
             if (data.type === 'new_member') {
                 setCodeType('new_member');
                 setFamilyData({ id: data.family_id, name: data.family_name });
-                setStep(2); // Vai para a tela de digitar o nome
+                setStep(2);
             } else if (data.type === 'reconnect') {
                 setCodeType('reconnect');
                 setProfileData({ id: data.profile_id, name: data.profile_name, family_id: data.family_id });
 
-                // Reconexão não precisa de nome, já executa o login anônimo e o vínculo
+                // Reconexão: já executa o login anônimo e o vínculo
                 await executeAnonymousLink(data.profile_id, data.profile_name);
             }
 
@@ -74,15 +77,11 @@ export default function JoinFamilyScreen() {
         setLoading(true);
 
         try {
-            // Faz o login "Fantasma" do Supabase
             const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
             if (authError) throw authError;
 
             const userId = authData.user.id;
 
-            // Insere o perfil na família como recruta (Aguardando Aprovação futura)
-            // NOTA: Para funcionar 100%, você precisará da tabela 'join_requests' configurada,
-            // mas aqui já estamos criando o perfil base
             const { error: profileError } = await supabase.from('profiles').insert([{
                 user_id: userId,
                 family_id: familyData.id,
@@ -93,14 +92,15 @@ export default function JoinFamilyScreen() {
 
             if (profileError) throw profileError;
 
-            // O AuthContext (no seu App.js) vai detectar a mudança na sessão do Supabase
-            // e vai jogar o usuário para a tela correta automaticamente!
+            // Força o Cérebro a recarregar e entender o novo perfil
+            if (reloadProfile) await reloadProfile();
+
             Alert.alert("BEM-VINDO! 🎉", `Você solicitou entrada na equipe ${familyData.name}. Aguarde o Admin aprovar!`);
 
         } catch (e) {
             Alert.alert("Erro ao entrar", "Detalhe: " + e.message);
             console.log(e);
-            await supabase.auth.signOut(); // Limpa a sujeira
+            await supabase.auth.signOut();
         } finally {
             setLoading(false);
         }
@@ -122,8 +122,10 @@ export default function JoinFamilyScreen() {
 
             if (linkError) throw linkError;
 
+            // 3. AVISA O CÉREBRO: O vínculo foi feito, puxe os dados agora!
+            if (reloadProfile) await reloadProfile();
+
             Alert.alert("RECONECTADO! 🚀", `Celular vinculado ao aventureiro ${profileName}.`);
-            // AuthContext vai ouvir a mudança de sessão e carregar as missões.
 
         } catch (error) {
             Alert.alert("Erro de Vínculo", error.message);
