@@ -408,7 +408,7 @@ export default function ReportsScreen() {
                                     <MaterialCommunityIcons name="clock-outline" size={20} color="#0EA5E9" />
                                     <Text style={[styles.sectionTitle, {color: '#0EA5E9'}]}>PRODUTIVIDADE</Text>
                                 </View>
-                                <TouchableOpacity onPress={() => showInfo("Mapa de Horários", "Em qual momento do dia o recruta mais gosta de fazer tarefas.")}>
+                                <TouchableOpacity onPress={() => showInfo("Mapa de Horários", "Em qual momento do dia mais tarefas são concluídas.")}>
                                     <MaterialCommunityIcons name="information-outline" size={20} color="#0EA5E9" style={{opacity:0.6}} />
                                 </TouchableOpacity>
                             </View>
@@ -438,7 +438,7 @@ export default function ReportsScreen() {
                                     <MaterialCommunityIcons name="shopping" size={20} color="#8B5CF6" />
                                     <Text style={[styles.sectionTitle, {color: '#8B5CF6'}]}>O QUE MAIS MOTIVA</Text>
                                 </View>
-                                <TouchableOpacity onPress={() => showInfo("O Que Mais Motiva", "Os itens da lojinha que o recruta mais gosta de resgatar. Excelentes ferramentas para negociação na vida real.")}>
+                                <TouchableOpacity onPress={() => showInfo("O Que Mais Motiva", "Os itens da lojinha que mais gostam de resgatar. Excelentes ferramentas para negociação na vida real.")}>
                                     <MaterialCommunityIcons name="information-outline" size={20} color="#8B5CF6" style={{opacity:0.6}} />
                                 </TouchableOpacity>
                             </View>
@@ -467,7 +467,7 @@ export default function ReportsScreen() {
                                     <MaterialCommunityIcons name="alert-decagram" size={20} color="#EF4444" />
                                     <Text style={[styles.sectionTitle, {color: '#EF4444'}]}>SINAIS DE ALERTA</Text>
                                 </View>
-                                <TouchableOpacity onPress={() => showInfo("Sinais de Alerta", "As tarefas que mais foram ignoradas ou esquecidas nos últimos 30 dias. Converse com o recruta sobre elas.")}>
+                                <TouchableOpacity onPress={() => showInfo("Sinais de Alerta", "As tarefas que mais foram ignoradas ou esquecidas nos últimos 30 dias. Converse sobre elas.")}>
                                     <MaterialCommunityIcons name="information-outline" size={20} color="#EF4444" style={{opacity:0.6}} />
                                 </TouchableOpacity>
                             </View>
@@ -525,7 +525,7 @@ export default function ReportsScreen() {
                                     <MaterialCommunityIcons name="sword-cross" size={20} color="#10B981" />
                                     <Text style={styles.sectionTitle}>ZONAS DE DESAFIO</Text>
                                 </View>
-                                <TouchableOpacity onPress={() => showInfo("Zonas de Desafio", "Mostra o nível de dificuldade das missões que foram concluídas com sucesso. Útil para ver se o recruta está subindo de nível ou preso na zona de conforto.")}>
+                                <TouchableOpacity onPress={() => showInfo("Zonas de Desafio", "Mostra o nível de dificuldade das missões que foram concluídas com sucesso. Útil para ver se estão subindo de nível ou preso na zona de conforto.")}>
                                     <MaterialCommunityIcons name="information-outline" size={20} color="#10B981" style={{opacity:0.6}} />
                                 </TouchableOpacity>
                             </View>
