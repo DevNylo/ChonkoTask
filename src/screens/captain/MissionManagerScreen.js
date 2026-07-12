@@ -65,14 +65,11 @@ export default function MissionManagerScreen() {
         setLoading(true);
         try {
             await ensureRecurringActive();
-            // A função checkExpiredOneOffMissions() foi removida daqui,
-            // pois o CRON Job do banco de dados agora gerencia as expirações nativamente.
 
             const { data: profilesData } = await supabase
                 .from('profiles').select('id, name').eq('family_id', familyId).neq('role', 'admin');
             setProfiles(profilesData || []);
 
-            // Busca as missões no banco com base na aba (excluindo a lixeira caso não estejamos nela)
             let statusFilter = ['active', 'completed', 'expired'];
             if (activeStatus === 'archived') statusFilter = ['archived'];
 
@@ -86,9 +83,13 @@ export default function MissionManagerScreen() {
 
             if (error) throw error;
 
-            // Puxa as tentativas do dia para cruzar visualmente as Recorrentes (Inteligência do Frontend)
-            const d = new Date();
-            const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const currentHours = today.getHours().toString().padStart(2, '0');
+            const currentMinutes = today.getMinutes().toString().padStart(2, '0');
+            const currentTimeStr = `${currentHours}:${currentMinutes}`;
+            const currentDayIndex = today.getDay();
+
             const bufferDate = new Date();
             bufferDate.setDate(bufferDate.getDate() - 1);
             const fetchBuffer = bufferDate.toISOString();
@@ -116,17 +117,30 @@ export default function MissionManagerScreen() {
                 const doneToday = attemptsMap.has(m.id);
                 m.done_today = doneToday;
 
+                // MAQUIAGEM VISUAL: Checa se o horário passou agora (Intradia)
+                let isVisuallyExpired = false;
+                if (m.status === 'active' && m.deadline && m.deadline < currentTimeStr) {
+                    if (m.is_recurring) {
+                        if (m.recurrence_days?.includes(currentDayIndex)) isVisuallyExpired = true;
+                    } else {
+                        if (!m.scheduled_date || m.scheduled_date === todayStr) isVisuallyExpired = true;
+                    }
+                }
+
+                // Aplica a regra para jogar na aba correta
+                const displayStatus = isVisuallyExpired ? 'expired' : m.status;
+
                 if (activeStatus === 'active') {
-                    if (m.status === 'active' && !doneToday) processedMissions.push(m);
+                    if (displayStatus === 'active' && !doneToday) processedMissions.push(m);
                 }
                 else if (activeStatus === 'completed') {
-                    if (m.status === 'completed' || (m.status === 'active' && doneToday)) processedMissions.push(m);
+                    if (displayStatus === 'completed' || (displayStatus === 'active' && doneToday)) processedMissions.push(m);
                 }
                 else if (activeStatus === 'expired') {
-                    if (m.status === 'expired') processedMissions.push(m);
+                    if (displayStatus === 'expired') processedMissions.push(m);
                 }
                 else if (activeStatus === 'archived') {
-                    if (m.status === 'archived') processedMissions.push(m);
+                    if (displayStatus === 'archived') processedMissions.push(m);
                 }
             });
 
