@@ -23,13 +23,13 @@ import { FONTS } from '../../styles/theme';
 
 const { width } = Dimensions.get('window');
 
-// CORES PASTEL & VIBRANTES
+// CORES PASTEL & VIBRANTES - PADRÃO RPG
 const DIFFICULTY_CONFIG = {
-    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#ECFDF5', shadow: '#059669' },
-    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFFBEB', shadow: '#D97706' },
-    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2', shadow: '#DC2626' },
-    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF', shadow: '#6D28D9' },
-    'custom': { label: 'MANUAL',  color: '#0EA5E9', bg: '#F0F9FF', shadow: '#0284C7' }
+    'common':    { label: 'FÁCIL',    color: '#10B981', bg: '#ECFDF5', shadow: '#059669' }, // Verde
+    'rare':      { label: 'MÉDIO',    color: '#3B82F6', bg: '#EFF6FF', shadow: '#2563EB' }, // Azul
+    'epic':      { label: 'DIFÍCIL',  color: '#8B5CF6', bg: '#F5F3FF', shadow: '#6D28D9' }, // Roxo
+    'legendary': { label: 'LENDÁRIO', color: '#F59E0B', bg: '#FFFBEB', shadow: '#D97706' }, // Dourado
+    'custom':    { label: 'MANUAL',   color: '#0EA5E9', bg: '#F0F9FF', shadow: '#0284C7' }  // Azul Claro
 };
 
 export default function MissionDetailScreen() {

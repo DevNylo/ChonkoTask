@@ -30,10 +30,12 @@ export default function ReportsScreen() {
     const [selectedProfile, setSelectedProfile] = useState(null); // null = Todos
     const [showUserModal, setShowUserModal] = useState(false);
 
-    // Dados
+    // Dados Brutos
     const [rawDataAttempts, setRawDataAttempts] = useState([]);
     const [rawDataExpenses, setRawDataExpenses] = useState([]);
-    const [summary, setSummary] = useState({ earnings: 0, expenses: 0, totalMissions: 0 });
+
+    // Dados Processados - AGORA COM MÉTRICAS DE SUCESSO/FALHA
+    const [summary, setSummary] = useState({ earnings: 0, expenses: 0, totalMissions: 0, missedMissions: 0, successRate: 100 });
     const [weeklyData, setWeeklyData] = useState([]);
     const [topMissions, setTopMissions] = useState([]);
 
@@ -56,7 +58,7 @@ export default function ReportsScreen() {
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const isoDate = thirtyDaysAgo.toISOString();
 
-            // 1. Buscar Perfis
+            // 1. Buscar Recrutas
             const { data: recruits } = await supabase
                 .from('profiles')
                 .select('id, name, avatar')
@@ -64,15 +66,15 @@ export default function ReportsScreen() {
                 .eq('role', 'recruit');
             setProfiles(recruits || []);
 
-            // 2. Buscar Entradas
+            // 2. Buscar Tentativas (AGORA INCLUINDO AS FALHAS 'missed' QUE O ROBÔ GERA)
             const { data: attempts } = await supabase
                 .from('mission_attempts')
-                .select('id, created_at, earned_value, profile_id, missions(title)')
-                .eq('status', 'approved')
+                .select('id, created_at, earned_value, profile_id, status, missions(title)')
+                .in('status', ['approved', 'missed', 'expired'])
                 .gte('created_at', isoDate);
             setRawDataAttempts(attempts || []);
 
-            // 3. Buscar Saídas
+            // 3. Buscar Saídas (Gastos na loja)
             const { data: requests } = await supabase
                 .from('reward_requests')
                 .select('id, created_at, cost, profile_id')
@@ -96,12 +98,21 @@ export default function ReportsScreen() {
             ? rawDataExpenses.filter(e => e.profile_id === selectedProfile.id)
             : rawDataExpenses;
 
-        // A. Resumo Financeiro
-        const earnings = filteredAttempts.reduce((acc, curr) => acc + (curr.earned_value || 0), 0);
-        const expenses = filteredExpenses.reduce((acc, curr) => acc + (curr.cost || 0), 0);
-        const totalMissions = filteredAttempts.length;
+        // A. Resumo Financeiro & Engajamento
+        const approvedAttempts = filteredAttempts.filter(a => a.status === 'approved');
+        const missedAttempts = filteredAttempts.filter(a => a.status === 'missed' || a.status === 'expired');
 
-        // B. Gráfico Semanal
+        const earnings = approvedAttempts.reduce((acc, curr) => acc + (curr.earned_value || 0), 0);
+        const expenses = filteredExpenses.reduce((acc, curr) => acc + (curr.cost || 0), 0);
+
+        const totalMissions = approvedAttempts.length;
+        const totalMissed = missedAttempts.length;
+
+        // Cálculo Inteligente da Taxa de Sucesso
+        const totalRegistered = totalMissions + totalMissed;
+        const successRate = totalRegistered > 0 ? Math.round((totalMissions / totalRegistered) * 100) : 100;
+
+        // B. Gráfico Semanal (Considerando apenas tarefas Aprovadas)
         const last7Days = Array.from({ length: 7 }, (_, i) => {
             const d = new Date();
             d.setDate(d.getDate() - i);
@@ -112,7 +123,7 @@ export default function ReportsScreen() {
             };
         }).reverse();
 
-        filteredAttempts.forEach(item => {
+        approvedAttempts.forEach(item => {
             const itemDate = item.created_at.split('T')[0];
             const dayStat = last7Days.find(d => d.date === itemDate);
             if (dayStat) dayStat.count += 1;
@@ -122,7 +133,7 @@ export default function ReportsScreen() {
 
         // C. Top Missões
         const missionCounts = {};
-        filteredAttempts.forEach(item => {
+        approvedAttempts.forEach(item => {
             const title = item.missions?.title || "Missão Removida";
             if (!missionCounts[title]) missionCounts[title] = 0;
             missionCounts[title] += 1;
@@ -133,7 +144,7 @@ export default function ReportsScreen() {
             .sort((a, b) => b.count - a.count)
             .slice(0, 3);
 
-        setSummary({ totalMissions, earnings, expenses });
+        setSummary({ totalMissions, missedMissions: totalMissed, earnings, expenses, successRate });
         setWeeklyData(last7Days.map(d => ({ ...d, heightPkg: (d.count / maxCount) * 100 })));
         setTopMissions(sortedMissions);
     };
@@ -155,7 +166,7 @@ export default function ReportsScreen() {
                 <Text style={styles.headerTitle}>RELATÓRIOS</Text>
 
                 <TouchableOpacity style={styles.dropdownTrigger} activeOpacity={0.8} onPress={() => setShowUserModal(true)}>
-                    <Text style={styles.dropdownText}>
+                    <Text style={styles.dropdownText} numberOfLines={1}>
                         {selectedProfile ? selectedProfile.name.toUpperCase() : "TODOS"}
                     </Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color="#10B981" />
@@ -164,48 +175,54 @@ export default function ReportsScreen() {
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-                {/* 1. RESUMO FINANCEIRO */}
-                <View style={styles.summaryContainer}>
-                    <View style={styles.summaryRow}>
-                        {/* Ganhos */}
-                        <View style={styles.summaryCard}>
-                            <View style={[styles.iconCircle, {backgroundColor: '#DCFCE7'}]}>
-                                <MaterialCommunityIcons name="arrow-up-bold" size={24} color="#16A34A" />
-                            </View>
-                            <Text style={[styles.summaryValue, {color: '#16A34A'}]}>+{summary.earnings}</Text>
+                {/* 1. RESUMO FINANCEIRO E ENGAJAMENTO (GRID DE MÉTRICAS) */}
+                <View style={styles.summaryGrid}>
 
-                            <TouchableOpacity style={styles.infoLabelRow} activeOpacity={0.6} onPress={() => showInfo("Ganhos", "Moedas ganhas completando missões nos últimos 30 dias.")}>
-                                <Text style={styles.summaryLabel}>Ganhos</Text>
-                                <MaterialCommunityIcons name="information-outline" size={12} color="#64748B" />
-                            </TouchableOpacity>
+                    {/* Ganhos */}
+                    <View style={styles.summaryCard}>
+                        <View style={[styles.iconCircle, {backgroundColor: '#DCFCE7'}]}>
+                            <MaterialCommunityIcons name="arrow-up-bold" size={24} color="#16A34A" />
                         </View>
+                        <Text style={[styles.summaryValue, {color: '#16A34A'}]}>+{summary.earnings}</Text>
 
-                        {/* Gastos */}
-                        <View style={styles.summaryCard}>
-                            <View style={[styles.iconCircle, {backgroundColor: '#FEE2E2'}]}>
-                                <MaterialCommunityIcons name="arrow-down-bold" size={24} color="#DC2626" />
-                            </View>
-                            <Text style={[styles.summaryValue, {color: '#DC2626'}]}>-{summary.expenses}</Text>
-
-                            <TouchableOpacity style={styles.infoLabelRow} activeOpacity={0.6} onPress={() => showInfo("Gastos", "Moedas gastas na loja de recompensas nos últimos 30 dias.")}>
-                                <Text style={styles.summaryLabel}>Gastos</Text>
-                                <MaterialCommunityIcons name="information-outline" size={12} color="#64748B" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Feitas */}
-                        <View style={styles.summaryCard}>
-                            <View style={[styles.iconCircle, {backgroundColor: '#DBEAFE'}]}>
-                                <MaterialCommunityIcons name="clipboard-check" size={24} color="#2563EB" />
-                            </View>
-                            <Text style={[styles.summaryValue, {color: '#2563EB'}]}>{summary.totalMissions}</Text>
-
-                            <TouchableOpacity style={styles.infoLabelRow} activeOpacity={0.6} onPress={() => showInfo("Feitas", "Número total de missões aprovadas nos últimos 30 dias.")}>
-                                <Text style={styles.summaryLabel}>Feitas</Text>
-                                <MaterialCommunityIcons name="information-outline" size={12} color="#64748B" />
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity style={styles.infoLabelRow} activeOpacity={0.6} onPress={() => showInfo("Ganhos", "Moedas ganhas completando missões nos últimos 30 dias.")}>
+                            <Text style={styles.summaryLabel}>Ganhos</Text>
+                            <MaterialCommunityIcons name="information-outline" size={12} color="#64748B" />
+                        </TouchableOpacity>
                     </View>
+
+                    {/* Gastos */}
+                    <View style={styles.summaryCard}>
+                        <View style={[styles.iconCircle, {backgroundColor: '#FEE2E2'}]}>
+                            <MaterialCommunityIcons name="arrow-down-bold" size={24} color="#DC2626" />
+                        </View>
+                        <Text style={[styles.summaryValue, {color: '#DC2626'}]}>-{summary.expenses}</Text>
+
+                        <TouchableOpacity style={styles.infoLabelRow} activeOpacity={0.6} onPress={() => showInfo("Gastos", "Moedas gastas na loja de recompensas nos últimos 30 dias.")}>
+                            <Text style={styles.summaryLabel}>Gastos</Text>
+                            <MaterialCommunityIcons name="information-outline" size={12} color="#64748B" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Taxa de Sucesso (Consome as falhas geradas pelo robô) */}
+                    <View style={[styles.summaryCard, {width: '100%', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20}]}>
+                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+                            <View style={[styles.iconCircle, {backgroundColor: '#EFF6FF', marginBottom: 0}]}>
+                                <MaterialCommunityIcons name="bullseye-arrow" size={24} color="#2563EB" />
+                            </View>
+                            <View>
+                                <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', gap: 4}} activeOpacity={0.6} onPress={() => showInfo("Taxa de Sucesso", "Porcentagem de tarefas realizadas vs. as que foram ignoradas/perdidas.")}>
+                                    <Text style={styles.summaryLabel}>Taxa de Sucesso</Text>
+                                    <MaterialCommunityIcons name="information-outline" size={12} color="#64748B" />
+                                </TouchableOpacity>
+                                <Text style={{fontFamily: FONTS.medium, fontSize: 10, color: '#94A3B8'}}>
+                                    {summary.totalMissions} Feitas / {summary.missedMissions} Perdidas
+                                </Text>
+                            </View>
+                        </View>
+                        <Text style={[styles.summaryValue, {color: '#2563EB', fontSize: 24}]}>{summary.successRate}%</Text>
+                    </View>
+
                 </View>
 
                 {/* 2. GRÁFICO SEMANAL */}
@@ -304,40 +321,36 @@ const styles = StyleSheet.create({
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
 
-    // DROPDOWN
     dropdownTrigger: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6,
         borderRadius: 20, gap: 5,
-        elevation: 2
+        elevation: 2, maxWidth: 120
     },
     dropdownText: { fontFamily: FONTS.bold, color: '#10B981', fontSize: 10 },
 
     scrollContent: { padding: 20, paddingBottom: 50 },
 
-    // SUMMARY CARDS
-    summaryContainer: { marginBottom: 20 },
-    summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10, marginBottom: 20 },
     summaryCard: {
-        width: '31%', height: 110, borderRadius: 20, overflow: 'hidden',
+        width: '48%', height: 110, borderRadius: 20, overflow: 'hidden',
         justifyContent: 'center', alignItems: 'center',
         backgroundColor: '#FFF',
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: '#E2E8F0',
         elevation: 2
     },
     iconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
     summaryValue: { fontFamily: FONTS.bold, fontSize: 18 },
     infoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-    summaryLabel: { fontFamily: FONTS.regular, fontSize: 10, color: '#64748B' },
+    summaryLabel: { fontFamily: FONTS.bold, fontSize: 11, color: '#64748B' },
 
-    // SOLID CARD GENÉRICO (Gráfico e Hábitos)
     solidCard: {
         backgroundColor: '#FFF',
         borderRadius: 24,
         marginBottom: 25,
         padding: 20,
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: '#E2E8F0',
         elevation: 2
     },
@@ -345,30 +358,27 @@ const styles = StyleSheet.create({
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     sectionTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#10B981', letterSpacing: 0.5 },
 
-    // CHART
     chartContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 150 },
     barGroup: { alignItems: 'center', flex: 1 },
-    barTrack: { width: 10, height: '80%', backgroundColor: '#F1F5F9', borderRadius: 5, justifyContent: 'flex-end', overflow: 'hidden' },
-    barFill: { width: '100%', backgroundColor: '#10B981', borderRadius: 5, minHeight: 4 },
+    barTrack: { width: 12, height: '80%', backgroundColor: '#F1F5F9', borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
+    barFill: { width: '100%', backgroundColor: '#10B981', borderRadius: 6, minHeight: 4 },
     dayLabel: { marginTop: 8, fontSize: 10, fontFamily: FONTS.bold, color: '#64748B' },
 
-    // HABIT LIST
     habitRow: {
         flexDirection: 'row', alignItems: 'center',
         paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9'
     },
-    habitRankCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-    habitRankText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+    habitRankCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    habitRankText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
     habitName: { flex: 1, fontFamily: FONTS.bold, fontSize: 14, color: '#334155' },
-    habitCountBadge: { backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, borderWidth: 1, borderColor: '#A7F3D0' },
+    habitCountBadge: { backgroundColor: '#ECFDF5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#A7F3D0' },
     habitCountText: { fontSize: 12, fontFamily: FONTS.bold, color: '#059669' },
 
-    emptyText: { textAlign: 'center', color: '#94A3B8', fontStyle: 'italic', marginTop: 10 },
+    emptyText: { textAlign: 'center', color: '#94A3B8', fontFamily: FONTS.medium, marginTop: 10 },
 
-    // MODAL
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#10B981' },
-    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#10B981', marginBottom: 15 },
+    modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 2, borderColor: '#10B981' },
+    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#10B981', marginBottom: 15, fontSize: 16 },
     modalOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
     modalOptionText: { fontFamily: FONTS.bold, color: '#64748B' },
 });

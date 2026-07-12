@@ -51,12 +51,13 @@ const AnimatedCoin = ({ size = 24, style = {} }) => {
     );
 };
 
+// --- NOVA CONFIGURAÇÃO VISUAL (PADRÃO RPG) ---
 const DIFFICULTY_CONFIG = {
-    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#ECFDF5' },
-    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFFBEB' },
-    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' },
-    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' },
-    'custom': { label: 'MANUAL',  color: '#0EA5E9', bg: '#F0F9FF' }
+    'common':    { label: 'FÁCIL',    color: '#10B981', bg: '#ECFDF5' }, // Verde
+    'rare':      { label: 'MÉDIO',    color: '#3B82F6', bg: '#EFF6FF' }, // Azul
+    'epic':      { label: 'DIFÍCIL',  color: '#8B5CF6', bg: '#F5F3FF' }, // Roxo
+    'legendary': { label: 'LENDÁRIO', color: '#F59E0B', bg: '#FFFBEB' }, // Dourado
+    'custom':    { label: 'MANUAL',   color: '#64748B', bg: '#F8FAFC' }  // Cinza
 };
 
 export default function RecruitHomeScreen() {
@@ -70,6 +71,7 @@ export default function RecruitHomeScreen() {
     const [currentBalance, setCurrentBalance] = useState(0);
     const [currentExperience, setCurrentExperience] = useState(0);
     const [familyId, setFamilyId] = useState(initialProfile?.family_id);
+    const [adminTitle, setAdminTitle] = useState("Admin"); // Novo estado para o título do responsável
 
     const [todoMissions, setTodoMissions] = useState([]);
     const [missedMissions, setMissedMissions] = useState([]);
@@ -106,16 +108,32 @@ export default function RecruitHomeScreen() {
             const { data: freshProfile } = await supabase
                 .from('profiles').select('*').eq('id', profileId).single();
 
+            let currentFamId = familyId;
+
             if (freshProfile) {
                 setProfileName(freshProfile.name);
                 setCurrentBalance(freshProfile.balance);
                 setCurrentExperience(freshProfile.experience || 0);
                 setFamilyId(freshProfile.family_id);
+                currentFamId = freshProfile.family_id;
+            }
+
+            // Busca o título do Admin (Papai, Mamãe, etc)
+            if (currentFamId) {
+                const { data: admins } = await supabase
+                    .from('profiles')
+                    .select('title_archetype')
+                    .eq('family_id', currentFamId)
+                    .eq('role', 'admin');
+
+                if (admins && admins.length > 0) {
+                    setAdminTitle(admins[0].title_archetype || "Admin");
+                }
             }
 
             const { data: activeMissions, error: mError } = await supabase
                 .from('missions').select('*')
-                .eq('family_id', freshProfile?.family_id || familyId)
+                .eq('family_id', currentFamId)
                 .eq('status', 'active');
 
             if (mError) throw mError;
@@ -129,7 +147,7 @@ export default function RecruitHomeScreen() {
 
             const { data: attempts } = await supabase
                 .from('mission_attempts')
-                .select('mission_id, status, created_at')
+                .select('mission_id, status, admin_feedback, created_at')
                 .eq('profile_id', profileId)
                 .gte('created_at', fetchBuffer);
 
@@ -141,7 +159,7 @@ export default function RecruitHomeScreen() {
                     const localStr = `${attemptDate.getFullYear()}-${String(attemptDate.getMonth() + 1).padStart(2, '0')}-${String(attemptDate.getDate()).padStart(2, '0')}`;
 
                     if (localStr === todayStr) {
-                        attemptsMap.set(a.mission_id, a.status);
+                        attemptsMap.set(a.mission_id, { status: a.status, feedback: a.admin_feedback });
                     }
                 });
             }
@@ -168,13 +186,17 @@ export default function RecruitHomeScreen() {
         missions.forEach(mission => {
             if (mission.assigned_to && mission.assigned_to !== myId) return;
 
-            // --- LÓGICA REVISADA: PENDE APROVAÇÃO vs APROVADO ---
-            const attemptStatus = attemptsMap.get(mission.id);
-            if (attemptStatus === 'pending' || attemptStatus === 'approved') {
-                // Injetamos o status exato na missão para podermos estilizá-la diferente na aba "Feitas"
-                mission.customAttemptStatus = attemptStatus;
+            const attemptData = attemptsMap.get(mission.id);
+
+            if (attemptData?.status === 'pending' || attemptData?.status === 'approved') {
+                mission.customAttemptStatus = attemptData.status;
                 listCompleted.push(mission);
                 return;
+            }
+
+            if (attemptData?.status === 'rejected') {
+                mission.customAttemptStatus = 'rejected';
+                mission.adminFeedback = attemptData.feedback;
             }
 
             let isToday = false;
@@ -242,23 +264,21 @@ export default function RecruitHomeScreen() {
         const isCustom = item.reward_type === 'custom';
         const isMissed = tabType === 'missed';
 
-        // Separa as finalizadas entre as que estão aguardando o capitão e as aprovadas
         const isPending = item.customAttemptStatus === 'pending';
         const isApproved = item.customAttemptStatus === 'approved';
+        const isRejected = item.customAttemptStatus === 'rejected';
 
         let cardBorderColor, cardBg, iconColor, iconBg, iconName, timeText;
 
         if (isPending) {
-            // Estilo Laranja: Aguardando Admin
             cardBorderColor = '#F59E0B'; cardBg = '#FFFBEB'; iconColor = '#F59E0B'; iconBg = '#FFF'; iconName = "timer-sand"; timeText = "Em Análise...";
         } else if (isApproved) {
-            // Estilo Verde: Aprovado e finalizado
             cardBorderColor = '#10B981'; cardBg = '#ECFDF5'; iconColor = '#10B981'; iconBg = '#FFF'; iconName = "check-decagram"; timeText = "Aprovada!";
         } else if (isMissed) {
-            // Estilo Cinza: Missão não feita no tempo
             cardBorderColor = '#CBD5E1'; cardBg = '#F8FAFC'; iconColor = '#94A3B8'; iconBg = '#FFF'; iconName = "clock-alert-outline"; timeText = `Perdida às ${item.deadline?.slice(0,5) || 'ontem'}`;
+        } else if (isRejected) {
+            cardBorderColor = '#EF4444'; cardBg = '#FEF2F2'; iconColor = '#EF4444'; iconBg = '#FFF'; iconName = "alert-circle-outline"; timeText = "Refazer Tarefa!";
         } else {
-            // Estilo Normal: Para Fazer
             const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
             cardBorderColor = diffData.color; cardBg = '#FFF'; iconColor = diffData.color; iconBg = diffData.bg; iconName = item.icon || "star-circle"; timeText = item.deadline ? `Até as ${item.deadline.slice(0,5)}` : "O dia todo";
         }
@@ -268,47 +288,68 @@ export default function RecruitHomeScreen() {
                 style={[
                     styles.card,
                     { borderColor: cardBorderColor, backgroundColor: cardBg },
-                    tabType === 'todo' && { shadowColor: cardBorderColor, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }
+                    tabType === 'todo' && { shadowColor: cardBorderColor, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
+                    isRejected && { flexDirection: 'column', alignItems: 'stretch' }
                 ]}
                 activeOpacity={tabType === 'todo' ? 0.7 : 1}
                 onPress={() => {
-                    // Impede de abrir a câmera/enviar a tarefa novamente baseado no status
-                    if (isPending) Alert.alert("Aguarde!", "O Capitão está verificando sua missão.");
+                    if (isPending) Alert.alert("Aguarde!", "Sua missão está sendo verificada.");
                     else if (isApproved) Alert.alert("Muito bem!", "Você já finalizou esta missão hoje e ganhou sua recompensa.");
                     else if (isMissed) Alert.alert("Poxa...", "O tempo acabou. Fica para a próxima!");
                     else navigation.navigate('MissionDetail', { mission: item, profile: { id: profileId, family_id: familyId } });
                 }}
             >
-                <View style={[styles.iconContainer, { backgroundColor: iconBg, borderWidth: 2, borderColor: isPending || isApproved || isMissed ? 'transparent' : iconColor + '40' }]}>
-                    <MaterialCommunityIcons name={iconName} size={30} color={iconColor} />
-                </View>
-                <View style={styles.cardInfo}>
-                    <Text style={[styles.cardTitle, { color: isMissed ? '#94A3B8' : '#1E293B' }, isMissed && styles.textMissed]} numberOfLines={1}>{item.title}</Text>
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                    <View style={[styles.iconContainer, { backgroundColor: iconBg, borderWidth: 2, borderColor: isPending || isApproved || isMissed || isRejected ? 'transparent' : iconColor + '40' }]}>
+                        <MaterialCommunityIcons name={iconName} size={30} color={iconColor} />
+                    </View>
 
-                    {item.use_critical && !isPending && !isApproved && !isMissed && (
-                        <View style={[styles.treasureBadge, item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple]}>
-                            <MaterialCommunityIcons name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} size={10} color="#FFF" style={{marginRight:4}} />
-                            <Text style={styles.treasureText}>{item.critical_type === 'bonus_coins' ? `+BÔNUS (${item.critical_chance}%)` : `SURPRESA (${item.critical_chance}%)`}</Text>
+                    <View style={styles.cardInfo}>
+                        <Text style={[styles.cardTitle, { color: isMissed ? '#94A3B8' : (isRejected ? '#991B1B' : '#1E293B') }, isMissed && styles.textMissed]} numberOfLines={1}>{item.title}</Text>
+
+                        {item.use_critical && !isPending && !isApproved && !isMissed && !isRejected && (
+                            <View style={[styles.treasureBadge, item.critical_type === 'bonus_coins' ? styles.treasureGold : styles.treasurePurple]}>
+                                <MaterialCommunityIcons name={item.critical_type === 'bonus_coins' ? "arrow-up-bold-circle" : "gift"} size={10} color="#FFF" style={{marginRight:4}} />
+                                <Text style={styles.treasureText}>{item.critical_type === 'bonus_coins' ? `+BÔNUS (${item.critical_chance}%)` : `SURPRESA (${item.critical_chance}%)`}</Text>
+                            </View>
+                        )}
+
+                        <View style={styles.timeBadge}>
+                            <MaterialCommunityIcons name={isPending ? "clock-outline" : (isApproved ? "check-all" : (isRejected ? "alert-outline" : "clock-outline"))} size={14} color={isPending ? '#F59E0B' : (isApproved ? '#10B981' : (isMissed ? '#94A3B8' : (isRejected ? '#EF4444' : '#64748B')))} />
+                            <Text style={[styles.cardSub, isPending && {color: '#F59E0B'}, isApproved && {color: '#10B981'}, isRejected && {color: '#EF4444', fontFamily: FONTS.bold}]}>{timeText}</Text>
                         </View>
-                    )}
+                    </View>
 
-                    <View style={styles.timeBadge}>
-                        <MaterialCommunityIcons name={isPending ? "clock-outline" : (isApproved ? "check-all" : "clock-outline")} size={14} color={isPending ? '#F59E0B' : (isApproved ? '#10B981' : (isMissed ? '#94A3B8' : '#64748B'))} />
-                        <Text style={[styles.cardSub, isPending && {color: '#F59E0B'}, isApproved && {color: '#10B981'}]}>{timeText}</Text>
+                    <View style={styles.rightColumn}>
+                        <View style={[styles.rewardPill, isCustom ? { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' } : { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }, (isPending || isApproved || isMissed) && { opacity: 0.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9' }]}>
+
+                            {!isCustom && !(isPending || isApproved || isMissed) && (<AnimatedCoin size={16} />)}
+
+                            {isCustom ? (
+                                <MaterialCommunityIcons name="gift" size={16} color={(isPending || isApproved || isMissed) ? '#94A3B8' : '#9333EA'} style={{marginRight: 4}} />
+                            ) : null}
+
+                            <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : ((isPending || isApproved || isMissed) ? '#94A3B8' : '#B45309') }]}>
+                                {isCustom ? "Item" : `+${item.reward}`}
+                            </Text>
+                        </View>
+                        {tabType === 'todo' && (
+                            <View style={[styles.goBtn, { backgroundColor: cardBorderColor }]}>
+                                <MaterialCommunityIcons name={isRejected ? "refresh" : "play"} size={16} color="#FFF" />
+                            </View>
+                        )}
                     </View>
                 </View>
 
-                <View style={styles.rightColumn}>
-                    <View style={[styles.rewardPill, isCustom ? { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' } : { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }, (isPending || isApproved || isMissed) && { opacity: 0.5, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9' }]}>
-                        {!isCustom && !(isPending || isApproved || isMissed) && (<AnimatedCoin size={16} />)}
-                        <Text style={[styles.rewardText, { color: isCustom ? '#9333EA' : ((isPending || isApproved || isMissed) ? '#94A3B8' : '#B45309') }]}>{isCustom ? "🎁" : `+${item.reward}`}</Text>
+                {isRejected && (
+                    <View style={styles.feedbackBox}>
+                        <MaterialCommunityIcons name="message-alert" size={16} color="#991B1B" />
+                        <Text style={styles.feedbackText} numberOfLines={3} ellipsizeMode="tail">
+                            <Text style={{fontWeight: 'bold'}}>{adminTitle} diz: </Text>
+                            {item.adminFeedback || "A tarefa precisa ser refeita."}
+                        </Text>
                     </View>
-                    {tabType === 'todo' && (
-                        <View style={[styles.goBtn, { backgroundColor: cardBorderColor }]}>
-                            <MaterialCommunityIcons name="play" size={16} color="#FFF" />
-                        </View>
-                    )}
-                </View>
+                )}
             </TouchableOpacity>
         );
     };
@@ -326,12 +367,7 @@ export default function RecruitHomeScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            <TouchableOpacity
-                style={styles.devButton}
-                onPress={handleSwitchProfile}
-                activeOpacity={0.8}
-                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
-            >
+            <TouchableOpacity style={styles.devButton} onPress={handleSwitchProfile} activeOpacity={0.8} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
                 <MaterialCommunityIcons name="account-switch" size={24} color="#FFF" />
             </TouchableOpacity>
 
@@ -440,7 +476,7 @@ const styles = StyleSheet.create({
     tabActiveCompleted: { backgroundColor: '#3B82F6', elevation: 2, borderRadius: 16 },
     tabText: { fontSize: 11, fontFamily: FONTS.bold, color: '#94A3B8' },
 
-    card: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 24, marginBottom: 16, borderWidth: 3, minHeight: 90 },
+    card: { padding: 16, borderRadius: 24, marginBottom: 16, borderWidth: 3, minHeight: 90 },
     iconContainer: { width: 56, height: 56, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     cardInfo: { flex: 1 },
     cardTitle: { fontSize: 18, fontFamily: FONTS.bold, marginBottom: 6, color: '#1E293B' },
@@ -450,13 +486,16 @@ const styles = StyleSheet.create({
 
     rightColumn: { alignItems: 'flex-end', justifyContent: 'center' },
     rewardPill: { flexDirection: 'row', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 2, marginBottom: 6, minWidth: 60, alignItems: 'center', justifyContent: 'center' },
-    rewardText: { fontSize: 16, fontFamily: FONTS.bold },
+    rewardText: { fontSize: 14, fontFamily: FONTS.bold },
     goBtn: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
 
     treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 6 },
     treasureGold: { backgroundColor: '#F59E0B' },
     treasurePurple: { backgroundColor: '#8B5CF6' },
     treasureText: { color: '#FFF', fontSize: 10, fontFamily: FONTS.bold },
+
+    feedbackBox: { marginTop: 12, backgroundColor: '#FECACA', padding: 10, borderRadius: 12, flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: '#FCA5A5' },
+    feedbackText: { fontSize: 12, color: '#991B1B', fontFamily: FONTS.regular, marginLeft: 6, flex: 1, lineHeight: 16 },
 
     emptyContainer: { alignItems: 'center', marginTop: 50, opacity: 0.8 },
     emptyText: { marginTop: 15, fontSize: 20, fontFamily: FONTS.bold, color: '#1E293B', textAlign: 'center' },

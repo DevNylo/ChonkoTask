@@ -19,15 +19,14 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
-// --- IMPORTAÇÃO DO CATÁLOGO ---
 import { ICONS_CATALOG } from '../../constants/IconsCatalog';
 
-// --- CONFIGURAÇÃO ---
+// --- NOVO SISTEMA DE DIFICULDADES (PADRÃO RPG) ---
 const DIFFICULTY_TIERS = [
-    { id: 'easy', label: 'FÁCIL', value: 50, color: '#10B981', icon: 'feather', bg: '#ECFDF5' },
-    { id: 'medium', label: 'MÉDIO', value: 150, color: '#F59E0B', icon: 'shield-half-full', bg: '#FFFBEB' },
-    { id: 'hard', label: 'DIFÍCIL', value: 300, color: '#EF4444', icon: 'skull-outline', bg: '#FEF2F2' },
-    { id: 'epic', label: 'ÉPICO', value: 1000, color: '#8B5CF6', icon: 'crown-outline', bg: '#F5F3FF' },
+    { id: 'common', label: 'FÁCIL', value: 50, color: '#10B981', icon: 'feather', bg: '#ECFDF5' },
+    { id: 'rare', label: 'MÉDIO', value: 150, color: '#3B82F6', icon: 'shield-half-full', bg: '#EFF6FF' },
+    { id: 'epic', label: 'DIFÍCIL', value: 300, color: '#8B5CF6', icon: 'sword-cross', bg: '#F5F3FF' },
+    { id: 'legendary', label: 'LENDÁRIO', value: 1000, color: '#F59E0B', icon: 'crown', bg: '#FFFBEB' },
 ];
 
 const PROBABILITY_OPTIONS = [10, 25, 50, 100];
@@ -40,10 +39,10 @@ const WEEKDAYS = [
 export default function CreateMissionScreen() {
     const navigation = useNavigation();
     const route = useRoute();
-    const { profile } = useAuth(); // <-- Segurança: Puxa o perfil logado
+
+    const { profile, session } = useAuth();
     const { missionToEdit, templateData } = route.params || {};
 
-    // Garante que a família nunca seja undefined
     const currentFamilyId = route.params?.familyId || profile?.family_id;
 
     const initialData = missionToEdit || templateData || {};
@@ -52,33 +51,28 @@ export default function CreateMissionScreen() {
     const [loading, setLoading] = useState(false);
     const [profiles, setProfiles] = useState([]);
 
-    // Estados Básicos
     const [title, setTitle] = useState(initialData.title || '');
     const [description, setDescription] = useState(initialData.description || '');
     const [rewardType, setRewardType] = useState(initialData.reward_type || 'coins');
     const [coinReward, setCoinReward] = useState(initialData.reward ? String(initialData.reward) : '');
     const [customReward, setCustomReward] = useState(initialData.custom_reward || '');
 
-    // Ícone e Categoria
     const [selectedIcon, setSelectedIcon] = useState(initialData.icon || 'star');
     const [selectedCategory, setSelectedCategory] = useState('casa');
 
     const [selectedDifficulty, setSelectedDifficulty] = useState(initialData.difficulty || null);
 
-    // Tesouro Chonko
     const [useCritical, setUseCritical] = useState(initialData.use_critical || false);
     const [criticalType, setCriticalType] = useState(initialData.critical_type || 'bonus_coins');
     const [criticalCustomReward, setCriticalCustomReward] = useState(initialData.critical_custom_reward || '');
     const [criticalChance, setCriticalChance] = useState(initialData.critical_chance || 20);
 
-    // Agendamento
     const [assignee, setAssignee] = useState(initialData.assigned_to || null);
     const [assigneeName, setAssigneeName] = useState('TODOS');
     const [showAssigneeModal, setShowAssigneeModal] = useState(false);
     const [isRecurring, setIsRecurring] = useState(initialData.is_recurring || false);
     const [selectedDays, setSelectedDays] = useState(initialData.recurrence_days || []);
 
-    // Data (Padrão: Hoje)
     const [missionDate, setMissionDate] = useState(initialData.scheduled_date ? new Date(initialData.scheduled_date + 'T00:00:00') : new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -104,11 +98,10 @@ export default function CreateMissionScreen() {
         setProfiles(data || []);
     };
 
-    // --- HANDLERS ---
     const handleDifficultySelect = (tier) => {
         setSelectedDifficulty(tier.id);
         if (rewardType === 'coins') setCoinReward(String(tier.value));
-        if (tier.id === 'epic') Alert.alert("⚠️ Atenção!", "Tarefa ÉPICA selecionada. O esforço deve ser alto!");
+        if (tier.id === 'legendary') Alert.alert("⚠️ Atenção!", "Tarefa LENDÁRIA selecionada. O esforço exigido deve ser incrível!");
     };
 
     const handleTimeChange = (text, setFunc) => {
@@ -139,9 +132,8 @@ export default function CreateMissionScreen() {
     };
 
     const handleLaunch = async (shouldUpdateTemplate = false) => {
-        // VALIDAÇÕES
-        if (!title) return Alert.alert("Faltou o Título", "O que deve ser feito?");
-        if (!selectedDifficulty) return Alert.alert("Faltou a Dificuldade", "Selecione: Fácil, Média, Difícil ou Épica.");
+        if (!title.trim()) return Alert.alert("Faltou o Título", "O que deve ser feito?");
+        if (!selectedDifficulty) return Alert.alert("Faltou a Dificuldade", "Selecione: Fácil, Média, Difícil ou Lendária.");
 
         if (isRecurring && selectedDays.length === 0) return Alert.alert("Recorrência Vazia", "Selecione quais dias da semana essa tarefa repete.");
 
@@ -149,10 +141,10 @@ export default function CreateMissionScreen() {
             if (!coinReward) return Alert.alert("Faltou a Recompensa", "Defina o valor em moedas.");
             if (parseInt(coinReward) > 9999) return Alert.alert("Muita Grana!", "O limite é 9999 moedas para manter a economia saudável.");
         } else {
-            if (!customReward) return Alert.alert("Faltou a Recompensa", "Descreva o prêmio desta missão.");
+            if (!customReward.trim()) return Alert.alert("Faltou a Recompensa", "Descreva o prêmio desta missão.");
         }
 
-        if (useCritical && criticalType === 'custom_item' && !criticalCustomReward) {
+        if (useCritical && criticalType === 'custom_item' && !criticalCustomReward.trim()) {
             return Alert.alert("Tesouro Vazio", "Você ativou o Item Surpresa mas não disse o que é.");
         }
 
@@ -160,17 +152,17 @@ export default function CreateMissionScreen() {
 
         const formattedDate = missionDate.toISOString().split('T')[0];
 
-        // O payload reflete exatamente a estrutura da tabela public.missions
         const payload = {
             family_id: currentFamilyId,
-            title,
-            description,
+            created_by: session?.user?.id,
+            title: title.trim(),
+            description: description.trim(),
             icon: selectedIcon,
             status: 'active',
             assigned_to: assignee,
             reward_type: rewardType,
             reward: rewardType === 'coins' ? parseInt(coinReward || 0) : 0,
-            custom_reward: rewardType === 'custom' ? customReward : null,
+            custom_reward: rewardType === 'custom' ? customReward.trim() : null,
             is_recurring: isRecurring,
             recurrence_days: isRecurring ? selectedDays : null,
             scheduled_date: isRecurring ? null : formattedDate,
@@ -182,7 +174,7 @@ export default function CreateMissionScreen() {
             critical_chance: useCritical ? criticalChance : 0,
             critical_bonus: (useCritical && criticalType === 'bonus_coins') ? 50 : 0,
             critical_type: criticalType,
-            critical_custom_reward: (useCritical && criticalType === 'custom_item') ? criticalCustomReward : null
+            critical_custom_reward: (useCritical && criticalType === 'custom_item') ? criticalCustomReward.trim() : null
         };
 
         try {
@@ -208,7 +200,6 @@ export default function CreateMissionScreen() {
         }
     };
 
-    // --- PREVIEW CARD ---
     const MissionPreviewCard = () => {
         const diffColor = selectedDifficulty ? DIFFICULTY_TIERS.find(t => t.id === selectedDifficulty)?.color : '#CBD5E1';
         const diffLabel = selectedDifficulty ? DIFFICULTY_TIERS.find(t => t.id === selectedDifficulty)?.label : '???';
@@ -235,7 +226,7 @@ export default function CreateMissionScreen() {
                             <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4}}>
                                 <View style={[styles.tag, { backgroundColor: rewardType === 'coins' ? '#FFFBEB' : '#FDF2F8', borderColor: rewardType === 'coins' ? '#FCD34D' : '#F472B6' }]}>
                                     <MaterialCommunityIcons name={rewardType === 'coins' ? "circle-multiple" : "gift"} size={12} color={rewardType === 'coins' ? '#B45309' : '#DB2777'} />
-                                    <Text style={[styles.tagText, { color: rewardType === 'coins' ? '#B45309' : '#DB2777' }]}>
+                                    <Text style={[styles.tagText, { color: rewardType === 'coins' ? '#B45309' : '#DB2777' }]} numberOfLines={1}>
                                         {rewardType === 'coins' ? (coinReward || "0") : (customReward || "Prêmio")}
                                     </Text>
                                 </View>
@@ -281,7 +272,6 @@ export default function CreateMissionScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* --- HEADER SÓLIDO (SEM GRADIENTE) --- */}
             <View style={styles.topGreenArea}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -299,11 +289,33 @@ export default function CreateMissionScreen() {
 
                     <View style={styles.formContainer}>
 
-                        {/* 1. DETALHES */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>O QUE FAZER?</Text>
-                            <TextInput style={styles.input} placeholder="Ex: Arrumar Cama" placeholderTextColor="#94A3B8" value={title} onChangeText={setTitle} />
-                            <TextInput style={[styles.input, {height:60, marginTop:10, textAlignVertical:'top'}]} placeholder="Descrição (Opcional)" placeholderTextColor="#94A3B8" multiline value={description} onChangeText={setDescription} />
+                            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                                <Text style={styles.label}>O QUE FAZER?</Text>
+                                <Text style={{fontSize: 10, color: '#94A3B8', fontFamily: FONTS.bold}}>{title.length}/40</Text>
+                            </View>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Ex: Arrumar Cama"
+                                placeholderTextColor="#94A3B8"
+                                value={title}
+                                onChangeText={setTitle}
+                                maxLength={40}
+                            />
+
+                            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10}}>
+                                <Text style={styles.label}>DESCRIÇÃO</Text>
+                                <Text style={{fontSize: 10, color: '#94A3B8', fontFamily: FONTS.bold}}>{description.length}/150</Text>
+                            </View>
+                            <TextInput
+                                style={[styles.input, {height:60, textAlignVertical:'top'}]}
+                                placeholder="Detalhes da tarefa (Opcional)"
+                                placeholderTextColor="#94A3B8"
+                                multiline
+                                value={description}
+                                onChangeText={setDescription}
+                                maxLength={150}
+                            />
 
                             <View style={{marginTop: 15}}>
                                 <Text style={[styles.label, {marginBottom: 5}]}>QUEM VAI FAZER?</Text>
@@ -314,7 +326,6 @@ export default function CreateMissionScreen() {
                             </View>
                         </View>
 
-                        {/* 2. DIFICULDADE (OBRIGATÓRIO) */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>DIFICULDADE <Text style={{color: '#EF4444'}}>*</Text></Text>
                             <View style={styles.difficultyRow}>
@@ -327,7 +338,6 @@ export default function CreateMissionScreen() {
                             </View>
                         </View>
 
-                        {/* 3. RECOMPENSA */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>RECOMPENSA</Text>
                             <View style={styles.row}>
@@ -337,14 +347,31 @@ export default function CreateMissionScreen() {
                             {rewardType === 'coins' ? (
                                 <View style={styles.currencyInputWrapper}>
                                     <MaterialCommunityIcons name="circle-multiple" size={20} color="#F59E0B" style={{marginRight: 10}}/>
-                                    <TextInput style={styles.currencyInput} placeholder="0" keyboardType="numeric" maxLength={4} value={coinReward} onChangeText={setCoinReward} />
+                                    <TextInput
+                                        style={styles.currencyInput}
+                                        placeholder="0"
+                                        keyboardType="numeric"
+                                        maxLength={4}
+                                        value={coinReward}
+                                        onChangeText={setCoinReward}
+                                    />
                                 </View>
                             ) : (
-                                <TextInput style={styles.input} placeholder="Ex: Sorvete, 1h de videogame..." value={customReward} onChangeText={setCustomReward} />
+                                <View>
+                                    <View style={{flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4}}>
+                                        <Text style={{fontSize: 10, color: '#94A3B8', fontFamily: FONTS.bold}}>{customReward.length}/25</Text>
+                                    </View>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Ex: Sorvete, 1h de videogame..."
+                                        value={customReward}
+                                        onChangeText={setCustomReward}
+                                        maxLength={25}
+                                    />
+                                </View>
                             )}
                         </View>
 
-                        {/* 4. AGENDAMENTO E DATA */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>QUANDO? <Text style={{color: '#EF4444'}}>*</Text></Text>
                             <View style={styles.tabSwitchContainer}>
@@ -405,7 +432,6 @@ export default function CreateMissionScreen() {
                             )}
                         </View>
 
-                        {/* 5. TESOURO DO CHONKO */}
                         <View style={[styles.inputGroup, styles.luckyBox, useCritical && styles.luckyBoxActive]}>
                             <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: useCritical ? 10 : 0}}>
                                 <View style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -441,7 +467,19 @@ export default function CreateMissionScreen() {
                                     </View>
 
                                     {criticalType === 'custom_item' && (
-                                        <TextInput style={[styles.input, {backgroundColor: '#FFF', marginBottom: 15}]} placeholder="O que é? (Ex: Chocolate)" placeholderTextColor="#94A3B8" value={criticalCustomReward} onChangeText={setCriticalCustomReward} />
+                                        <View>
+                                            <View style={{flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4}}>
+                                                <Text style={{fontSize: 10, color: '#94A3B8', fontFamily: FONTS.bold}}>{criticalCustomReward.length}/25</Text>
+                                            </View>
+                                            <TextInput
+                                                style={[styles.input, {backgroundColor: '#FFF', marginBottom: 15}]}
+                                                placeholder="O que é? (Ex: Chocolate)"
+                                                placeholderTextColor="#94A3B8"
+                                                value={criticalCustomReward}
+                                                onChangeText={setCriticalCustomReward}
+                                                maxLength={25}
+                                            />
+                                        </View>
                                     )}
 
                                     <Text style={styles.subLabel}>PROBABILIDADE (CHANCE)</Text>
@@ -456,7 +494,6 @@ export default function CreateMissionScreen() {
                             )}
                         </View>
 
-                        {/* 6. ÍCONE COM CATEGORIAS */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>ÍCONE</Text>
 
@@ -514,7 +551,6 @@ export default function CreateMissionScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* MODAL ASSIGNEE */}
             <Modal visible={showAssigneeModal} transparent={true} animationType="fade" onRequestClose={()=>setShowAssigneeModal(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -538,9 +574,8 @@ export default function CreateMissionScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDFCF8' }, // Creme Sólido
+    container: { flex: 1, backgroundColor: '#FDFCF8' },
 
-    // --- CABEÇALHO VERDE SÓLIDO ---
     topGreenArea: {
         backgroundColor: '#10B981',
         paddingTop: 60,
@@ -556,7 +591,6 @@ const styles = StyleSheet.create({
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
     content: { padding: 20 },
 
-    // Preview
     previewContainer: { marginBottom: 20 },
     sectionLabel: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B', marginBottom: 10, opacity: 0.8, letterSpacing: 0.5 },
     cardFront: { backgroundColor: '#FFF', borderRadius: 24, borderWidth: 2, borderColor: '#CBD5E1', padding: 16, overflow: 'hidden' },
@@ -569,20 +603,17 @@ const styles = StyleSheet.create({
     treasurePurple: { backgroundColor: '#8B5CF6', borderColor: '#5B21B6', borderWidth: 1 },
     treasureTitle: { color: '#FFF', fontWeight: 'bold', fontSize: 12, marginLeft: 6 },
 
-    // Form
     formContainer: { gap: 15 },
     inputGroup: { backgroundColor: '#FFF', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
-    label: { fontFamily: FONTS.bold, color: '#64748B', fontSize: 11, marginBottom: 8, textTransform: 'uppercase' },
+    label: { fontFamily: FONTS.bold, color: '#64748B', fontSize: 11, textTransform: 'uppercase' },
     subLabel: { fontFamily: FONTS.bold, color: '#94A3B8', fontSize: 10, marginBottom: 8, marginTop: 5 },
     input: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, fontFamily: FONTS.bold, color: '#1E293B', borderWidth: 1, borderColor: '#E2E8F0' },
 
-    // Switch de Abas (Data vs Recorrente)
     tabSwitchContainer: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 12, padding: 4, marginBottom: 15 },
     tabSwitchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10, gap: 6 },
     tabSwitchActive: { backgroundColor: '#10B981', shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 },
     tabSwitchText: { fontFamily: FONTS.bold, fontSize: 12, color: '#10B981' },
 
-    // Card de Data Bonito
     datePickerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: '#10B981', shadowColor: '#10B981', shadowOpacity: 0.1, shadowRadius: 5, elevation: 2 },
     dateIconBox: { backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#A7F3D0' },
     dateDayText: { fontSize: 20, fontWeight: 'bold', color: '#10B981' },
@@ -618,7 +649,6 @@ const styles = StyleSheet.create({
     inputCenter: { flex:1, backgroundColor: '#F8FAFC', borderRadius: 12, padding: 10, fontFamily: FONTS.bold, color: '#1E293B', borderWidth: 1, borderColor: '#E2E8F0', textAlign: 'center' },
     timeRowContainer: { flexDirection: 'row', gap: 10, alignItems:'center' },
 
-    // Categorias
     categoryChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', marginRight: 0 },
     categoryChipSelected: { backgroundColor: '#3B82F6', borderColor: '#3B82F6' },
     categoryText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B' },

@@ -87,7 +87,7 @@ export default function RewardShopScreen() {
 
     const profile = route.params?.profile || authProfile;
     const familyId = route.params?.familyId || profile?.family_id;
-    const isCaptain = profile?.role === 'captain';
+    const isAdmin = profile?.role === 'admin';
 
     const [activeTab, setActiveTab] = useState('shop');
     const [shopName, setShopName] = useState('LOJINHA DO CHONKO');
@@ -116,7 +116,7 @@ export default function RewardShopScreen() {
 
     const loadInitialData = async () => {
         await fetchShopData();
-        if (isCaptain) await fetchSales();
+        if (isAdmin) await fetchSales();
         else await fetchMyBalance();
         setLoading(false);
     };
@@ -131,7 +131,6 @@ export default function RewardShopScreen() {
     };
 
     const fetchSales = async () => {
-        // Traz o custo (cost) nas rewards para mostrar no extrato
         const { data } = await supabase
             .from('reward_requests')
             .select('*, rewards(title, icon, cost), profiles(name)')
@@ -225,7 +224,6 @@ export default function RewardShopScreen() {
         setIsInfinite(true); setStock('1'); setSelectedRarity('common');
     };
 
-    // --- NOVO DESIGN DO HISTÓRICO (ESTILO EXTRATO) ---
     const renderSalesItem = ({ item }) => {
         const itemCost = item.rewards?.cost || item.cost || 0;
         const purchaseDate = new Date(item.created_at);
@@ -260,11 +258,11 @@ export default function RewardShopScreen() {
         const rarityTheme = GET_RARITY_THEME(item.rarity || 'common');
         const hasStock = item.is_infinite || item.stock > 0;
         const canBuy = isShopOpen && hasStock && balance >= item.cost;
-        const isDisabled = !isShopOpen || !hasStock || (!canBuy && !isCaptain);
+        const isDisabled = !isShopOpen || !hasStock || (!canBuy && !isAdmin);
         const isEpicOrLeg = item.rarity === 'legendary' || item.rarity === 'epic';
 
         return (
-            <TouchableOpacity style={styles.cardWrapper} activeOpacity={0.8} disabled={isDisabled && !isCaptain} onPress={() => isCaptain ? openEditModal(item) : handleBuy(item)}>
+            <TouchableOpacity style={styles.cardWrapper} activeOpacity={0.8} disabled={isDisabled && !isAdmin} onPress={() => isAdmin ? openEditModal(item) : handleBuy(item)}>
                 {!isDisabled && isEpicOrLeg && (<View style={[styles.glowShadow, { backgroundColor: rarityTheme.glow }]} />)}
 
                 <View style={[styles.cardFront, { borderColor: isDisabled ? '#E2E8F0' : rarityTheme.border, backgroundColor: isDisabled ? '#F8FAFC' : rarityTheme.bg }]}>
@@ -286,16 +284,15 @@ export default function RewardShopScreen() {
                             </View>
                         </View>
                         <Text style={[styles.cardTitle, { color: isDisabled ? '#94A3B8' : rarityTheme.text }]} numberOfLines={2}>{item.title}</Text>
+
                         <View style={[styles.priceButton, { backgroundColor: isDisabled ? '#CBD5E1' : rarityTheme.border }]}>
-                            {isCaptain ? (
-                                <Text style={styles.priceButtonText}>EDITAR</Text>
-                            ) : (
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <AnimatedCoin size={16} style={{ marginRight: 6 }} />
-                                    <Text style={styles.priceButtonText}>{item.cost}</Text>
-                                </View>
-                            )}
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                {isAdmin && <MaterialCommunityIcons name="pencil" size={14} color="#FFF" style={{ marginRight: 6 }} />}
+                                <AnimatedCoin size={16} style={{ marginRight: 6 }} />
+                                <Text style={styles.priceButtonText}>{item.cost}</Text>
+                            </View>
                         </View>
+
                     </View>
                 </View>
             </TouchableOpacity>
@@ -308,10 +305,15 @@ export default function RewardShopScreen() {
 
             <View style={styles.headerContainer}>
                 <View style={styles.topBar}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.circleBtn} activeOpacity={0.8}>
-                        <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
-                    </TouchableOpacity>
-                    {isCaptain && (
+                    {isAdmin ? (
+                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.circleBtn} activeOpacity={0.8}>
+                            <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ height: 40 }} /> /* Espaçador fantasma para garantir que a placa fique alinhada para a criança */
+                    )}
+
+                    {isAdmin && (
                         <TouchableOpacity style={styles.circleBtn} onPress={() => setShowSettingsMenu(true)} activeOpacity={0.8}>
                             <MaterialCommunityIcons name="cog" size={22} color="#FFF" />
                         </TouchableOpacity>
@@ -324,7 +326,7 @@ export default function RewardShopScreen() {
                     </View>
                 </View>
 
-                {!isCaptain && activeTab === 'shop' && (
+                {!isAdmin && activeTab === 'shop' && (
                     <View style={styles.balanceTag}>
                         <View style={styles.balanceInner}>
                             <AnimatedCoin size={22} style={{ marginRight: 8 }} />
@@ -342,17 +344,16 @@ export default function RewardShopScreen() {
                     <TouchableOpacity style={[styles.tabItem, activeTab === 'shop' && styles.tabActive]} onPress={() => setActiveTab('shop')} activeOpacity={0.8}>
                         <Text style={[styles.tabText, activeTab === 'shop' && styles.tabTextActive]}>VITRINE</Text>
                     </TouchableOpacity>
-                    {isCaptain && (
+                    {isAdmin && (
                         <TouchableOpacity style={[styles.tabItem, activeTab === 'sales' && styles.tabActive]} onPress={() => setActiveTab('sales')} activeOpacity={0.8}>
                             <Text style={[styles.tabText, activeTab === 'sales' && styles.tabTextActive]}>HISTÓRICO</Text>
                         </TouchableOpacity>
                     )}
                 </View>
 
-                {/* RESOLUÇÃO DO BUG DO FLATLIST: Separando os blocos com renderização condicional rígida */}
                 {activeTab === 'shop' && (
                     <FlatList
-                        key="shop-grid-view" // Chave única para forçar render do grid
+                        key="shop-grid-view"
                         data={rewards}
                         keyExtractor={item => item.id}
                         numColumns={2}
@@ -366,7 +367,7 @@ export default function RewardShopScreen() {
 
                 {activeTab === 'sales' && (
                     <FlatList
-                        key="sales-list-view" // Chave única para forçar render de 1 coluna
+                        key="sales-list-view"
                         data={salesList}
                         keyExtractor={item => item.id}
                         contentContainerStyle={styles.listContent}
@@ -377,7 +378,7 @@ export default function RewardShopScreen() {
                 )}
             </View>
 
-            {isCaptain && activeTab === 'shop' && (
+            {isAdmin && activeTab === 'shop' && (
                 <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => { resetForm(); setShowItemModal(true); }}>
                     <View style={styles.fabSolid}>
                         <MaterialCommunityIcons name="plus" size={32} color="#FFF" />
@@ -414,7 +415,6 @@ export default function RewardShopScreen() {
                             </View>
                         </View>
 
-                        {/* SELETOR DE VALIOSIDADE */}
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>VALIOSIDADE DO PRÊMIO</Text>
                             <View style={styles.rarityRow}>
@@ -535,9 +535,9 @@ const styles = StyleSheet.create({
     tabText: { color: '#64748B', fontSize: 12, fontWeight: 'bold' },
     tabTextActive: { color: '#FFF' },
 
-    gridContent: { paddingHorizontal: 16, paddingBottom: 100 },
-    listContent: { paddingHorizontal: 20, paddingBottom: 100 }, // Nova classe de espaçamento p/ lista
-    cardWrapper: { width: CARD_WIDTH, marginBottom: 20, borderRadius: 20 },
+    gridContent: { paddingHorizontal: 16, paddingTop: 15, paddingBottom: 100 },
+    listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+    cardWrapper: { width: CARD_WIDTH, marginBottom: 20, borderRadius: 20, marginTop: 10 },
     cardFront: { borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, minHeight: 200, elevation: 2 },
     glowShadow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, opacity: 0.6, transform: [{scale: 1.05}] },
     cardContent: { flex: 1, padding: 10, alignItems: 'center', justifyContent: 'space-between' },
@@ -556,7 +556,6 @@ const styles = StyleSheet.create({
     fab: { position: 'absolute', bottom: 30, right: 20, borderRadius: 30, elevation: 8 },
     fabSolid: { width: 60, height: 60, borderRadius: 30, backgroundColor: SHOP_THEME.secondary, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
 
-    // ESTILOS EXTRATO / HISTÓRICO
     historyCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
     historyIconBox: { width: 48, height: 48, backgroundColor: '#F8FAFC', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
     historyInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },

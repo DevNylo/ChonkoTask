@@ -19,19 +19,18 @@ import { supabase } from '../../lib/supabase';
 import { COLORS, FONTS } from '../../styles/theme';
 
 const DIFFICULTY_CONFIG = {
-    'easy':   { label: 'FÁCIL',   color: '#10B981', bg: '#F0FDF9' },
-    'medium': { label: 'MÉDIO',   color: '#F59E0B', bg: '#FFF7ED' },
-    'hard':   { label: 'DIFÍCIL', color: '#EF4444', bg: '#FEF2F2' },
-    'epic':   { label: 'ÉPICO',   color: '#8B5CF6', bg: '#F5F3FF' },
-    'custom': { label: 'MANUAL',  color: '#64748B', bg: '#F8FAFC' }
+    'common':    { label: 'FÁCIL',    color: '#10B981', bg: '#ECFDF5' },
+    'rare':      { label: 'MÉDIO',    color: '#3B82F6', bg: '#EFF6FF' },
+    'epic':      { label: 'DIFÍCIL',  color: '#8B5CF6', bg: '#F5F3FF' },
+    'legendary': { label: 'LENDÁRIO', color: '#F59E0B', bg: '#FFFBEB' },
+    'custom':    { label: 'MANUAL',   color: '#64748B', bg: '#F8FAFC' }
 };
 
-// ARRAY QUE FALTAVA PARA RENDERIZAR OS FILTROS
 const DIFFICULTY_TIERS = [
-    { id: 'easy', label: 'FÁCIL' },
-    { id: 'medium', label: 'MÉDIO' },
-    { id: 'hard', label: 'DIFÍCIL' },
-    { id: 'epic', label: 'ÉPICO' },
+    { id: 'common', label: 'FÁCIL' },
+    { id: 'rare', label: 'MÉDIO' },
+    { id: 'epic', label: 'DIFÍCIL' },
+    { id: 'legendary', label: 'LENDÁRIO' },
 ];
 
 const STATUS_TABS = [
@@ -48,7 +47,6 @@ export default function MissionManagerScreen() {
 
     const familyId = route.params?.familyId || profile?.family_id;
 
-    // Estados de Tela
     const [activeStatus, setActiveStatus] = useState('active');
     const [profiles, setProfiles] = useState([]);
     const [missions, setMissions] = useState([]);
@@ -57,33 +55,82 @@ export default function MissionManagerScreen() {
     const [showCreateOptions, setShowCreateOptions] = useState(false);
     const [showFilterModal, setShowFilterModal] = useState(false);
 
-    // Estados de Filtro
     const [filterAssignee, setFilterAssignee] = useState(null);
-    const [filterRecurrence, setFilterRecurrence] = useState('all'); // all, single, recurring
-    const [filterRewardType, setFilterRewardType] = useState('all'); // all, coins, custom
-    const [filterDifficulty, setFilterDifficulty] = useState('all'); // all, easy, medium, hard, epic
+    const [filterRecurrence, setFilterRecurrence] = useState('all');
+    const [filterRewardType, setFilterRewardType] = useState('all');
+    const [filterDifficulty, setFilterDifficulty] = useState('all');
 
     const loadScreenData = useCallback(async () => {
         if (!familyId) return;
         setLoading(true);
         try {
             await ensureRecurringActive();
-            await checkExpiredOneOffMissions();
+            // A função checkExpiredOneOffMissions() foi removida daqui,
+            // pois o CRON Job do banco de dados agora gerencia as expirações nativamente.
 
             const { data: profilesData } = await supabase
-                .from('profiles').select('id, name').eq('family_id', familyId).neq('role', 'captain');
+                .from('profiles').select('id, name').eq('family_id', familyId).neq('role', 'admin');
             setProfiles(profilesData || []);
+
+            // Busca as missões no banco com base na aba (excluindo a lixeira caso não estejamos nela)
+            let statusFilter = ['active', 'completed', 'expired'];
+            if (activeStatus === 'archived') statusFilter = ['archived'];
 
             const { data: missionsData, error } = await supabase
                 .from('missions')
                 .select('*')
                 .eq('family_id', familyId)
-                .eq('status', activeStatus)
+                .in('status', statusFilter)
                 .eq('is_template', false)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setMissions(missionsData || []);
+
+            // Puxa as tentativas do dia para cruzar visualmente as Recorrentes (Inteligência do Frontend)
+            const d = new Date();
+            const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const bufferDate = new Date();
+            bufferDate.setDate(bufferDate.getDate() - 1);
+            const fetchBuffer = bufferDate.toISOString();
+
+            const { data: attempts } = await supabase
+                .from('mission_attempts')
+                .select('mission_id, status, created_at')
+                .eq('family_id', familyId)
+                .gte('created_at', fetchBuffer);
+
+            const attemptsMap = new Map();
+            if (attempts) {
+                attempts.forEach(a => {
+                    const attemptDate = new Date(a.created_at);
+                    const localStr = `${attemptDate.getFullYear()}-${String(attemptDate.getMonth() + 1).padStart(2, '0')}-${String(attemptDate.getDate()).padStart(2, '0')}`;
+                    if (localStr === todayStr && (a.status === 'pending' || a.status === 'approved')) {
+                        attemptsMap.set(a.mission_id, true);
+                    }
+                });
+            }
+
+            const processedMissions = [];
+
+            (missionsData || []).forEach(m => {
+                const doneToday = attemptsMap.has(m.id);
+                m.done_today = doneToday;
+
+                if (activeStatus === 'active') {
+                    if (m.status === 'active' && !doneToday) processedMissions.push(m);
+                }
+                else if (activeStatus === 'completed') {
+                    if (m.status === 'completed' || (m.status === 'active' && doneToday)) processedMissions.push(m);
+                }
+                else if (activeStatus === 'expired') {
+                    if (m.status === 'expired') processedMissions.push(m);
+                }
+                else if (activeStatus === 'archived') {
+                    if (m.status === 'archived') processedMissions.push(m);
+                }
+            });
+
+            setMissions(processedMissions);
 
         } catch (error) {
             console.log("Erro ao carregar:", error);
@@ -125,45 +172,6 @@ export default function MissionManagerScreen() {
         } catch (error) { console.log("Erro Recorrência:", error); }
     };
 
-    const checkExpiredOneOffMissions = async () => {
-        const { data: activeMissions } = await supabase
-            .from('missions')
-            .select('id, deadline, scheduled_date')
-            .eq('family_id', familyId)
-            .eq('status', 'active')
-            .eq('is_recurring', false);
-
-        if (!activeMissions || activeMissions.length === 0) return;
-
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-        const expiredIds = [];
-
-        activeMissions.forEach(m => {
-            let missionDate = today;
-            if (m.scheduled_date) {
-                const [year, month, day] = m.scheduled_date.split('-');
-                missionDate = new Date(year, month - 1, day);
-            }
-
-            if (missionDate < today) {
-                expiredIds.push(m.id);
-            } else if (missionDate.getTime() === today.getTime() && m.deadline) {
-                const [h, min] = m.deadline.split(':').map(Number);
-                const deadlineMinutes = h * 60 + min;
-                if (deadlineMinutes < currentMinutes) {
-                    expiredIds.push(m.id);
-                }
-            }
-        });
-
-        if (expiredIds.length > 0) {
-            await supabase.from('missions').update({ status: 'expired' }).in('id', expiredIds);
-        }
-    };
-
-    // LÓGICA DE FILTRAGEM AVANÇADA
     const filteredMissions = missions.filter(m => {
         let pass = true;
         if (filterAssignee && m.assigned_to !== filterAssignee) pass = false;
@@ -223,46 +231,53 @@ export default function MissionManagerScreen() {
             ? (profiles.find(p => p.id === item.assigned_to)?.name || 'Membro')
             : 'TODOS';
 
-        const isCompleted = item.status === 'completed';
-        const isInactive = item.status === 'expired' || item.status === 'archived';
+        const isCompleted = activeStatus === 'completed';
+        const isInactive = activeStatus === 'expired' || activeStatus === 'archived';
 
         const diffData = DIFFICULTY_CONFIG[item.difficulty] || DIFFICULTY_CONFIG['custom'];
 
-        let cardBg, iconColor, titleColor, borderColor;
+        let cardBg, iconColor, titleColor, borderColor, iconBgColor;
 
         if (isCompleted) {
-            cardBg = '#F0FDF4'; iconColor = '#16A34A'; titleColor = '#14532D'; borderColor = '#16A34A';
+            cardBg = '#F0FDF4'; iconColor = '#16A34A'; titleColor = '#14532D'; borderColor = '#16A34A'; iconBgColor = '#DCFCE7';
         } else if (isInactive) {
-            cardBg = '#F9FAFB'; iconColor = '#9CA3AF'; titleColor = '#9CA3AF'; borderColor = '#E5E7EB';
+            cardBg = '#F9FAFB'; iconColor = '#9CA3AF'; titleColor = '#9CA3AF'; borderColor = '#E5E7EB'; iconBgColor = '#F3F4F6';
         } else {
-            cardBg = diffData.bg; iconColor = diffData.color; titleColor = '#1E293B'; borderColor = diffData.color;
+            cardBg = diffData.bg; iconColor = diffData.color; titleColor = '#1E293B'; borderColor = diffData.color; iconBgColor = diffData.color + '20';
         }
 
         return (
             <View style={styles.cardWrapper}>
-                <View style={styles.cardShadow} />
+                <View style={[styles.cardShadow, { backgroundColor: isInactive ? 'transparent' : borderColor + '30' }]} />
                 <View style={[styles.cardFront, { backgroundColor: cardBg, borderColor: borderColor }]}>
+
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
-                        <View style={[styles.iconBox, {backgroundColor: '#FFF', borderWidth: 1, borderColor: isInactive ? '#E5E7EB' : borderColor+'40' }]}>
+                        <View style={[styles.iconBox, {backgroundColor: iconBgColor }]}>
                             <MaterialCommunityIcons name={isCompleted ? "check-decagram" : item.icon} size={28} color={iconColor} />
                         </View>
 
-                        <View style={{flex:1}}>
-                            <Text style={[styles.cardTitle, {color: titleColor}]} numberOfLines={1}>{item.title}</Text>
-
-                            <View style={{flexDirection: 'row', marginTop: 4, flexWrap: 'wrap', gap: 5}}>
-                                <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: isCustom ? '#DB2777' : '#F59E0B' }]}>
-                                    <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={10} color={isCustom ? '#DB2777' : '#B45309'} />
-                                    <Text style={[styles.tagText, { color: isCustom ? '#DB2777' : '#B45309' }]}>
-                                        {isCustom ? (item.custom_reward || "Prêmio") : `+${item.reward}`}
-                                    </Text>
-                                </View>
-
-                                {item.difficulty && (
+                        <View style={{flex: 1, paddingRight: 10}}>
+                            <Text style={[styles.cardTitle, {color: titleColor}]} numberOfLines={2}>{item.title}</Text>
+                            {item.difficulty && !isInactive && !isCompleted && (
+                                <View style={{flexDirection: 'row', marginTop: 4}}>
                                     <View style={[styles.tagBase, { backgroundColor: '#FFF', borderColor: diffData.color }]}>
                                         <Text style={[styles.tagText, { color: diffData.color }]}>{diffData.label}</Text>
                                     </View>
-                                )}
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={{alignItems: 'flex-end', justifyContent: 'center', maxWidth: '40%'}}>
+                            <Text style={{fontFamily: FONTS.bold, fontSize: 10, color: '#94A3B8', marginBottom: 2}}>PRÊMIO</Text>
+                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                <Text
+                                    style={{flexShrink: 1, fontFamily: FONTS.bold, fontSize: isCustom ? 13 : 18, color: isCustom ? '#DB2777' : '#F59E0B', marginRight: 4, textAlign: 'right'}}
+                                    numberOfLines={isCustom ? 2 : 1}
+                                    ellipsizeMode="tail"
+                                >
+                                    {isCustom ? (item.custom_reward || "Item") : `+${item.reward}`}
+                                </Text>
+                                <MaterialCommunityIcons name={isCustom ? "gift" : "circle-multiple"} size={isCustom ? 16 : 18} color={isCustom ? '#DB2777' : '#F59E0B'} />
                             </View>
                         </View>
                     </View>
@@ -276,40 +291,44 @@ export default function MissionManagerScreen() {
                         </View>
                     )}
 
-                    <View style={[styles.divider, {backgroundColor: borderColor+'20'}]} />
+                    <View style={[styles.divider, {backgroundColor: borderColor+'30'}]} />
 
                     <View style={styles.metaInfoContainer}>
-                        <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'40' }]}>
-                            <MaterialCommunityIcons name={item.is_recurring ? "calendar-sync" : "calendar-check"} size={12} color="#64748B" />
-                            <Text style={[styles.metaText, {color: '#64748B'}]}>
-                                {item.is_recurring ? (item.recurrence_days ? getDayLabels(item.recurrence_days) : "Diária") : `Data: ${formatDate(item.scheduled_date)}`}
-                            </Text>
-                        </View>
-
-                        {(item.start_time || item.deadline) && (
-                            <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'40' }]}>
-                                <MaterialCommunityIcons name="clock-outline" size={12} color="#0284C7" />
-                                <Text style={[styles.metaText, {color: '#0284C7'}]}>
-                                    {item.start_time ? item.start_time.substring(0,5) : "00:00"} - {item.deadline ? item.deadline.substring(0,5) : "..."}
+                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap'}}>
+                            <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'50' }]}>
+                                <MaterialCommunityIcons name={item.is_recurring ? "calendar-sync" : "calendar-check"} size={14} color="#64748B" />
+                                <Text style={[styles.metaText, {color: '#64748B'}]}>
+                                    {item.is_recurring ? (item.recurrence_days ? getDayLabels(item.recurrence_days) : "Diária") : formatDate(item.scheduled_date)}
                                 </Text>
                             </View>
-                        )}
 
-                        <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'40' }]}>
-                            <MaterialCommunityIcons name="account" size={12} color="#16A34A" />
-                            <Text style={[styles.metaText, {color: '#16A34A'}]}>{assigneeName}</Text>
+                            {(item.start_time || item.deadline) && (
+                                <View style={[styles.metaTag, { backgroundColor: '#FFF', borderColor: isInactive ? '#E2E8F0' : borderColor+'50' }]}>
+                                    <MaterialCommunityIcons name="clock-outline" size={14} color="#0284C7" />
+                                    <Text style={[styles.metaText, {color: '#0284C7'}]}>
+                                        {item.start_time ? item.start_time.substring(0,5) : "00:00"} - {item.deadline ? item.deadline.substring(0,5) : "Livre"}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={{flexDirection: 'row', alignItems: 'center', paddingLeft: 10}}>
+                            <View style={[styles.avatarMini, {backgroundColor: '#ECFDF5', borderColor: '#10B981'}]}>
+                                <MaterialCommunityIcons name="account" size={12} color="#10B981" />
+                            </View>
+                            <Text style={{fontFamily: FONTS.bold, fontSize: 11, color: '#1E293B', marginLeft: 4}}>{assigneeName}</Text>
                         </View>
                     </View>
 
                     {activeStatus === 'active' && (
                         <View style={styles.cardActions}>
-                            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CreateMission', { familyId, missionToEdit: item })}>
-                                <MaterialCommunityIcons name="pencil-outline" size={18} color="#10B981" />
-                                <Text style={[styles.actionText, {color: '#10B981'}]}>Editar</Text>
+                            <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#F1F5F9'}]} onPress={() => navigation.navigate('CreateMission', { familyId, missionToEdit: item })}>
+                                <MaterialCommunityIcons name="pencil-outline" size={16} color="#64748B" />
+                                <Text style={[styles.actionText, {color: '#64748B'}]}>Editar</Text>
                             </TouchableOpacity>
-                            <View style={{width: 1, height: 16, backgroundColor: borderColor+'40'}} />
-                            <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(item.id)}>
-                                <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.error} />
+
+                            <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#FEF2F2'}]} onPress={() => handleDelete(item.id)}>
+                                <MaterialCommunityIcons name="trash-can-outline" size={16} color={COLORS.error} />
                                 <Text style={[styles.actionText, {color: COLORS.error}]}>Cancelar</Text>
                             </TouchableOpacity>
                         </View>
@@ -323,7 +342,6 @@ export default function MissionManagerScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* --- CABEÇALHO VERDE SÓLIDO --- */}
             <View style={styles.topGreenArea}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.8}>
@@ -405,7 +423,6 @@ export default function MissionManagerScreen() {
                 </TouchableOpacity>
             )}
 
-            {/* --- MODAL DE FILTROS AVANÇADOS --- */}
             <Modal visible={showFilterModal} transparent={true} animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
                 <View style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex: 1, width: '100%'}} onPress={() => setShowFilterModal(false)} />
@@ -418,7 +435,6 @@ export default function MissionManagerScreen() {
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
 
-                            {/* Filtro: Membro */}
                             <Text style={styles.filterSectionLabel}>MEMBRO</Text>
                             <View style={styles.chipGroup}>
                                 <TouchableOpacity style={[styles.filterChip, filterAssignee === null && styles.filterChipActive]} onPress={() => setFilterAssignee(null)}>
@@ -431,7 +447,6 @@ export default function MissionManagerScreen() {
                                 ))}
                             </View>
 
-                            {/* Filtro: Frequência */}
                             <Text style={styles.filterSectionLabel}>FREQUÊNCIA</Text>
                             <View style={styles.chipGroup}>
                                 <TouchableOpacity style={[styles.filterChip, filterRecurrence === 'all' && styles.filterChipActive]} onPress={() => setFilterRecurrence('all')}>
@@ -445,7 +460,6 @@ export default function MissionManagerScreen() {
                                 </TouchableOpacity>
                             </View>
 
-                            {/* Filtro: Tipo de Recompensa */}
                             <Text style={styles.filterSectionLabel}>TIPO DE PRÊMIO</Text>
                             <View style={styles.chipGroup}>
                                 <TouchableOpacity style={[styles.filterChip, filterRewardType === 'all' && styles.filterChipActive]} onPress={() => setFilterRewardType('all')}>
@@ -459,7 +473,6 @@ export default function MissionManagerScreen() {
                                 </TouchableOpacity>
                             </View>
 
-                            {/* Filtro: Dificuldade */}
                             <Text style={styles.filterSectionLabel}>DIFICULDADE</Text>
                             <View style={styles.chipGroup}>
                                 <TouchableOpacity style={[styles.filterChip, filterDifficulty === 'all' && styles.filterChipActive]} onPress={() => setFilterDifficulty('all')}>
@@ -482,7 +495,6 @@ export default function MissionManagerScreen() {
                 </View>
             </Modal>
 
-            {/* MODAL DE CRIAÇÃO */}
             <Modal visible={showCreateOptions} transparent={true} animationType="fade" onRequestClose={() => setShowCreateOptions(false)}>
                 <View style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex:1, width:'100%'}} onPress={() => setShowCreateOptions(false)} />
@@ -554,24 +566,26 @@ const styles = StyleSheet.create({
     cardWrapper: { marginBottom: 15, borderRadius: 24, position: 'relative' },
     cardShadow: {
         position: 'absolute', top: 4, left: 0, width: '100%', height: '100%',
-        backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 24
+        borderRadius: 24
     },
     cardFront: { backgroundColor: '#FFF', borderRadius: 24, borderWidth: 2, padding: 16, overflow: 'hidden' },
-    previewIconBox: { width: 50, height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     iconBox: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     cardTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#1E293B', flex: 1 },
     tagBase: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
     tagText: { fontFamily: FONTS.bold, fontSize: 10, marginLeft: 4 },
-    treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginLeft: 60, marginBottom: 10 },
+    treasureBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 10 },
     treasureGold: { backgroundColor: '#F59E0B' },
     treasurePurple: { backgroundColor: '#8B5CF6' },
     treasureText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
-    metaInfoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    divider: { height: 1, marginVertical: 12 },
+
+    metaInfoContainer: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'space-between' },
     metaTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
     metaText: { fontSize: 10, fontWeight: 'bold', marginLeft: 4 },
-    cardActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 15, gap: 15 },
-    actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
+    avatarMini: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+
+    cardActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 15, gap: 10 },
+    actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
     actionText: { fontFamily: FONTS.bold, fontSize: 12 },
 
     emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.8 },
@@ -581,7 +595,6 @@ const styles = StyleSheet.create({
     fab: { position: 'absolute', bottom: 30, right: 20, borderRadius: 30, shadowColor: '#10B981', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 },
     fabInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
 
-    // --- MODAL DE FILTRO AVANÇADO ---
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     filterModalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25, maxHeight: '85%' },
     filterModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
@@ -596,7 +609,6 @@ const styles = StyleSheet.create({
     applyFilterBtn: { backgroundColor: '#10B981', paddingVertical: 15, borderRadius: 16, alignItems: 'center', marginTop: 20 },
     applyFilterText: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF' },
 
-    // Modal de Criação
     createOptionsContainer: { position: 'absolute', bottom: 30, width: '90%', alignSelf: 'center', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#10B981', shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 10 },
     createHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     createOptionsTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#94A3B8' },

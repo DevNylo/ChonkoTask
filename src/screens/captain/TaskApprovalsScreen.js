@@ -23,10 +23,12 @@ export default function TaskApprovalsScreen() {
     const route = useRoute();
     const { profile } = useAuth();
 
-    // Garantia do Family ID vindo da navegação ou do contexto de autenticação
     const familyId = route.params?.familyId || profile?.family_id;
+    const adminTitle = profile?.title_archetype || "Admin";
 
-    const [attempts, setAttempts] = useState([]);
+    const [activeTab, setActiveTab] = useState('pending'); // 'pending' ou 'history'
+    const [pendingAttempts, setPendingAttempts] = useState([]);
+    const [historyAttempts, setHistoryAttempts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedPhotoUrl, setSelectedPhotoUrl] = useState(null);
 
@@ -44,13 +46,11 @@ export default function TaskApprovalsScreen() {
         if (!familyId) return;
 
         const subscription = supabase
-            .channel('captain_approvals')
+            .channel('admin_approvals')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'mission_attempts', filter: `family_id=eq.${familyId}` },
-                (payload) => {
-                    fetchApprovals();
-                }
+                () => { fetchApprovals(); }
             )
             .subscribe();
 
@@ -62,20 +62,67 @@ export default function TaskApprovalsScreen() {
             const { data, error } = await supabase
                 .from('mission_attempts')
                 .select(`
-            id, proof_url, created_at, earned_value, mission_id, status, family_id,
-            missions ( title, icon, is_recurring, reward, reward_type, custom_reward ), 
-            profiles ( id, name, avatar, balance, experience )
-        `)
-                .eq('status', 'pending')
+                    id, proof_url, created_at, earned_value, mission_id, status, family_id, feedback, admin_feedback,
+                    missions ( title, icon, is_recurring, reward, reward_type, custom_reward ), 
+                    profiles ( id, name, avatar, balance, experience )
+                `)
                 .eq('family_id', familyId)
-                .order('created_at', { ascending: true });
+                .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setAttempts(data || []);
+
+            const now = new Date();
+            const pending = [];
+            const history = [];
+            const toAutoApprove = [];
+
+            if (data) {
+                data.forEach(attempt => {
+                    if (attempt.status === 'pending') {
+                        const attemptDate = new Date(attempt.created_at);
+                        const diffHours = (now - attemptDate) / (1000 * 60 * 60);
+
+                        if (diffHours >= 24) {
+                            toAutoApprove.push(attempt);
+                        } else {
+                            attempt.hoursLeft = Math.ceil(24 - diffHours);
+                            pending.push(attempt);
+                        }
+                    } else {
+                        history.push(attempt);
+                    }
+                });
+            }
+
+            // Executa aprovação automática silenciosa para tarefas vencidas (>24h)
+            if (toAutoApprove.length > 0) {
+                await processAutoApprovals(toAutoApprove);
+                return; // O processAutoApprovals vai recarregar a lista no final
+            }
+
+            // Ordena pendentes do mais antigo para o mais novo
+            pending.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+            setPendingAttempts(pending);
+            setHistoryAttempts(history);
+
         } catch (error) {
             console.log("Erro ao buscar aprovações:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // --- LÓGICA DE APROVAÇÃO AUTOMÁTICA ---
+    const processAutoApprovals = async (expiredAttempts) => {
+        try {
+            for (const attempt of expiredAttempts) {
+                await handleApprove(attempt, true); // true = silent flag
+            }
+        } catch (error) {
+            console.log("Erro na aprovação automática:", error);
+        } finally {
+            fetchApprovals(); // Recarrega após a limpeza
         }
     };
 
@@ -90,7 +137,8 @@ export default function TaskApprovalsScreen() {
         try { await supabase.storage.from('mission-proofs').remove([path]); } catch (e) {}
     };
 
-    const handleApprove = async (attempt) => {
+    // --- LÓGICA DE APROVAÇÃO (Manual ou Automática) ---
+    const handleApprove = async (attempt, isAuto = false) => {
         try {
             const isCoins = attempt.missions?.reward_type === 'coins';
             const rewardValue = attempt.earned_value || attempt.missions?.reward || 0;
@@ -126,11 +174,14 @@ export default function TaskApprovalsScreen() {
 
             if (attempt.proof_url) await deleteProofImage(attempt.proof_url);
 
-            Alert.alert("SUCESSO!", `Missão aprovada!\nMembro ganhou +${xpGained} XP${isCoins && rewardValue > 0 ? ` e +${rewardValue} moedas.` : '.'}`);
-            fetchApprovals();
+            if (!isAuto) {
+                Alert.alert("SUCESSO!", `Missão aprovada!\nMembro ganhou +${xpGained} XP${isCoins && rewardValue > 0 ? ` e +${rewardValue} moedas.` : '.'}`);
+                fetchApprovals();
+            }
 
         } catch (error) {
-            Alert.alert("Erro na Aprovação", error.message);
+            if (!isAuto) Alert.alert("Erro na Aprovação", error.message);
+            else console.log("Erro Auto-Aprovação:", error.message);
         }
     };
 
@@ -139,7 +190,7 @@ export default function TaskApprovalsScreen() {
         try {
             await supabase.from('mission_attempts').update({
                 status: 'rejected',
-                feedback: rejectReason || 'Refazer'
+                admin_feedback: rejectReason.trim() || 'Por favor, revise a tarefa e tente novamente.'
             }).eq('id', selectedAttempt.id);
 
             if (selectedAttempt.proof_url) await deleteProofImage(selectedAttempt.proof_url);
@@ -147,7 +198,9 @@ export default function TaskApprovalsScreen() {
             setRejectModalVisible(false);
             setRejectReason('');
             fetchApprovals();
-        } catch (error) { Alert.alert("Erro", "Falha ao rejeitar."); }
+        } catch (error) {
+            Alert.alert("Erro", "Falha ao recusar.");
+        }
     };
 
     const renderCard = ({ item }) => {
@@ -157,10 +210,14 @@ export default function TaskApprovalsScreen() {
         const isCustom = mission.reward_type === 'custom';
         const rewardValue = item.earned_value || mission.reward || 0;
 
+        const isHistory = activeTab === 'history';
+        const isApproved = item.status === 'approved';
+        const isRejected = item.status === 'rejected';
+
         return (
             <View style={styles.cardWrapper}>
                 <View style={styles.cardShadow} />
-                <View style={styles.cardFront}>
+                <View style={[styles.cardFront, isRejected && {borderColor: '#FECACA'}, isApproved && {borderColor: '#A7F3D0'}]}>
 
                     <View style={styles.cardHeader}>
                         <View style={styles.profileRow}>
@@ -185,7 +242,16 @@ export default function TaskApprovalsScreen() {
                     <Text style={styles.missionTitle}>{mission.title || "Missão Sem Título"}</Text>
 
                     <View style={styles.metaRow}>
-                        <Text style={styles.dateText}>{new Date(item.created_at).toLocaleString('pt-BR')}</Text>
+                        <Text style={styles.dateText}>{new Date(item.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</Text>
+
+                        {/* AVISO DE AUTO-APROVAÇÃO (Apenas em Pendentes) */}
+                        {!isHistory && item.hoursLeft && (
+                            <View style={[styles.recurringBadge, {backgroundColor: '#FFF7ED', borderColor: '#F59E0B', borderWidth: 1}]}>
+                                <MaterialCommunityIcons name="clock-fast" size={10} color="#D97706" />
+                                <Text style={[styles.recurringText, {color: '#D97706'}]}>Aprova em {item.hoursLeft}h</Text>
+                            </View>
+                        )}
+
                         {mission.is_recurring && (
                             <View style={styles.recurringBadge}>
                                 <MaterialCommunityIcons name="sync" size={10} color="#64748B" />
@@ -194,44 +260,62 @@ export default function TaskApprovalsScreen() {
                         )}
                     </View>
 
-                    <TouchableOpacity
-                        style={styles.photoContainer}
-                        onPress={() => imageUrl && setSelectedPhotoUrl(imageUrl)}
-                        disabled={!imageUrl}
-                        activeOpacity={0.9}
-                    >
-                        {imageUrl ? (
-                            <>
-                                <Image source={{ uri: imageUrl }} style={styles.proofImage} resizeMode="cover" />
-                                <View style={styles.zoomBadge}>
-                                    <MaterialCommunityIcons name="magnify-plus-outline" size={20} color="#FFF" />
-                                </View>
-                            </>
-                        ) : (
-                            <View style={styles.noPhoto}>
-                                <MaterialCommunityIcons name="image-off-outline" size={32} color="#CBD5E1" />
-                                <Text style={styles.noPhotoText}>Sem foto anexada</Text>
+                    {/* FOTO E STATUS */}
+                    {isHistory ? (
+                        <View style={[styles.historyStatusBox, isApproved ? styles.historyApproved : styles.historyRejected]}>
+                            <MaterialCommunityIcons name={isApproved ? "check-decagram" : "close-octagon"} size={24} color={isApproved ? "#10B981" : "#EF4444"} />
+                            <View style={{marginLeft: 10, flex: 1}}>
+                                <Text style={[styles.historyStatusTitle, {color: isApproved ? "#065F46" : "#991B1B"}]}>
+                                    {isApproved ? "Aprovada" : "Recusada"}
+                                </Text>
+                                {isRejected && item.admin_feedback && (
+                                    <Text style={styles.historyFeedbackText} numberOfLines={2}>
+                                        <Text style={{fontWeight: 'bold'}}>Você disse: </Text>
+                                        {item.admin_feedback}
+                                    </Text>
+                                )}
                             </View>
-                        )}
-                    </TouchableOpacity>
-
-                    <View style={styles.actionRow}>
+                        </View>
+                    ) : (
                         <TouchableOpacity
-                            style={styles.rejectBtn}
-                            onPress={() => { setSelectedAttempt(item); setRejectReason(''); setRejectModalVisible(true); }}
+                            style={styles.photoContainer}
+                            onPress={() => imageUrl && setSelectedPhotoUrl(imageUrl)}
+                            disabled={!imageUrl}
+                            activeOpacity={0.9}
                         >
-                            <MaterialCommunityIcons name="close" size={20} color="#EF4444" />
-                            <Text style={styles.rejectText}>RECUSAR</Text>
+                            {imageUrl ? (
+                                <>
+                                    <Image source={{ uri: imageUrl }} style={styles.proofImage} resizeMode="cover" />
+                                    <View style={styles.zoomBadge}>
+                                        <MaterialCommunityIcons name="magnify-plus-outline" size={20} color="#FFF" />
+                                    </View>
+                                </>
+                            ) : (
+                                <View style={styles.noPhoto}>
+                                    <MaterialCommunityIcons name="image-off-outline" size={32} color="#CBD5E1" />
+                                    <Text style={styles.noPhotoText}>Sem foto anexada</Text>
+                                </View>
+                            )}
                         </TouchableOpacity>
+                    )}
 
-                        <TouchableOpacity
-                            style={styles.approveBtn}
-                            onPress={() => handleApprove(item)}
-                        >
-                            <MaterialCommunityIcons name="check" size={20} color="#FFF" />
-                            <Text style={styles.approveText}>APROVAR</Text>
-                        </TouchableOpacity>
-                    </View>
+                    {/* BOTÕES DE AÇÃO (Apenas em Pendentes) */}
+                    {!isHistory && (
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity
+                                style={styles.rejectBtn}
+                                onPress={() => { setSelectedAttempt(item); setRejectReason(''); setRejectModalVisible(true); }}
+                            >
+                                <MaterialCommunityIcons name="close" size={20} color="#EF4444" />
+                                <Text style={styles.rejectText}>RECUSAR</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={styles.approveBtn} onPress={() => handleApprove(item)}>
+                                <MaterialCommunityIcons name="check" size={20} color="#FFF" />
+                                <Text style={styles.approveText}>APROVAR</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </View>
         );
@@ -250,23 +334,46 @@ export default function TaskApprovalsScreen() {
                     <Text style={styles.headerTitle}>VALIDAR MISSÕES</Text>
                     <View style={{width: 40}} />
                 </View>
+
+                {/* ABAS (Tabs) */}
+                <View style={styles.tabsContainer}>
+                    <TouchableOpacity style={[styles.tab, activeTab === 'pending' && styles.tabActive]} onPress={() => setActiveTab('pending')}>
+                        <MaterialCommunityIcons name="timer-sand" size={16} color={activeTab === 'pending' ? '#B45309' : '#FFF'} />
+                        <Text style={[styles.tabText, activeTab === 'pending' && {color: '#B45309'}]}>PENDENTES ({pendingAttempts.length})</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.tab, activeTab === 'history' && styles.tabActive]} onPress={() => setActiveTab('history')}>
+                        <MaterialCommunityIcons name="history" size={16} color={activeTab === 'history' ? '#B45309' : '#FFF'} />
+                        <Text style={[styles.tabText, activeTab === 'history' && {color: '#B45309'}]}>HISTÓRICO ({historyAttempts.length})</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
-            {/* ---------------------------------- */}
+
+            {/* --- BANNER DE AUTO-APROVAÇÃO --- */}
+            {activeTab === 'pending' && pendingAttempts.length > 0 && (
+                <View style={styles.infoBanner}>
+                    <MaterialCommunityIcons name="information" size={20} color="#0284C7" style={{marginTop: 2}} />
+                    <Text style={styles.infoBannerText}>
+                        <Text style={{fontFamily: FONTS.bold}}>Lembrete:</Text> Tarefas são aprovadas automaticamente após 24h para não desmotivar os recrutas. Avalie sempre que puder!
+                    </Text>
+                </View>
+            )}
 
             {/* --- ÁREA DE CONTEÚDO --- */}
             <FlatList
-                data={attempts}
+                data={activeTab === 'pending' ? pendingAttempts : historyAttempts}
                 keyExtractor={item => item.id}
                 renderItem={renderCard}
-                contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+                contentContainerStyle={{ padding: 20, paddingTop: 10, paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         {loading ? <ActivityIndicator color="#F59E0B" size="large" /> : (
                             <>
-                                <MaterialCommunityIcons name="check-decagram" size={60} color="#CBD5E1" />
-                                <Text style={styles.emptyText}>Tudo limpo, Admin!</Text>
-                                <Text style={styles.emptySubText}>Nenhuma missão pendente de aprovação.</Text>
+                                <MaterialCommunityIcons name={activeTab === 'pending' ? "check-decagram" : "text-box-search-outline"} size={60} color="#CBD5E1" />
+                                <Text style={styles.emptyText}>{activeTab === 'pending' ? "Tudo limpo, " + adminTitle + "!" : "Nenhum histórico."}</Text>
+                                <Text style={styles.emptySubText}>
+                                    {activeTab === 'pending' ? "Nenhuma missão pendente de aprovação." : "As tarefas avaliadas aparecerão aqui."}
+                                </Text>
                             </>
                         )}
                     </View>
@@ -288,15 +395,23 @@ export default function TaskApprovalsScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>RECUSAR MISSÃO</Text>
-                        <Text style={styles.modalSubtitle}>Diga ao membro o que precisa melhorar:</Text>
+
+                        <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5}}>
+                            <Text style={styles.modalSubtitle}>Diga o que precisa melhorar:</Text>
+                            <Text style={{fontSize: 10, color: '#94A3B8', fontFamily: FONTS.bold}}>{rejectReason.length}/100</Text>
+                        </View>
+
                         <TextInput
                             style={styles.input}
-                            placeholder="Ex: A cama ainda está bagunçada..."
+                            placeholder="Ex: Faltou esticar o lençol..."
                             placeholderTextColor="#94A3B8"
                             value={rejectReason}
                             onChangeText={setRejectReason}
+                            maxLength={100}
+                            multiline
                             autoFocus
                         />
+
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={styles.modalCancel} onPress={() => setRejectModalVisible(false)}>
                                 <Text style={styles.modalCancelText}>CANCELAR</Text>
@@ -313,13 +428,12 @@ export default function TaskApprovalsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDFCF8' }, // Creme padrão
+    container: { flex: 1, backgroundColor: '#FDFCF8' },
 
-    // --- HEADER LARANJA SÓLIDO ---
     topOrangeArea: {
         backgroundColor: '#F59E0B',
         paddingTop: 60,
-        paddingBottom: 25,
+        paddingBottom: 20,
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
         zIndex: 10,
@@ -330,9 +444,17 @@ const styles = StyleSheet.create({
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
 
-    cardWrapper: { marginBottom: 20, borderRadius: 24, position: 'relative' },
+    tabsContainer: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 25, gap: 10 },
+    tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 1, borderColor: 'transparent' },
+    tabActive: { backgroundColor: '#FFF', borderColor: '#FDE68A', shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 },
+    tabText: { fontFamily: FONTS.bold, fontSize: 12, color: '#FFF', marginLeft: 6 },
+
+    infoBanner: { flexDirection: 'row', backgroundColor: '#F0F9FF', marginHorizontal: 20, marginTop: 20, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: '#BAE6FD', alignItems: 'flex-start' },
+    infoBannerText: { flex: 1, marginLeft: 8, fontSize: 11, fontFamily: FONTS.regular, color: '#0369A1', lineHeight: 16 },
+
+    cardWrapper: { marginBottom: 20, borderRadius: 24, position: 'relative', marginTop: 10 },
     cardShadow: { position: 'absolute', top: 6, left: 0, width: '100%', height: '100%', backgroundColor: '#000', borderRadius: 24, opacity: 0.05 },
-    cardFront: { borderRadius: 24, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, backgroundColor: '#FFF', overflow: 'hidden' },
+    cardFront: { borderRadius: 24, borderWidth: 2, borderColor: '#E2E8F0', padding: 16, backgroundColor: '#FFF', overflow: 'hidden' },
 
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     profileRow: { flexDirection: 'row', alignItems: 'center' },
@@ -344,9 +466,9 @@ const styles = StyleSheet.create({
 
     missionTitle: { fontFamily: FONTS.bold, fontSize: 18, color: '#1E293B', marginBottom: 6 },
 
-    metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 10 },
+    metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 10, flexWrap: 'wrap' },
     dateText: { fontFamily: FONTS.regular, fontSize: 12, color: '#64748B' },
-    recurringBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+    recurringBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
     recurringText: { fontSize: 10, color: '#64748B', marginLeft: 4, fontWeight: 'bold' },
 
     photoContainer: { height: 220, borderRadius: 16, overflow: 'hidden', backgroundColor: '#F8FAFC', marginBottom: 20, position: 'relative', borderWidth: 1, borderColor: '#F1F5F9' },
@@ -354,6 +476,12 @@ const styles = StyleSheet.create({
     zoomBadge: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 6 },
     noPhoto: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     noPhotoText: { fontFamily: FONTS.bold, color: '#CBD5E1', marginTop: 8 },
+
+    historyStatusBox: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', marginTop: 5 },
+    historyApproved: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+    historyRejected: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+    historyStatusTitle: { fontFamily: FONTS.bold, fontSize: 14 },
+    historyFeedbackText: { fontFamily: FONTS.regular, fontSize: 11, color: '#991B1B', marginTop: 4, lineHeight: 16 },
 
     actionRow: { flexDirection: 'row', gap: 15 },
     rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: '#EF4444', backgroundColor: '#FFF' },
@@ -370,10 +498,10 @@ const styles = StyleSheet.create({
     closePhotoBtn: { position: 'absolute', top: 50, right: 20, padding: 10, zIndex: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 25 },
-    modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#F59E0B' },
-    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#1E293B', fontSize: 18, marginBottom: 5 },
-    modalSubtitle: { textAlign: 'center', fontFamily: FONTS.regular, color: '#64748B', fontSize: 14, marginBottom: 20 },
-    input: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 15, fontFamily: FONTS.medium, color: '#1E293B', borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 25, minHeight: 80, textAlignVertical: 'top' },
+    modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 24, borderWidth: 2, borderColor: '#EF4444' },
+    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#1E293B', fontSize: 18, marginBottom: 15 },
+    modalSubtitle: { fontFamily: FONTS.bold, color: '#64748B', fontSize: 12 },
+    input: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 15, fontFamily: FONTS.medium, color: '#1E293B', borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 25, minHeight: 80, textAlignVertical: 'top' },
     modalActions: { flexDirection: 'row', gap: 15 },
     modalCancel: { flex: 1, padding: 14, alignItems: 'center', borderRadius: 14, backgroundColor: '#F1F5F9' },
     modalCancelText: { fontFamily: FONTS.bold, color: '#64748B' },
