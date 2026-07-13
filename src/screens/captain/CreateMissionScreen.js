@@ -110,15 +110,38 @@ export default function CreateMissionScreen() {
         setFunc(cleaned);
     };
 
+    // CORREÇÃO: Máscara Inteligente de Horário
     const handleTimeBlur = (value, setter) => {
         if (!value) return;
         let clean = value.replace(/[^0-9]/g, '');
-        let formatted = '';
-        if (clean.length === 1) formatted = `0${clean}:00`;
-        else if (clean.length === 2) formatted = parseInt(clean) > 23 ? `0${clean[0]}:${clean[1]}0` : `${clean}:00`;
-        else if (clean.length === 3) formatted = `0${clean[0]}:${clean.substring(1)}`;
-        else if (clean.length >= 4) formatted = `${clean.substring(0,2)}:${clean.substring(2,4)}`;
-        setter(formatted);
+        if (clean.length === 0) {
+            setter('');
+            return;
+        }
+
+        let h = 0;
+        let m = 0;
+
+        if (clean.length === 1) {
+            h = parseInt(clean);
+        } else if (clean.length === 2) {
+            h = parseInt(clean);
+        } else if (clean.length === 3) {
+            h = parseInt(clean.substring(0, 1));
+            m = parseInt(clean.substring(1, 3));
+        } else if (clean.length >= 4) {
+            h = parseInt(clean.substring(0, 2));
+            m = parseInt(clean.substring(2, 4));
+        }
+
+        // Limita a hora a 23 e o minuto a 59
+        if (h > 23) h = 23;
+        if (m > 59) m = 59;
+
+        const formattedHour = String(h).padStart(2, '0');
+        const formattedMinute = String(m).padStart(2, '0');
+
+        setter(`${formattedHour}:${formattedMinute}`);
     };
 
     const handleDateChange = (event, selectedDate) => {
