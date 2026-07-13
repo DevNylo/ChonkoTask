@@ -405,9 +405,9 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
         backgroundColor: '#F59E0B',
+        borderColor: '#D97706',
         zIndex: 10,
-        borderWidth: 1,
-        borderColor:'#cd7c00'
+        borderWidth: 2,
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 },

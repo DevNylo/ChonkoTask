@@ -291,7 +291,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, paddingTop: 60, paddingBottom: 35,
         borderBottomLeftRadius: 35, borderBottomRightRadius: 35,
-        backgroundColor: '#10B981', zIndex: 10, elevation: 5
+        backgroundColor: '#10B981', zIndex: 10, elevation: 5,
+        borderWidth:2, borderColor:'#01a36a'
     },
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },

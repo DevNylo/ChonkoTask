@@ -136,7 +136,7 @@ export default function AdminHomeScreen() {
                     <View style={styles.headerLeft}>
                         <Text style={styles.qgLabel}>PAINEL DE ADMIN</Text>
                         <Text style={styles.familyTitle} numberOfLines={1}>
-                            {family?.name || 'Sua Família'}
+                            {family?.name || 'Seu Grupo'}
                         </Text>
                     </View>
 
@@ -182,7 +182,7 @@ export default function AdminHomeScreen() {
             >
                 <View style={styles.statsRow}>
                     <View style={styles.statBox}>
-                        <MaterialCommunityIcons name="diamond-stone" size={24} color="#EC4899" />
+                        <MaterialCommunityIcons name="cards-playing-diamond" size={24} color="#EC4899" />
                         <Text style={styles.statNumber}>{chonkoGems}</Text>
                         <Text style={styles.statLabel}>CHONKO GEMS</Text>
                     </View>
@@ -237,7 +237,7 @@ export default function AdminHomeScreen() {
                     />
                     <MenuButton
                         title="GEMS" subtitle="Comprar"
-                        icon="diamond-stone"
+                        icon="cards-playing-diamond"
                         color="#EC4899" shadowColor="#BE185D"
                         onPress={() => handleCardPress('PremiumStore', 'GEMS')}
                     />
@@ -294,9 +294,9 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
         backgroundColor: '#F59E0B',
+        borderColor: '#D97706',
         zIndex: 10,
-        borderWidth: 1,
-        borderColor:'#cd7c00'
+        borderWidth: 2,
     },
     headerRow: {
         flexDirection: 'row',
@@ -336,8 +336,9 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         padding: 15,
         alignItems: 'center',
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: '#E2E8F0',
+
     },
     statNumber: { fontFamily: FONTS.regular, fontSize: 18, color: '#1E293B', marginTop: 5 },
     statLabel: { fontFamily: FONTS.regular, fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
@@ -383,7 +384,7 @@ const styles = StyleSheet.create({
         width: 76, height: 76, borderRadius: 38,
         backgroundColor: '#FEF3C7',
         justifyContent: 'center', alignItems: 'center',
-        shadowColor: '#D97706', shadowOpacity: 0.3, shadowRadius: 8, elevation: 10
+        elevation: 10
     },
     centerDockInner: {
         width: 64, height: 64, borderRadius: 32,

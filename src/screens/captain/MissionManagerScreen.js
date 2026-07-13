@@ -547,7 +547,8 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
         zIndex: 10,
-        elevation: 5
+        elevation: 5,
+        borderWidth:2, borderColor:'#01a36a'
     },
 
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 15 },
@@ -555,13 +556,14 @@ const styles = StyleSheet.create({
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
 
     filterBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
-    filterTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#D1FAE5' },
+    filterTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#FFF' },
     filterButton: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#FFF',
         paddingHorizontal: 12, paddingVertical: 8,
         borderRadius: 20, gap: 6,
-        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 4
+        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 4,
+        borderWidth:.1, borderColor:'#01a36a'
     },
     filterText: { fontFamily: FONTS.bold, fontSize: 12, color: '#10B981' },
 

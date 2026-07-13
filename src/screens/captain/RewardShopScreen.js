@@ -30,7 +30,7 @@ import ChonkoCoinIcon from '../../components/icons/ChonkoCoinIcon.js';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
-const SHOP_THEME = { primary: '#4C1D95', secondary: '#7C3AED', light: '#F3E8FF', accent: '#F59E0B' };
+const SHOP_THEME = { primary: '#8B5CF6', secondary: '#8B5CF6', light: '#F3E8FF', accent: '#F59E0B' };
 
 const RARITY_OPTIONS = [
     { id: 'common', label: 'COMUM', color: '#10B981' },
@@ -212,6 +212,21 @@ export default function RewardShopScreen() {
         ]);
     };
 
+    const handleDeliverItem = (item) => {
+        if (item.status === 'completed') return;
+        Alert.alert(
+            "Entregar Prêmio",
+            `Você já entregou "${item.rewards?.title || 'este item'}" para ${item.profiles?.name || 'o recruta'}?`,
+            [
+                { text: "Ainda Não", style: "cancel" },
+                { text: "Sim, Entregue", onPress: async () => {
+                        await supabase.from('reward_requests').update({ status: 'completed' }).eq('id', item.id);
+                        fetchSales();
+                    }}
+            ]
+        );
+    };
+
     const openEditModal = (item) => {
         setEditingReward(item); setTitle(item.title); setCost(String(item.cost));
         setSelectedIcon(item.icon); setIsInfinite(item.is_infinite); setStock(String(item.stock));
@@ -229,28 +244,46 @@ export default function RewardShopScreen() {
         const purchaseDate = new Date(item.created_at);
         const formattedDate = `${purchaseDate.getDate().toString().padStart(2, '0')}/${(purchaseDate.getMonth()+1).toString().padStart(2, '0')} às ${purchaseDate.getHours().toString().padStart(2, '0')}:${purchaseDate.getMinutes().toString().padStart(2, '0')}`;
 
+        const isDelivered = item.status === 'completed';
+
         return (
-            <View style={styles.historyCard}>
-                <View style={styles.historyIconBox}>
-                    <MaterialCommunityIcons name={item.rewards?.icon || 'gift'} size={28} color={SHOP_THEME.primary} />
+            <TouchableOpacity
+                style={[styles.historyCard, isDelivered && { opacity: 0.6 }]}
+                activeOpacity={0.7}
+                onPress={() => handleDeliverItem(item)}
+            >
+                <View style={[styles.historyIconBox, isDelivered && { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}>
+                    <MaterialCommunityIcons
+                        name={isDelivered ? "check-circle" : (item.rewards?.icon || 'gift')}
+                        size={28}
+                        color={isDelivered ? '#10B981' : SHOP_THEME.primary}
+                    />
                 </View>
 
                 <View style={styles.historyInfo}>
-                    <Text style={styles.historyTitle} numberOfLines={1}>{item.rewards?.title || "Item Removido"}</Text>
-                    <View style={styles.historyBuyerRow}>
+                    <Text style={[styles.historyTitle, isDelivered && { textDecorationLine: 'line-through', color: '#94A3B8' }]} numberOfLines={1}>
+                        {item.rewards?.title || "Item Removido"}
+                    </Text>
+                    <View style={[styles.historyBuyerRow, isDelivered && { backgroundColor: 'transparent', paddingHorizontal: 0 }]}>
                         <MaterialCommunityIcons name="account" size={12} color="#64748B" />
                         <Text style={styles.historyBuyerText}>{item.profiles?.name || "Recruta"}</Text>
+
+                        {!isDelivered && (
+                            <View style={styles.pendingBadge}>
+                                <Text style={styles.pendingBadgeText}>Pendente</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
                 <View style={styles.historyCostBox}>
                     <View style={styles.historyCostRow}>
-                        <Text style={styles.historyCostText}>-{itemCost}</Text>
+                        <Text style={[styles.historyCostText, isDelivered && { color: '#94A3B8' }]}>-{itemCost}</Text>
                         <AnimatedCoin size={14} style={{marginLeft: 2}} />
                     </View>
                     <Text style={styles.historyDate}>{formattedDate}</Text>
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -303,6 +336,7 @@ export default function RewardShopScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
+            {/* HEADER CORRIGIDO COM BORDA EM TODOS OS LADOS E SEM WRAPPER CLIPPING */}
             <View style={styles.headerContainer}>
                 <View style={styles.topBar}>
                     {isAdmin ? (
@@ -310,7 +344,7 @@ export default function RewardShopScreen() {
                             <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
                         </TouchableOpacity>
                     ) : (
-                        <View style={{ height: 40 }} /> /* Espaçador fantasma para garantir que a placa fique alinhada para a criança */
+                        <View style={{ height: 40 }} />
                     )}
 
                     {isAdmin && (
@@ -340,15 +374,19 @@ export default function RewardShopScreen() {
             </View>
 
             <View style={styles.bodyContainer}>
-                <View style={styles.tabBar}>
-                    <TouchableOpacity style={[styles.tabItem, activeTab === 'shop' && styles.tabActive]} onPress={() => setActiveTab('shop')} activeOpacity={0.8}>
-                        <Text style={[styles.tabText, activeTab === 'shop' && styles.tabTextActive]}>VITRINE</Text>
-                    </TouchableOpacity>
-                    {isAdmin && (
-                        <TouchableOpacity style={[styles.tabItem, activeTab === 'sales' && styles.tabActive]} onPress={() => setActiveTab('sales')} activeOpacity={0.8}>
-                            <Text style={[styles.tabText, activeTab === 'sales' && styles.tabTextActive]}>HISTÓRICO</Text>
+
+                {/* TABS DE VITRINE E HISTÓRICO COM BORDA FINA */}
+                <View style={styles.tabContainer}>
+                    <View style={styles.tabBar}>
+                        <TouchableOpacity style={[styles.tabItem, activeTab === 'shop' && styles.tabActive]} onPress={() => setActiveTab('shop')} activeOpacity={0.8}>
+                            <Text style={[styles.tabText, activeTab === 'shop' && styles.tabTextActive]}>VITRINE</Text>
                         </TouchableOpacity>
-                    )}
+                        {isAdmin && (
+                            <TouchableOpacity style={[styles.tabItem, activeTab === 'sales' && styles.tabActive]} onPress={() => setActiveTab('sales')} activeOpacity={0.8}>
+                                <Text style={[styles.tabText, activeTab === 'sales' && styles.tabTextActive]}>HISTÓRICO</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
 
                 {activeTab === 'shop' && (
@@ -373,6 +411,11 @@ export default function RewardShopScreen() {
                         contentContainerStyle={styles.listContent}
                         showsVerticalScrollIndicator={false}
                         renderItem={renderSalesItem}
+                        ListHeaderComponent={
+                            salesList.length > 0 ? (
+                                <Text style={styles.historyInstruction}>Toque num pedido pendente para marcá-lo como entregue.</Text>
+                            ) : null
+                        }
                         ListEmptyComponent={<View style={styles.emptyState}><MaterialCommunityIcons name="history" size={40} color="#64748B"/><Text style={styles.emptyText}>Nenhuma venda ainda.</Text></View>}
                     />
                 )}
@@ -394,7 +437,7 @@ export default function RewardShopScreen() {
 
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>NOME DO ITEM</Text>
-                            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Sorvete" placeholderTextColor="#94A3B8" />
+                            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Sorvete" placeholderTextColor="#94A3B8" maxLength={30} />
                         </View>
 
                         <View style={styles.row}>
@@ -409,7 +452,7 @@ export default function RewardShopScreen() {
                             <View style={{flex: 1}}>
                                 <Text style={styles.label}>ESTOQUE</Text>
                                 <View style={[styles.inputWithIcon, { justifyContent: 'space-between' }]}>
-                                    {isInfinite ? <MaterialCommunityIcons name="infinity" size={24} color="#64748B" /> : <TextInput style={styles.inputClean} keyboardType="number-pad" value={stock} onChangeText={setStock} placeholder="Qtd" />}
+                                    {isInfinite ? <MaterialCommunityIcons name="infinity" size={24} color="#64748B" /> : <TextInput style={styles.inputClean} keyboardType="number-pad" value={stock} onChangeText={setStock} placeholder="Qtd" maxLength={3} />}
                                     <Switch trackColor={{ false: "#E2E8F0", true: SHOP_THEME.light }} thumbColor={isInfinite ? SHOP_THEME.secondary : "#f4f3f4"} value={isInfinite} onValueChange={setIsInfinite} />
                                 </View>
                             </View>
@@ -469,7 +512,6 @@ export default function RewardShopScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
-            {/* MODAL RENOMEAR LOJA */}
             <Modal visible={showRenameModal} transparent animationType="fade" statusBarTranslucent>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -487,7 +529,6 @@ export default function RewardShopScreen() {
                 </View>
             </Modal>
 
-            {/* MENU DE CONFIGURAÇÕES */}
             <Modal visible={showSettingsMenu} transparent animationType="fade" statusBarTranslucent>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSettingsMenu(false)}>
                     <View style={styles.settingsMenu}>
@@ -513,7 +554,23 @@ const styles = StyleSheet.create({
     coinGlow: { position: 'absolute', backgroundColor: '#FFD700', borderRadius: 50, zIndex: 1, shadowColor: "#FFD700", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10, elevation: 10 },
 
     container: { flex: 1, backgroundColor: '#FDFCF8' },
-    headerContainer: { backgroundColor: SHOP_THEME.primary, paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 10, zIndex: 10 },
+
+    // HEADER CORRIGIDO (Borda 2px em todos os lados + sombra sem clipping)
+    headerContainer: {
+        backgroundColor: SHOP_THEME.primary,
+        paddingBottom: 20,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+        borderWidth: 2,           // Borda em todos os lados
+        borderColor: '#6D28D9',   // Cor mais escura para o contorno
+        elevation: 8,             // Sombra no Android
+        shadowColor: "#000",      // Sombra no iOS
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 5,
+        zIndex: 10
+    },
+
     topBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50 },
     circleBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
 
@@ -529,14 +586,54 @@ const styles = StyleSheet.create({
     closedText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
     bodyContainer: { flex: 1, marginTop: 15 },
-    tabBar: { flexDirection: 'row', justifyContent: 'center', marginBottom: 10 },
-    tabItem: { paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, backgroundColor: '#E2E8F0', marginHorizontal: 5 },
-    tabActive: { backgroundColor: SHOP_THEME.secondary },
-    tabText: { color: '#64748B', fontSize: 12, fontWeight: 'bold' },
-    tabTextActive: { color: '#FFF' },
 
-    gridContent: { paddingHorizontal: 16, paddingTop: 15, paddingBottom: 100 },
-    listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+    // TABS COM BORDA
+    tabContainer: { alignItems: 'center', marginBottom: 10 },
+    tabBar: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        backgroundColor: '#FFF',
+        borderRadius: 25,
+        padding: 4,
+        borderWidth: 1,
+        borderColor: '#E2E8F0' // Borda fininha e elegante em volta de tudo
+    },
+    tabItem: {
+        paddingVertical: 8,
+        paddingHorizontal: 25,
+        borderRadius: 20,
+        marginHorizontal: 2,
+        backgroundColor: 'transparent'
+    },
+    tabActive: {
+        backgroundColor: SHOP_THEME.light,
+        borderWidth: 1,
+        borderColor: SHOP_THEME.secondary // Borda roxa evidenciando o ativo
+    },
+    tabText: { color: '#64748B', fontSize: 12, fontWeight: 'bold' },
+    tabTextActive: { color: SHOP_THEME.primary },
+
+    gridContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 100 },
+    listContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 10 },
+
+    // HISTÓRICO
+    historyInstruction: { fontFamily: FONTS.medium, fontSize: 11, color: '#94A3B8', textAlign: 'center', marginBottom: 15 },
+    historyCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
+    historyIconBox: { width: 48, height: 48, backgroundColor: '#F8FAFC', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+    historyInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },
+    historyTitle: { fontFamily: FONTS.bold, fontSize: 15, color: '#1E293B', marginBottom: 4 },
+    historyBuyerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    historyBuyerText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B', marginLeft: 4 },
+    historyCostBox: { alignItems: 'flex-end', justifyContent: 'center' },
+    historyCostRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+    historyCostText: { fontFamily: FONTS.bold, fontSize: 16, color: '#EF4444' },
+    historyDate: { fontSize: 10, fontFamily: FONTS.regular, color: '#94A3B8' },
+
+    // TAG DE PENDENTE
+    pendingBadge: { backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8, borderWidth: 1, borderColor: '#FDE68A' },
+    pendingBadgeText: { fontSize: 8, fontFamily: FONTS.bold, color: '#D97706' },
+
+    // CARDS LOJA
     cardWrapper: { width: CARD_WIDTH, marginBottom: 20, borderRadius: 20, marginTop: 10 },
     cardFront: { borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, minHeight: 200, elevation: 2 },
     glowShadow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, opacity: 0.6, transform: [{scale: 1.05}] },
@@ -555,17 +652,6 @@ const styles = StyleSheet.create({
 
     fab: { position: 'absolute', bottom: 30, right: 20, borderRadius: 30, elevation: 8 },
     fabSolid: { width: 60, height: 60, borderRadius: 30, backgroundColor: SHOP_THEME.secondary, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
-
-    historyCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
-    historyIconBox: { width: 48, height: 48, backgroundColor: '#F8FAFC', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
-    historyInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },
-    historyTitle: { fontFamily: FONTS.bold, fontSize: 15, color: '#1E293B', marginBottom: 4 },
-    historyBuyerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    historyBuyerText: { fontSize: 10, fontFamily: FONTS.bold, color: '#64748B', marginLeft: 4 },
-    historyCostBox: { alignItems: 'flex-end', justifyContent: 'center' },
-    historyCostRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-    historyCostText: { fontFamily: FONTS.bold, fontSize: 16, color: '#EF4444' },
-    historyDate: { fontSize: 10, fontFamily: FONTS.regular, color: '#94A3B8' },
 
     emptyState: { alignItems: 'center', marginTop: 50 },
     emptyText: { color: '#94A3B8', marginTop: 10, fontFamily: FONTS.bold },

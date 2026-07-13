@@ -348,7 +348,8 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
         zIndex: 10,
-        shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
+        shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5,
+        borderWidth:2, borderColor:'#01a36a'
     },
     topAreaGreen: { backgroundColor: '#10B981' },
     topAreaRed: { backgroundColor: '#EF4444' },

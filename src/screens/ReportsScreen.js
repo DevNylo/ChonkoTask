@@ -294,7 +294,7 @@ export default function ReportsScreen() {
                     <Text style={styles.dropdownText} numberOfLines={1}>
                         {selectedProfile ? selectedProfile.name.toUpperCase() : "TODOS"}
                     </Text>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color="#10B981" />
+                    <MaterialCommunityIcons name="chevron-down" size={20} color="#D97706" />
                 </TouchableOpacity>
             </View>
 
@@ -557,13 +557,13 @@ export default function ReportsScreen() {
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>FILTRAR RELATÓRIO</Text>
                         <TouchableOpacity style={styles.modalOption} onPress={() => { setSelectedProfile(null); setShowUserModal(false); }}>
-                            <Text style={[styles.modalOptionText, !selectedProfile && {color: '#10B981'}]}>TODOS DA EQUIPE</Text>
-                            {!selectedProfile && <MaterialCommunityIcons name="check" size={20} color="#10B981" />}
+                            <Text style={[styles.modalOptionText, !selectedProfile && {color: '#D97706'}]}>TODOS DA EQUIPE</Text>
+                            {!selectedProfile && <MaterialCommunityIcons name="check" size={20} color="#D97706" />}
                         </TouchableOpacity>
                         {profiles.map(p => (
                             <TouchableOpacity key={p.id} style={styles.modalOption} onPress={() => { setSelectedProfile(p); setShowUserModal(false); }}>
-                                <Text style={[styles.modalOptionText, selectedProfile?.id === p.id && {color: '#10B981'}]}>{p.name}</Text>
-                                {selectedProfile?.id === p.id && <MaterialCommunityIcons name="check" size={20} color="#10B981" />}
+                                <Text style={[styles.modalOptionText, selectedProfile?.id === p.id && {color: '#D97706'}]}>{p.name}</Text>
+                                {selectedProfile?.id === p.id && <MaterialCommunityIcons name="check" size={20} color="#D97706" />}
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -580,9 +580,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, paddingTop: 60, paddingBottom: 25,
         borderBottomLeftRadius: 35, borderBottomRightRadius: 35,
-        backgroundColor: '#10B981',
+        backgroundColor: '#F59E0B',
+        borderColor: '#D97706',
         zIndex: 10,
-        elevation: 5
+        elevation: 5,
+        borderWidth: 2,
+
     },
     headerTitle: { fontFamily: FONTS.bold, fontSize: 16, color: '#FFF', letterSpacing: 1 },
     backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14 },
@@ -593,7 +596,7 @@ const styles = StyleSheet.create({
         borderRadius: 20, gap: 5,
         elevation: 2, maxWidth: 120
     },
-    dropdownText: { fontFamily: FONTS.bold, color: '#10B981', fontSize: 10 },
+    dropdownText: { fontFamily: FONTS.bold, color: '#D97706', fontSize: 10 },
 
     scrollContent: { padding: 20, paddingBottom: 50 },
 
@@ -656,8 +659,8 @@ const styles = StyleSheet.create({
     emptyText: { textAlign: 'center', color: '#94A3B8', fontFamily: FONTS.medium, marginTop: 10 },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 2, borderColor: '#10B981' },
-    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#10B981', marginBottom: 15, fontSize: 16 },
+    modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 2, borderColor: '#D97706' },
+    modalTitle: { textAlign: 'center', fontFamily: FONTS.bold, color: '#D97706', marginBottom: 15, fontSize: 16 },
     modalOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
     modalOptionText: { fontFamily: FONTS.bold, color: '#64748B' },
 });
