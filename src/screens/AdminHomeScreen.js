@@ -5,6 +5,7 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
+    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -17,6 +18,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { FONTS } from '../styles/theme';
 
@@ -61,6 +63,7 @@ export default function AdminHomeScreen() {
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
     const [feedbackSubject, setFeedbackSubject] = useState('bug');
     const [feedbackMessage, setFeedbackMessage] = useState('');
+    const [feedbackImages, setFeedbackImages] = useState([]); // Agora é um Array
     const [sendingFeedback, setSendingFeedback] = useState(false);
 
     useFocusEffect(
@@ -113,7 +116,7 @@ export default function AdminHomeScreen() {
             setChonkoGems(captainData?.chonko_gems || 0);
 
         } catch (error) {
-            console.log(error);
+            // Tratamento silencioso
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -138,24 +141,114 @@ export default function AdminHomeScreen() {
         }
     };
 
-    const handleSendFeedback = () => {
+    // FUNÇÃO PARA PEGAR MÚLTIPLAS IMAGENS (Até 3)
+    const handlePickImage = async () => {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (permissionResult.granted === false) {
+            Alert.alert("Permissão necessária", "Precisamos de acesso à sua galeria para anexar fotos.");
+            return;
+        }
+
+        const limit = 3 - feedbackImages.length;
+        if (limit <= 0) return;
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], // Sintaxe corrigida para evitar o WARN do Expo
+            allowsMultipleSelection: true,
+            selectionLimit: limit,
+            quality: 0.5,
+        });
+
+        if (!result.canceled) {
+            const newUris = result.assets.map(asset => asset.uri);
+            setFeedbackImages(prev => [...prev, ...newUris]);
+        }
+    };
+
+    const handleRemoveImage = (indexToRemove) => {
+        setFeedbackImages(prev => prev.filter((_, index) => index !== indexToRemove));
+    };
+
+    // INTEGRAÇÃO COM SUPABASE USANDO FORMDATA (Resolve Network Request Failed)
+    const handleSendFeedback = async () => {
         if (!feedbackMessage.trim()) {
             Alert.alert("Ops!", "Por favor, escreva uma mensagem antes de enviar.");
             return;
         }
 
         setSendingFeedback(true);
+        let uploadedUrls = [];
 
-        // Simulação de envio para o banco (Pode ser integrado depois)
-        setTimeout(() => {
-            setSendingFeedback(false);
+        try {
+            // 1. Faz upload das imagens (se existirem)
+            if (feedbackImages.length > 0) {
+                for (let i = 0; i < feedbackImages.length; i++) {
+                    const imageUri = feedbackImages[i];
+                    const fileExt = imageUri.split('.').pop() || 'jpeg';
+                    const fileName = `${profile.id}_${Date.now()}_${i}.${fileExt}`;
+                    const filePath = `prints/${fileName}`;
+
+                    // Criação correta do FormData para o React Native / Android
+                    const formData = new FormData();
+                    formData.append('file', {
+                        uri: imageUri,
+                        name: fileName,
+                        type: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`
+                    });
+
+                    // Sobe o arquivo pro Bucket usando o FormData
+                    const { error: uploadError } = await supabase.storage
+                        .from('feedbacks')
+                        .upload(filePath, formData);
+
+                    if (uploadError) {
+                        throw new Error(`Falha ao subir a imagem ${i + 1}`);
+                    }
+
+                    // Pega a URL pública
+                    const { data: publicUrlData } = supabase.storage
+                        .from('feedbacks')
+                        .getPublicUrl(filePath);
+
+                    uploadedUrls.push(publicUrlData.publicUrl);
+                }
+            }
+
+            // 2. Salva o registro na Tabela de Feedbacks
+            const payload = {
+                profile_id: profile.id,
+                family_id: profile.family_id,
+                subject: feedbackSubject,
+                message: feedbackMessage.trim(),
+                status: 'new',
+                // Se tiver mais de uma, junta com vírgula para caber no seu campo TEXT
+                image_url: uploadedUrls.length > 0 ? uploadedUrls.join(',') : null
+            };
+
+            const { error: dbError } = await supabase.from('app_feedbacks').insert([payload]);
+
+            if (dbError) throw dbError;
+
+            // Sucesso Total! Limpa tudo
             setShowFeedbackModal(false);
             setFeedbackMessage('');
+            setFeedbackImages([]);
             Alert.alert(
                 "Feedback Enviado! 🚀",
                 "Muito obrigado por ajudar a construir o Chonko. Sua opinião é fundamental para nós!"
             );
-        }, 1500);
+        } catch (error) {
+            Alert.alert("Erro", "Não foi possível enviar o feedback agora. " + error.message);
+        } finally {
+            setSendingFeedback(false);
+        }
+    };
+
+    const handleCloseModal = () => {
+        setShowFeedbackModal(false);
+        setFeedbackMessage('');
+        setFeedbackImages([]);
     };
 
     if (loading && !refreshing) {
@@ -278,7 +371,7 @@ export default function AdminHomeScreen() {
                         icon="ticket-percent-outline"
                         color="#F59E0B" shadowColor="#D97706"
                         onPress={() => handleCardPress('SeasonPass', 'PASSE')}
-                        isDisabled={true} // BOTAO DESABILITADO
+                        isDisabled={true}
                     />
                     <MenuButton
                         title="DICAS" subtitle="Tutoriais"
@@ -291,7 +384,7 @@ export default function AdminHomeScreen() {
                         icon="cards-playing-diamond"
                         color="#EC4899" shadowColor="#BE185D"
                         onPress={() => handleCardPress('PremiumStore', 'GEMS')}
-                        isDisabled={true} // BOTAO DESABILITADO
+                        isDisabled={true}
                     />
                 </View>
             </ScrollView>
@@ -342,7 +435,7 @@ export default function AdminHomeScreen() {
             </TouchableOpacity>
 
             {/* MODAL DE FEEDBACK BETA */}
-            <Modal visible={showFeedbackModal} transparent animationType="slide" onRequestClose={() => setShowFeedbackModal(false)}>
+            <Modal visible={showFeedbackModal} transparent animationType="slide" onRequestClose={handleCloseModal}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
@@ -389,13 +482,38 @@ export default function AdminHomeScreen() {
                             maxLength={500}
                         />
 
-                        <TouchableOpacity style={styles.photoBtn} activeOpacity={0.7} onPress={() => Alert.alert("Em breve", "A função de anexo de foto chegará na próxima atualização!")}>
-                            <MaterialCommunityIcons name="camera-plus" size={20} color="#10B981" />
-                            <Text style={styles.photoBtnText}>Anexar Print da Tela (Opcional)</Text>
-                        </TouchableOpacity>
+                        {/* LISTA DE FOTOS SELECIONADAS */}
+                        <View style={styles.photosContainer}>
+                            <View style={styles.photosHeader}>
+                                <Text style={styles.inputLabel}>ANEXOS (OPCIONAL)</Text>
+                                <Text style={styles.photoCounterText}>{feedbackImages.length}/3 fotos</Text>
+                            </View>
+
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photosScroll}>
+                                {feedbackImages.map((uri, index) => (
+                                    <View key={index} style={styles.imagePreviewContainer}>
+                                        <Image source={{ uri }} style={styles.imagePreview} />
+                                        <TouchableOpacity
+                                            style={styles.removeImageBtn}
+                                            activeOpacity={0.8}
+                                            onPress={() => handleRemoveImage(index)}
+                                        >
+                                            <MaterialCommunityIcons name="close" size={14} color="#FFF" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+
+                                {feedbackImages.length < 3 && (
+                                    <TouchableOpacity style={styles.addMorePhotoBtn} activeOpacity={0.7} onPress={handlePickImage}>
+                                        <MaterialCommunityIcons name="camera-plus" size={24} color="#94A3B8" />
+                                        <Text style={styles.addMorePhotoText}>Adicionar</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </ScrollView>
+                        </View>
 
                         <View style={styles.modalActions}>
-                            <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#F1F5F9'}]} onPress={() => setShowFeedbackModal(false)}>
+                            <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#F1F5F9'}]} onPress={handleCloseModal}>
                                 <Text style={[styles.actionBtnText, {color: '#64748B'}]}>CANCELAR</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#F59E0B'}]} onPress={handleSendFeedback} disabled={sendingFeedback}>
@@ -457,7 +575,7 @@ const styles = StyleSheet.create({
     },
     badgeTextTop: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
-    listContent: { padding: 25, paddingBottom: 130 },
+    listContent: { padding: 25, paddingBottom: 150 },
 
     statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     statBox: {
@@ -522,7 +640,13 @@ const styles = StyleSheet.create({
     },
     disabledBadgeText: { fontFamily: FONTS.bold, color: '#FFF', fontSize: 8 },
 
-    dockContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, height: 80, justifyContent: 'flex-end' },
+    dockContainer: {
+        position: 'absolute',
+        bottom: 45,
+        left: 20, right: 20,
+        height: 80,
+        justifyContent: 'flex-end'
+    },
 
     dockBar: {
         marginBottom:5,
@@ -555,29 +679,27 @@ const styles = StyleSheet.create({
         borderWidth: 2, borderColor: '#FFF'
     },
 
-    // FAB FEEDBACK
     fabFeedback: {
         position: 'absolute',
-        bottom: 125, // Fica acima do Dock
+        bottom: 140,
         right: 20,
         width: 50, height: 50, borderRadius: 25,
-        backgroundColor: '#3B82F6', // Azul para chamar atenção, mas não gritar
+        backgroundColor: '#3B82F6',
         justifyContent: 'center', alignItems: 'center',
         borderWidth: 2, borderColor: '#FFF',
         shadowColor: '#1D4ED8', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 6
     },
 
-    // MODAL DE FEEDBACK
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     modalContent: {
         backgroundColor: '#FFF',
         borderTopLeftRadius: 30, borderTopRightRadius: 30,
         padding: 25,
-        maxHeight: Dimensions.get('window').height * 0.85
+        maxHeight: Dimensions.get('window').height * 0.90
     },
     modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
     modalTitle: { fontFamily: FONTS.bold, fontSize: 20, color: '#1E293B' },
-    modalSub: { fontFamily: FONTS.medium, fontSize: 13, color: '#64748B', lineHeight: 18, marginBottom: 25 },
+    modalSub: { fontFamily: FONTS.medium, fontSize: 13, color: '#64748B', lineHeight: 18, marginBottom: 20 },
 
     inputLabel: { fontFamily: FONTS.bold, fontSize: 11, color: '#94A3B8', marginBottom: 8, letterSpacing: 1 },
 
@@ -594,19 +716,43 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: '#E2E8F0',
         borderRadius: 16,
         padding: 15,
-        height: 120,
+        height: 100,
         fontFamily: FONTS.medium, color: '#1E293B',
         marginBottom: 15
     },
 
-    photoBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-        backgroundColor: '#ECFDF5',
-        paddingVertical: 15, borderRadius: 16,
-        borderWidth: 1, borderColor: '#A7F3D0', borderStyle: 'dashed',
-        marginBottom: 25
+    // SISTEMA DE MÚLTIPLAS FOTOS
+    photosContainer: { marginBottom: 20 },
+    photosHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    photoCounterText: { fontFamily: FONTS.bold, fontSize: 10, color: '#94A3B8' },
+    photosScroll: { gap: 12, paddingVertical: 5 },
+
+    imagePreviewContainer: {
+        position: 'relative',
+        width: 80, height: 80,
     },
-    photoBtnText: { fontFamily: FONTS.bold, fontSize: 12, color: '#10B981' },
+    imagePreview: {
+        width: '100%', height: '100%',
+        borderRadius: 14,
+        borderWidth: 1, borderColor: '#E2E8F0'
+    },
+    removeImageBtn: {
+        position: 'absolute',
+        top: -8, right: -8,
+        backgroundColor: '#EF4444',
+        width: 24, height: 24, borderRadius: 12,
+        justifyContent: 'center', alignItems: 'center',
+        borderWidth: 2, borderColor: '#FFF', elevation: 3,
+    },
+
+    addMorePhotoBtn: {
+        width: 80, height: 80,
+        borderRadius: 14,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 2, borderColor: '#E2E8F0', borderStyle: 'dashed',
+        justifyContent: 'center', alignItems: 'center'
+    },
+    addMorePhotoText: { fontFamily: FONTS.bold, fontSize: 10, color: '#94A3B8', marginTop: 4 },
 
     modalActions: { flexDirection: 'row', gap: 15, paddingBottom: Platform.OS === 'ios' ? 20 : 0 },
     actionBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
