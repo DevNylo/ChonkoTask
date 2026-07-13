@@ -5,11 +5,15 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -18,14 +22,25 @@ import { FONTS } from '../styles/theme';
 
 const { width } = Dimensions.get('window');
 
-// Componente de Botão 3D Estilizado para o Menu Principal
-const MenuButton = ({ title, subtitle, icon, color, shadowColor, onPress }) => (
-    <TouchableOpacity style={styles.menuBtnWrapper} activeOpacity={0.9} onPress={onPress}>
-        <View style={[styles.menuBtnShadow, { backgroundColor: shadowColor }]} />
-        <View style={[styles.menuBtnFront, { backgroundColor: color }]}>
+// Componente de Botão 3D Estilizado para o Menu Principal com suporte a 'Disabled'
+const MenuButton = ({ title, subtitle, icon, color, shadowColor, onPress, isDisabled = false }) => (
+    <TouchableOpacity
+        style={[styles.menuBtnWrapper, isDisabled && { opacity: 0.7 }]}
+        activeOpacity={0.9}
+        onPress={isDisabled ? null : onPress}
+    >
+        <View style={[styles.menuBtnShadow, { backgroundColor: isDisabled ? '#94A3B8' : shadowColor }]} />
+        <View style={[styles.menuBtnFront, { backgroundColor: isDisabled ? '#CBD5E1' : color }]}>
             <MaterialCommunityIcons name={icon} size={36} color="#FFF" style={{ marginBottom: 5 }} />
             <Text style={styles.menuBtnTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.menuBtnSubtitle} numberOfLines={1}>{subtitle}</Text>
+
+            {/* Badge de Em Breve */}
+            {isDisabled && (
+                <View style={styles.disabledBadge}>
+                    <Text style={styles.disabledBadgeText}>EM BREVE</Text>
+                </View>
+            )}
         </View>
     </TouchableOpacity>
 );
@@ -41,6 +56,12 @@ export default function AdminHomeScreen() {
     const [chonkoGems, setChonkoGems] = useState(0);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Estados do Modal de Feedback
+    const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+    const [feedbackSubject, setFeedbackSubject] = useState('bug');
+    const [feedbackMessage, setFeedbackMessage] = useState('');
+    const [sendingFeedback, setSendingFeedback] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -109,14 +130,32 @@ export default function AdminHomeScreen() {
         }
     };
 
-    // SOLUÇÃO DO BUG DO BOTÃO VOLTAR
     const handleDevSwitchProfile = async () => {
         try {
-            // Em vez de goBack (que as vezes empilha as telas), o replace destroi o QG e abre a Role
             navigation.replace('RoleSelection');
         } catch (e) {
             await supabase.auth.signOut();
         }
+    };
+
+    const handleSendFeedback = () => {
+        if (!feedbackMessage.trim()) {
+            Alert.alert("Ops!", "Por favor, escreva uma mensagem antes de enviar.");
+            return;
+        }
+
+        setSendingFeedback(true);
+
+        // Simulação de envio para o banco (Pode ser integrado depois)
+        setTimeout(() => {
+            setSendingFeedback(false);
+            setShowFeedbackModal(false);
+            setFeedbackMessage('');
+            Alert.alert(
+                "Feedback Enviado! 🚀",
+                "Muito obrigado por ajudar a construir o Chonko. Sua opinião é fundamental para nós!"
+            );
+        }, 1500);
     };
 
     if (loading && !refreshing) {
@@ -208,6 +247,17 @@ export default function AdminHomeScreen() {
                     </TouchableOpacity>
                 </View>
 
+                {/* BANNER BETA */}
+                <View style={styles.betaBanner}>
+                    <View style={styles.betaBannerIconBg}>
+                        <MaterialCommunityIcons name="flask-outline" size={24} color="#F59E0B" />
+                    </View>
+                    <View style={{flex: 1}}>
+                        <Text style={styles.betaBannerTitle}>Versão Beta</Text>
+                        <Text style={styles.betaBannerText}>Você está usando uma versão de testes. Encontrou um bug ou tem uma ideia? Conta pra gente no botão flutuante!</Text>
+                    </View>
+                </View>
+
                 <Text style={styles.sectionTitle}>CENTRAL DE COMANDO</Text>
 
                 <View style={styles.menuGrid}>
@@ -228,6 +278,7 @@ export default function AdminHomeScreen() {
                         icon="ticket-percent-outline"
                         color="#F59E0B" shadowColor="#D97706"
                         onPress={() => handleCardPress('SeasonPass', 'PASSE')}
+                        isDisabled={true} // BOTAO DESABILITADO
                     />
                     <MenuButton
                         title="DICAS" subtitle="Tutoriais"
@@ -240,6 +291,7 @@ export default function AdminHomeScreen() {
                         icon="cards-playing-diamond"
                         color="#EC4899" shadowColor="#BE185D"
                         onPress={() => handleCardPress('PremiumStore', 'GEMS')}
+                        isDisabled={true} // BOTAO DESABILITADO
                     />
                 </View>
             </ScrollView>
@@ -279,6 +331,84 @@ export default function AdminHomeScreen() {
                     </View>
                 </TouchableOpacity>
             </View>
+
+            {/* BOTÃO FLUTUANTE DE FEEDBACK */}
+            <TouchableOpacity
+                style={styles.fabFeedback}
+                activeOpacity={0.9}
+                onPress={() => setShowFeedbackModal(true)}
+            >
+                <MaterialCommunityIcons name="message-alert" size={24} color="#FFF" />
+            </TouchableOpacity>
+
+            {/* MODAL DE FEEDBACK BETA */}
+            <Modal visible={showFeedbackModal} transparent animationType="slide" onRequestClose={() => setShowFeedbackModal(false)}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <MaterialCommunityIcons name="flask" size={28} color="#F59E0B" />
+                            <Text style={styles.modalTitle}>Enviar Feedback</Text>
+                        </View>
+
+                        <Text style={styles.modalSub}>Como estamos na versão Beta, sua opinião vale ouro. Encontrou um erro ou tem uma sugestão genial?</Text>
+
+                        <Text style={styles.inputLabel}>ASSUNTO</Text>
+                        <View style={styles.subjectRow}>
+                            <TouchableOpacity
+                                style={[styles.subjectBtn, feedbackSubject === 'bug' && styles.subjectBtnActive]}
+                                onPress={() => setFeedbackSubject('bug')}
+                            >
+                                <MaterialCommunityIcons name="bug" size={18} color={feedbackSubject === 'bug' ? '#FFF' : '#EF4444'} />
+                                <Text style={[styles.subjectText, feedbackSubject === 'bug' && {color: '#FFF'}]}>Erro</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.subjectBtn, feedbackSubject === 'idea' && styles.subjectBtnActive]}
+                                onPress={() => setFeedbackSubject('idea')}
+                            >
+                                <MaterialCommunityIcons name="lightbulb-on" size={18} color={feedbackSubject === 'idea' ? '#FFF' : '#F59E0B'} />
+                                <Text style={[styles.subjectText, feedbackSubject === 'idea' && {color: '#FFF'}]}>Ideia</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.subjectBtn, feedbackSubject === 'other' && styles.subjectBtnActive]}
+                                onPress={() => setFeedbackSubject('other')}
+                            >
+                                <MaterialCommunityIcons name="chat-question" size={18} color={feedbackSubject === 'other' ? '#FFF' : '#3B82F6'} />
+                                <Text style={[styles.subjectText, feedbackSubject === 'other' && {color: '#FFF'}]}>Dúvida</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.inputLabel}>MENSAGEM</Text>
+                        <TextInput
+                            style={styles.textInputArea}
+                            placeholder="Descreva aqui com o máximo de detalhes..."
+                            placeholderTextColor="#94A3B8"
+                            multiline
+                            textAlignVertical="top"
+                            value={feedbackMessage}
+                            onChangeText={setFeedbackMessage}
+                            maxLength={500}
+                        />
+
+                        <TouchableOpacity style={styles.photoBtn} activeOpacity={0.7} onPress={() => Alert.alert("Em breve", "A função de anexo de foto chegará na próxima atualização!")}>
+                            <MaterialCommunityIcons name="camera-plus" size={20} color="#10B981" />
+                            <Text style={styles.photoBtnText}>Anexar Print da Tela (Opcional)</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#F1F5F9'}]} onPress={() => setShowFeedbackModal(false)}>
+                                <Text style={[styles.actionBtnText, {color: '#64748B'}]}>CANCELAR</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#F59E0B'}]} onPress={handleSendFeedback} disabled={sendingFeedback}>
+                                {sendingFeedback ? (
+                                    <ActivityIndicator color="#FFF" size="small" />
+                                ) : (
+                                    <Text style={[styles.actionBtnText, {color: '#FFF'}]}>ENVIAR</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
         </View>
     );
 }
@@ -329,7 +459,7 @@ const styles = StyleSheet.create({
 
     listContent: { padding: 25, paddingBottom: 130 },
 
-    statsRow: { flexDirection: 'row', gap: 10, marginBottom: 30 },
+    statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     statBox: {
         flex: 1,
         backgroundColor: '#FFF',
@@ -343,10 +473,29 @@ const styles = StyleSheet.create({
     statNumber: { fontFamily: FONTS.regular, fontSize: 18, color: '#1E293B', marginTop: 5 },
     statLabel: { fontFamily: FONTS.regular, fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
 
+    // BANNER BETA
+    betaBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFBEB',
+        padding: 15,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#FDE68A',
+        marginBottom: 30,
+        gap: 15
+    },
+    betaBannerIconBg: {
+        width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEF3C7',
+        justifyContent: 'center', alignItems: 'center'
+    },
+    betaBannerTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#D97706', marginBottom: 2 },
+    betaBannerText: { fontFamily: FONTS.medium, fontSize: 11, color: '#B45309', lineHeight: 16 },
+
     sectionTitle: { fontFamily: FONTS.bold, fontSize: 14, color: '#94A3B8', letterSpacing: 1.5, marginBottom: 20 },
 
     menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-    menuBtnWrapper: { width: (width - 65) / 2, height: 120, marginBottom: 20 },
+    menuBtnWrapper: { width: (width - 65) / 2, height: 120, marginBottom: 20, position: 'relative' },
     menuBtnShadow: { position: 'absolute', bottom: -5, width: '100%', height: '100%', borderRadius: 24 },
     menuBtnFront: {
         flex: 1,
@@ -359,6 +508,19 @@ const styles = StyleSheet.create({
     },
     menuBtnTitle: { fontFamily: FONTS.bold, fontSize: 15, color: '#FFF', marginTop: 5, textAlign: 'center', letterSpacing: 1.2 },
     menuBtnSubtitle: { fontFamily: FONTS.regular, fontSize: 12, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
+
+    // BADGE EM BREVE
+    disabledBadge: {
+        position: 'absolute',
+        top: 10, right: -5,
+        backgroundColor: '#EF4444',
+        paddingHorizontal: 8, paddingVertical: 3,
+        borderRadius: 8,
+        transform: [{ rotate: '10deg' }],
+        borderWidth: 1, borderColor: '#FFF',
+        shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.2, shadowRadius: 2, elevation: 3
+    },
+    disabledBadgeText: { fontFamily: FONTS.bold, color: '#FFF', fontSize: 8 },
 
     dockContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, height: 80, justifyContent: 'flex-end' },
 
@@ -392,4 +554,61 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center',
         borderWidth: 2, borderColor: '#FFF'
     },
+
+    // FAB FEEDBACK
+    fabFeedback: {
+        position: 'absolute',
+        bottom: 125, // Fica acima do Dock
+        right: 20,
+        width: 50, height: 50, borderRadius: 25,
+        backgroundColor: '#3B82F6', // Azul para chamar atenção, mas não gritar
+        justifyContent: 'center', alignItems: 'center',
+        borderWidth: 2, borderColor: '#FFF',
+        shadowColor: '#1D4ED8', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 6
+    },
+
+    // MODAL DE FEEDBACK
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalContent: {
+        backgroundColor: '#FFF',
+        borderTopLeftRadius: 30, borderTopRightRadius: 30,
+        padding: 25,
+        maxHeight: Dimensions.get('window').height * 0.85
+    },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+    modalTitle: { fontFamily: FONTS.bold, fontSize: 20, color: '#1E293B' },
+    modalSub: { fontFamily: FONTS.medium, fontSize: 13, color: '#64748B', lineHeight: 18, marginBottom: 25 },
+
+    inputLabel: { fontFamily: FONTS.bold, fontSize: 11, color: '#94A3B8', marginBottom: 8, letterSpacing: 1 },
+
+    subjectRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+    subjectBtn: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+        paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC'
+    },
+    subjectBtnActive: { backgroundColor: '#334155', borderColor: '#334155' },
+    subjectText: { fontFamily: FONTS.bold, fontSize: 12, color: '#64748B' },
+
+    textInputArea: {
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1, borderColor: '#E2E8F0',
+        borderRadius: 16,
+        padding: 15,
+        height: 120,
+        fontFamily: FONTS.medium, color: '#1E293B',
+        marginBottom: 15
+    },
+
+    photoBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        backgroundColor: '#ECFDF5',
+        paddingVertical: 15, borderRadius: 16,
+        borderWidth: 1, borderColor: '#A7F3D0', borderStyle: 'dashed',
+        marginBottom: 25
+    },
+    photoBtnText: { fontFamily: FONTS.bold, fontSize: 12, color: '#10B981' },
+
+    modalActions: { flexDirection: 'row', gap: 15, paddingBottom: Platform.OS === 'ios' ? 20 : 0 },
+    actionBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    actionBtnText: { fontFamily: FONTS.bold, fontSize: 14, letterSpacing: 1 }
 });
