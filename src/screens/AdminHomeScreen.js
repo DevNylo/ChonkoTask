@@ -19,6 +19,7 @@ import {
     View
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '../lib/supabase';
 import { FONTS } from '../styles/theme';
 
@@ -63,7 +64,7 @@ export default function AdminHomeScreen() {
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
     const [feedbackSubject, setFeedbackSubject] = useState('bug');
     const [feedbackMessage, setFeedbackMessage] = useState('');
-    const [feedbackImages, setFeedbackImages] = useState([]); // Agora é um Array
+    const [feedbackImages, setFeedbackImages] = useState([]); // Array de objetos { uri, base64 }
     const [sendingFeedback, setSendingFeedback] = useState(false);
 
     useFocusEffect(
@@ -141,7 +142,7 @@ export default function AdminHomeScreen() {
         }
     };
 
-    // FUNÇÃO PARA PEGAR MÚLTIPLAS IMAGENS (Até 3)
+    // FUNÇÃO PARA PEGAR MÚLTIPLAS IMAGENS (Até 3) COM BASE64
     const handlePickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -154,15 +155,19 @@ export default function AdminHomeScreen() {
         if (limit <= 0) return;
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'], // Sintaxe corrigida para evitar o WARN do Expo
+            mediaTypes: ['images'],
             allowsMultipleSelection: true,
             selectionLimit: limit,
             quality: 0.5,
+            base64: true, // EXTREMAMENTE IMPORTANTE PARA O SUPABASE
         });
 
         if (!result.canceled) {
-            const newUris = result.assets.map(asset => asset.uri);
-            setFeedbackImages(prev => [...prev, ...newUris]);
+            const newAssets = result.assets.map(asset => ({
+                uri: asset.uri,
+                base64: asset.base64
+            }));
+            setFeedbackImages(prev => [...prev, ...newAssets]);
         }
     };
 
@@ -170,7 +175,7 @@ export default function AdminHomeScreen() {
         setFeedbackImages(prev => prev.filter((_, index) => index !== indexToRemove));
     };
 
-    // INTEGRAÇÃO COM SUPABASE USANDO FORMDATA (Resolve Network Request Failed)
+    // INTEGRAÇÃO COM SUPABASE USANDO BASE64-ARRAYBUFFER (Padrão Ouro para React Native)
     const handleSendFeedback = async () => {
         if (!feedbackMessage.trim()) {
             Alert.alert("Ops!", "Por favor, escreva uma mensagem antes de enviar.");
@@ -181,26 +186,20 @@ export default function AdminHomeScreen() {
         let uploadedUrls = [];
 
         try {
-            // 1. Faz upload das imagens (se existirem)
+            // 1. Faz upload das imagens base64 decodificadas
             if (feedbackImages.length > 0) {
                 for (let i = 0; i < feedbackImages.length; i++) {
-                    const imageUri = feedbackImages[i];
-                    const fileExt = imageUri.split('.').pop() || 'jpeg';
+                    const imageAsset = feedbackImages[i];
+                    const fileExt = imageAsset.uri.split('.').pop() || 'jpeg';
                     const fileName = `${profile.id}_${Date.now()}_${i}.${fileExt}`;
                     const filePath = `prints/${fileName}`;
 
-                    // Criação correta do FormData para o React Native / Android
-                    const formData = new FormData();
-                    formData.append('file', {
-                        uri: imageUri,
-                        name: fileName,
-                        type: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`
-                    });
-
-                    // Sobe o arquivo pro Bucket usando o FormData
+                    // Sobe o arquivo pro Bucket decodificando o base64
                     const { error: uploadError } = await supabase.storage
                         .from('feedbacks')
-                        .upload(filePath, formData);
+                        .upload(filePath, decode(imageAsset.base64), {
+                            contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`
+                        });
 
                     if (uploadError) {
                         throw new Error(`Falha ao subir a imagem ${i + 1}`);
@@ -222,7 +221,6 @@ export default function AdminHomeScreen() {
                 subject: feedbackSubject,
                 message: feedbackMessage.trim(),
                 status: 'new',
-                // Se tiver mais de uma, junta com vírgula para caber no seu campo TEXT
                 image_url: uploadedUrls.length > 0 ? uploadedUrls.join(',') : null
             };
 
@@ -490,9 +488,9 @@ export default function AdminHomeScreen() {
                             </View>
 
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photosScroll}>
-                                {feedbackImages.map((uri, index) => (
+                                {feedbackImages.map((asset, index) => (
                                     <View key={index} style={styles.imagePreviewContainer}>
-                                        <Image source={{ uri }} style={styles.imagePreview} />
+                                        <Image source={{ uri: asset.uri }} style={styles.imagePreview} />
                                         <TouchableOpacity
                                             style={styles.removeImageBtn}
                                             activeOpacity={0.8}
@@ -699,7 +697,7 @@ const styles = StyleSheet.create({
     },
     modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
     modalTitle: { fontFamily: FONTS.bold, fontSize: 20, color: '#1E293B' },
-    modalSub: { fontFamily: FONTS.medium, fontSize: 13, color: '#64748B', lineHeight: 18, marginBottom: 20 },
+    modalSub: { fontFamily: FONTS.medium, fontSize: 13, color: '#64748B', lineHeight: 18, marginBottom: 25 },
 
     inputLabel: { fontFamily: FONTS.bold, fontSize: 11, color: '#94A3B8', marginBottom: 8, letterSpacing: 1 },
 
@@ -716,7 +714,7 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: '#E2E8F0',
         borderRadius: 16,
         padding: 15,
-        height: 100,
+        height: 120,
         fontFamily: FONTS.medium, color: '#1E293B',
         marginBottom: 15
     },

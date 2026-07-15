@@ -1,7 +1,12 @@
-import ChonkoCoinsSvg from '../../../assets/icons/ChonkoCoins.svg';
+import React from 'react';
+import { Image } from 'react-native';
 
 export default function ChonkoCoinIcon({ width = 80, height = 80 }) {
   return (
-    <ChonkoCoinsSvg width={width} height={height} />
+    <Image
+        source={require('../../../assets/icons/ChonkoCoins.png')}
+        style={{ width: width, height: height }}
+        resizeMode="contain"
+    />
   );
 }

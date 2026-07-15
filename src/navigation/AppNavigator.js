@@ -18,7 +18,7 @@ import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import MissionDetailScreen from '../screens/recruit/MissionDetailScreen';
 
 // --- TELAS DO RECRUTA (ABAS) ---
-import RewardShopScreen from '../screens/captain/RewardShopScreen'; // Loja Compartilhada
+import RewardShopScreen from '../screens/admin/RewardShopScreen'; // Loja Compartilhada
 import RecruitHomeScreen from '../screens/recruit/RecruitHomeScreen';
 
 // Telas Placeholder (Crie arquivos vazios se não tiver ainda)
@@ -30,12 +30,12 @@ import TrophiesScreen from '../screens/recruit/TrophiesScreen';
 import AdminHomeScreen from '../screens/AdminHomeScreen';
 import RankingScreen from '../screens/RankingScreen';
 import ReportsScreen from '../screens/ReportsScreen';
-import CreateMissionScreen from '../screens/captain/CreateMissionScreen';
-import FamilySettingsScreen from '../screens/captain/FamilySettingsScreen';
-import MemberRequestsScreen from '../screens/captain/MemberRequestsScreen';
-import MissionManagerScreen from '../screens/captain/MissionManagerScreen';
-import QuickMissionsScreen from '../screens/captain/QuickMissionsScreen';
-import TaskApprovalsScreen from '../screens/captain/TaskApprovalsScreen';
+import CreateMissionScreen from '../screens/admin/CreateMissionScreen';
+import FamilySettingsScreen from '../screens/admin/FamilySettingsScreen';
+import MemberRequestsScreen from '../screens/admin/MemberRequestsScreen';
+import MissionManagerScreen from '../screens/admin/MissionManagerScreen';
+import QuickMissionsScreen from '../screens/admin/QuickMissionsScreen';
+import TaskApprovalsScreen from '../screens/admin/TaskApprovalsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
