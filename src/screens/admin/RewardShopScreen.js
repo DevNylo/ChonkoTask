@@ -25,8 +25,6 @@ import { ICONS_CATALOG } from '../../constants/IconsCatalog';
 import { supabase } from '../../lib/supabase';
 import { FONTS } from '../../styles/theme';
 
-import ChonkoCoinIcon from '../../components/icons/ChonkoCoinIcon.js';
-
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
@@ -39,20 +37,13 @@ const RARITY_OPTIONS = [
     { id: 'legendary', label: 'LENDÁRIO', color: '#F59E0B' },
 ];
 
+// MOEDA LIMPA: Usando o ícone nativo do Expo (MaterialCommunityIcons)
 const AnimatedCoin = ({ size = 24, style = {} }) => {
-    const glowOpacity = useRef(new Animated.Value(0.1)).current;
-    useEffect(() => {
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(glowOpacity, { toValue: 0.5, duration: 1000, useNativeDriver: true }),
-                Animated.timing(glowOpacity, { toValue: 0.2, duration: 1000, useNativeDriver: true })
-            ])
-        ).start();
-    }, []);
     return (
         <View style={[styles.coinContainer, { width: size, height: size }, style]}>
-            <Animated.View style={[styles.coinGlow, { width: size * 1.1, height: size * 1.1, opacity: glowOpacity }]} />
-            <View style={styles.coinImageFront}><ChonkoCoinIcon width={size} height={size} /></View>
+            <View style={styles.coinImageFront}>
+                <MaterialCommunityIcons name="circle-multiple" size={size} color="#F59E0B" />
+            </View>
         </View>
     );
 };
@@ -336,7 +327,6 @@ export default function RewardShopScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* HEADER CORRIGIDO COM BORDA EM TODOS OS LADOS E SEM WRAPPER CLIPPING */}
             <View style={styles.headerContainer}>
                 <View style={styles.topBar}>
                     {isAdmin ? (
@@ -375,7 +365,6 @@ export default function RewardShopScreen() {
 
             <View style={styles.bodyContainer}>
 
-                {/* TABS DE VITRINE E HISTÓRICO COM BORDA FINA */}
                 <View style={styles.tabContainer}>
                     <View style={styles.tabBar}>
                         <TouchableOpacity style={[styles.tabItem, activeTab === 'shop' && styles.tabActive]} onPress={() => setActiveTab('shop')} activeOpacity={0.8}>
@@ -429,7 +418,6 @@ export default function RewardShopScreen() {
                 </TouchableOpacity>
             )}
 
-            {/* MODAL EDITAR/CRIAR */}
             <Modal visible={showItemModal} transparent animationType="slide" onRequestClose={() => setShowItemModal(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -551,20 +539,18 @@ export default function RewardShopScreen() {
 const styles = StyleSheet.create({
     coinContainer: { justifyContent: 'center', alignItems: 'center', position: 'relative' },
     coinImageFront: { zIndex: 2 },
-    coinGlow: { position: 'absolute', backgroundColor: '#FFD700', borderRadius: 50, zIndex: 1, shadowColor: "#FFD700", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10, elevation: 10 },
 
     container: { flex: 1, backgroundColor: '#FDFCF8' },
 
-    // HEADER CORRIGIDO (Borda 2px em todos os lados + sombra sem clipping)
     headerContainer: {
         backgroundColor: SHOP_THEME.primary,
         paddingBottom: 20,
         borderBottomLeftRadius: 30,
         borderBottomRightRadius: 30,
-        borderWidth: 2,           // Borda em todos os lados
-        borderColor: '#6D28D9',   // Cor mais escura para o contorno
-        elevation: 8,             // Sombra no Android
-        shadowColor: "#000",      // Sombra no iOS
+        borderWidth: 2,
+        borderColor: '#6D28D9',
+        elevation: 8,
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 5,
@@ -587,7 +573,6 @@ const styles = StyleSheet.create({
 
     bodyContainer: { flex: 1, marginTop: 15 },
 
-    // TABS COM BORDA
     tabContainer: { alignItems: 'center', marginBottom: 10 },
     tabBar: {
         flexDirection: 'row',
@@ -596,7 +581,7 @@ const styles = StyleSheet.create({
         borderRadius: 25,
         padding: 4,
         borderWidth: 1,
-        borderColor: '#E2E8F0' // Borda fininha e elegante em volta de tudo
+        borderColor: '#E2E8F0'
     },
     tabItem: {
         paddingVertical: 8,
@@ -608,7 +593,7 @@ const styles = StyleSheet.create({
     tabActive: {
         backgroundColor: SHOP_THEME.light,
         borderWidth: 1,
-        borderColor: SHOP_THEME.secondary // Borda roxa evidenciando o ativo
+        borderColor: SHOP_THEME.secondary
     },
     tabText: { color: '#64748B', fontSize: 12, fontWeight: 'bold' },
     tabTextActive: { color: SHOP_THEME.primary },
@@ -616,7 +601,6 @@ const styles = StyleSheet.create({
     gridContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 100 },
     listContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 10 },
 
-    // HISTÓRICO
     historyInstruction: { fontFamily: FONTS.medium, fontSize: 11, color: '#94A3B8', textAlign: 'center', marginBottom: 15 },
     historyCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
     historyIconBox: { width: 48, height: 48, backgroundColor: '#F8FAFC', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
@@ -629,11 +613,9 @@ const styles = StyleSheet.create({
     historyCostText: { fontFamily: FONTS.bold, fontSize: 16, color: '#EF4444' },
     historyDate: { fontSize: 10, fontFamily: FONTS.regular, color: '#94A3B8' },
 
-    // TAG DE PENDENTE
     pendingBadge: { backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8, borderWidth: 1, borderColor: '#FDE68A' },
     pendingBadgeText: { fontSize: 8, fontFamily: FONTS.bold, color: '#D97706' },
 
-    // CARDS LOJA
     cardWrapper: { width: CARD_WIDTH, marginBottom: 20, borderRadius: 20, marginTop: 10 },
     cardFront: { borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, minHeight: 200, elevation: 2 },
     glowShadow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, opacity: 0.6, transform: [{scale: 1.05}] },
